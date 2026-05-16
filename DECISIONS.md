@@ -4999,3 +4999,125 @@ a pytest fixture (which would land in NEXT_WORK item 3's test
 suites). The invariant is testable today by `diff` between the root
 LICENSE and each per-build LICENSE once those three exist.
 
+## 2026-05-16 — `/rag-app/LICENSE` mirrors root LICENSE byte-for-byte (NEXT_WORK item 2, sub-checkbox 2 of 5)
+
+**Decision.** `/rag-app/LICENSE` is a byte-for-byte copy of the root
+`/LICENSE` shipped at iteration 51. Verified: `diff -q` reports the
+two files identical, MD5 is `b638b3ba3fa8e5f2fa37957a345996d6` on
+both, byte count is 1070 on both. No project-specific substitution
+was applied because the canonical text already names "Jubayar Ahad"
+as the copyright holder and "2026" as the year — the same two values
+the rag-app build's `pyproject.toml` authors line and the repo's
+currentDate carry. The file is the same 21-line OSI-canonical MIT
+template GitHub's licensee parser, PyPI's classifier resolution
+pipeline, and pip's metadata-license-id pipeline recognize from the
+root.
+
+**Why a literal copy rather than a path-relative symlink or include
+directive.** Three reasons. (a) **setuptools wheel-builder expects a
+real file.** Iteration 49's build verification showed that the
+canonical `python -m build --sdist --wheel` path runs from the
+build's source root (`/rag-app/`) and resolves `license-files` (or
+the legacy `license = { file = "LICENSE" }` slot, deferred to
+sub-checkbox 5) against that root, not against the repo root. A
+symlink would technically resolve when the source tree is on a
+filesystem that supports symlinks, but symlinks do not survive `pip
+install`-via-tarball-from-PyPI (sdist tarballs follow the symlink at
+build time on the producer side, so the wheel ends up with a real
+file regardless), and the source-tree symlink would silently break
+on Windows checkouts where the default git config sets `core.symlinks
+= false`. A real file is the only encoding that round-trips through
+both filesystems and through the entire sdist → wheel → install
+chain. (b) **Sub-tree extraction works.** A future reader who
+`git filter-branch`es or `git subtree`s `/rag-app/` out of the
+monorepo gets a self-contained tree with its own LICENSE — the
+relative-include encoding would yield a broken reference. This is
+the same self-contained-source-tree property the iteration-51 entry
+named as a load-bearing reason for per-build LICENSE files. (c)
+**Diff-based verification stays trivial.** The byte-for-byte mirror
+property is verified by a one-line `diff -q root_LICENSE
+per_build_LICENSE` that returns silently — no parser, no normalizer,
+no whitespace tolerance. Any future edit to the canonical text only
+has to be propagated to four files, all detectable by `diff` or
+`md5sum` in one command. A symlink would make the verification
+vacuous; an include directive would require parsing.
+
+**Verification surface.** Three independent checks, all run this
+iteration: (1) `diff -q /LICENSE /rag-app/LICENSE` returns no
+output (identical), (2) `md5 /LICENSE /rag-app/LICENSE` produces
+matching hashes `b638b3ba3fa8e5f2fa37957a345996d6` on both, (3) `wc
+-c /rag-app/LICENSE` reports 1070 bytes, matching the iteration-51
+measurement for the root LICENSE. These three checks together rule
+out: any character-level paraphrase (caught by md5/diff), any
+trailing-whitespace or line-ending divergence (caught by md5 even
+when diff in some modes would not), and any encoding shift such as
+BOM addition (caught by byte count). The same three-check protocol
+will be applied to sub-checkboxes 3 and 4 (`tool-use-agent/LICENSE`
+and `evals-harness/LICENSE`).
+
+**Why no consolidating cross-build verification yet.** The
+iteration-51 entry deferred the four-way byte-equivalence assertion
+to "after the next three slices ship," and this slice is the
+second of four — sub-checkboxes 3 and 4 still need to add
+`/tool-use-agent/LICENSE` and `/evals-harness/LICENSE`. Asserting
+two-way mirror equivalence here would be a partial check that risks
+silently passing if the iteration-53 or iteration-54 slice
+introduces a one-byte drift; the canonical four-way check belongs
+in sub-checkbox 5's consolidating entry (analogous to the
+iteration-50 packaging-convention entry that consolidated iterations
+46-49). What this iteration locks is the two-way mirror property
+between root and rag-app/, which is sufficient for the per-instance
+sub-checkbox.
+
+**Why the second build (rag-app) goes first in the per-build
+sequence.** NEXT_WORK item 2 lists the three per-build LICENSE
+sub-checkboxes in the order `rag-app` → `tool-use-agent` →
+`evals-harness`, which matches the order item 1's packaging
+sub-checkboxes shipped at iterations 46/47/48. The ordering is not
+load-bearing for correctness (each per-build LICENSE is independent)
+but matches the precedent shape: rag-app is the largest and most
+externally-facing build (it has a corpus, retrieval, and demo path
+the README walks a reader through), so locking its LICENSE first
+means any reader who clones just `/rag-app/` between this iteration
+and the next has the LICENSE present from the moment item 2 starts
+being discharged. Worth noting because the ordering is also why the
+DECISIONS entry sequence reads cleanly: each per-instance entry
+cites the prior one and the canonical root entry, the same
+shared-contract-cited-by-reference pattern iteration 48 named for
+the packaging-convention entries.
+
+**Out of scope for this iteration.** (1) **No `/tool-use-agent/
+LICENSE` or `/evals-harness/LICENSE`** — sub-checkboxes 3 and 4
+respectively, each gets its own slice and its own per-instance
+DECISIONS entry, same single-slice cadence iterations 46/47/48
+followed for the parallel pyproject files. Bundling all three
+per-build LICENSE files into one commit would do three units in
+one slice and make the sub-checkbox structure dishonest, the same
+discipline the iteration-50 consolidating entry locked. (2) **No
+edit to `/rag-app/pyproject.toml`** to add a `license` field
+referencing the new LICENSE file — the deliberate `license`-field
+omission comment from iteration 46 stays in place; the field wiring
+belongs to sub-checkbox 5 along with the README mentions and the
+choice between PEP-621 table form (`license = { file = "LICENSE" }`)
+and PEP-639 string form (`license = "MIT"`), which is itself a
+sub-decision to be locked in slice 5. (3) **No mention of the
+license in `/rag-app/README.md`** — the README's existing structure
+(Status, What this is, Layout, How to run, Notes) gains a License
+line only in sub-checkbox 5; touching the README in this slice
+would silently roll two sub-checkboxes into one commit. (4) **No
+consolidating cross-build LICENSE DECISIONS entry** — that's
+sub-checkbox 5's consolidating slot, analogous to iteration 50's
+packaging-convention entry that consolidated four prior per-instance
+entries into a single canonical-table view. (5) **No edit to
+`/rag-app/.gitignore`** — the MIT LICENSE has no generated companion
+files in rag-app's source tree (no `NOTICE`, no
+`LICENSE.dependencies`), and the existing `.gitignore` lines from
+iteration 46 (`*.egg-info/`, `build/`, `dist/`) already cover the
+wheel-dist-info auto-populated LICENSE copies. (6) **No pytest
+fixture asserting byte-equivalence between root LICENSE and the
+three per-build LICENSE files** — that test, if needed, belongs in
+NEXT_WORK item 3's per-build test suite under a cross-cutting
+fixture, and is unnecessary at this stage because the iteration-by-
+iteration `diff -q` + `md5` verification covers the same property
+with zero per-build test setup cost.
+
