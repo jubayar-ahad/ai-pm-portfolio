@@ -154,3 +154,32 @@ Paragraph-level overlap preserves semantic coherence in the carried text
 better than arbitrary word-window overlap, which can split mid-sentence.
 Emitting char spans (rather than just text) lets the future generation step
 resolve citations back to exact source positions for verification.
+
+## 2026-05-16 — rag-app retriever: BM25 first, dense embedding deferred
+
+**Decision:** The retrieval slice (`python -m rag_app retrieve`) uses a
+stdlib BM25 (Okapi, k1=1.5, b=0.75) over the chunks produced by `load`,
+not the previously pinned `sentence-transformers/all-MiniLM-L6-v2` dense
+index. Dense retrieval is reframed as an optional later quality lift
+that would act as a **reranker** over BM25's top-N, not as the primary
+index. This supersedes the embedding choice in the 2026-05-16 "rag-app
+stack and corpus" decision (which remains unchanged for Python version,
+generation provider/model, CLI shape, and corpus v1 selection).
+
+**Rationale:** Three reinforcing reasons. (1) MiniLM via `sentence-
+transformers` requires PyTorch (~500 MB) and a one-time model download
+(~80 MB), which is real friction for a demo intended to be run on an
+interviewer's machine or in a sandbox. (2) BM25 is the established sparse
+baseline; for a corpus of tens of chunks it is competitive with dense
+embeddings, and the resulting retriever is fully explainable on a screen
+share (term frequency, IDF, length normalization — no opaque embedding
+space). (3) The modern production pattern is hybrid (BM25 + dense
+reranker), so framing dense as a *quality lift on the lexical baseline*
+matches what an AI PM would actually argue for in a real product, rather
+than the older "swap BM25 for dense" framing. The "exactly one API key"
+property of the original stack is preserved — in fact strengthened, since
+no key is needed for retrieval at all and the only key remains
+`ANTHROPIC_API_KEY` for generation. The hardcoded BM25 hyperparameters
+(k1=1.5, b=0.75) are the standard defaults and do not need to live in
+this log; if a future iteration tunes them against the evals harness,
+that tuning result is what would be locked here.
