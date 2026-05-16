@@ -842,3 +842,122 @@ the payload, separate from `model` (which is the SDK response's
 model id, `null` on dry-run). The harness can read either; the
 record_id is computed against `requested_model` so it stays
 stable across SDK version-pin changes.
+
+## 2026-05-16 — evals-harness stack, CLI shape, and slice plan (README first)
+
+**Decision:** The `evals-harness/` build is Python 3.9+ (matching the
+other two builds) and **stdlib-only** — no third-party dependencies,
+no `requirements.txt`, no `ANTHROPIC_API_KEY` needed at any point.
+The harness scores trace records that the two prior builds already
+emit via their `ask --json` outputs (`rag-app.ask.v1` and
+`tool-use-agent.ask.v1`); it deliberately performs **no model calls
+of its own**. The CLI is a three-subcommand entry point:
+`python -m evals_harness {ingest,score,report}`. Inputs are
+JSONL trace files and a single labeled-query JSONL file
+(`evals-harness/queries.jsonl`, hand-authored — the agent does not
+generate ground-truth labels). Outputs are a normalized
+`ingested.jsonl`, a per-record `scored.jsonl` (one row per
+`(record_id, rubric)`), and a Markdown aggregate report. Trace
+routing is by `schema_version` prefix; unknown versions raise
+rather than fall back to the closest known version.
+
+The build is shipped README-first, mirroring the `rag-app/` and
+`tool-use-agent/` patterns. Subsequent iterations land:
+1. **Labeled query set scaffold** (`queries.jsonl`) — ~10–20 hand-
+   authored labeled queries spanning four shapes (in-corpus /
+   answerable, out-of-corpus / refuse-expected, tracker-rollup,
+   adversarial-stopword-overlap). Per-query schema locked in
+   DECISIONS the iteration it ships.
+2. **Ingester + startup invariant checks** — parses every JSONL
+   line, validates `schema_version`, asserts the two cross-build
+   invariants below, emits `ingested.jsonl` + counts summary.
+3. **Refusal-bucket scorer (cross-build)** — single equality check
+   on `REFUSAL_SENTENCE` (plus `reason: low_retrieval_score` for
+   the rag-app short-circuit path); emits a confusion matrix per
+   build and per-record scored rows.
+4. **Groundedness + first-call-tool scorers (per-build)** —
+   rag-app groundedness reads the trace's `verification` block;
+   tool-use first-call accuracy reads `tool_calls[0].tool` against
+   the label's `expected_first_tool`. Each emits scored rows
+   tagged with their rubric name.
+5. **Termination + cost scorers, aggregate Markdown report** —
+   rolls up `refusal_reason` distribution and token/cost p50/p95
+   per build into a single Markdown table; flags
+   `corpus_fingerprint` diversity per build as an explicit
+   warning row rather than silently averaging across mismatched
+   corpora.
+
+**Two cross-build invariants asserted at startup, not at score
+time, by the harness:**
+1. `rag-app/rag_app/verify.py::REFUSAL_SENTENCE` is byte-equal
+   to `tool-use-agent/tool_use_agent/verify.py::REFUSAL_SENTENCE`.
+2. Trace-helper behavior equivalence: hashing a fixed sample
+   payload through each build's `compute_record_id` /
+   `compute_corpus_fingerprint` produces the truncated-16-hex
+   digest the harness has pre-computed against the agreed
+   algorithm (canonical-JSON-with-`sort_keys=True` → SHA-256 →
+   first 16 hex chars). This is the equivalent contract to the
+   prior REFUSAL_SENTENCE equality, applied to the helpers
+   instead of the string.
+
+**Rationale.** Five reinforcing properties.
+
+- **No model calls means deterministic re-runs.** Every rubric
+  is a function of trace fields already emitted by the builds.
+  Re-running the harness against the same trace + label inputs
+  always produces byte-identical scored output, which is the
+  property that makes "did this iteration regress?" a one-diff
+  question. Model-graded scoring (an LLM evaluating the LLM)
+  is a real next quality knob and a real cost — it
+  re-introduces the API-key dependency, the judge-variance
+  question, and the judge-prompt-drift question — and is
+  deliberately deferred. The v1 harness establishes the
+  baseline; model-graded scoring is the iteration that improves
+  on it, not the iteration that defines it.
+- **Stdlib-only matches the rest of the repo.** The two builds
+  each have exactly one third-party dep (the Anthropic SDK,
+  needed only for live `ask`). The harness needs none. Keeping
+  the dependency surface flat across all three builds is what
+  makes the "interviewer clones the repo, runs each demo
+  end-to-end" path realistic without a setup readme that grows
+  per build.
+- **Single labeled file is the property that makes cross-build
+  comparison legible.** If the rag-app and the tool-use agent
+  each had their own labeled set, "which one is more grounded?"
+  would always carry an asterisk. Forcing one
+  `queries.jsonl` with per-build expectation fields keeps the
+  comparison honest at the cost of slightly more verbose
+  labels — the right tradeoff for an interview leave-behind
+  whose whole purpose is the comparison.
+- **Schema-version routing prevents silent miscompare.** A
+  trace from a hypothetical future `rag-app.ask.v2` should not
+  be scored by the v1 rubric — fields may have moved, semantics
+  may have changed. Matching `schema_version` exactly and
+  raising on unknown versions is the cheapest possible
+  forward-compat insurance and a direct application of the
+  additive-fields-keep-version policy locked in both builds'
+  slice-5 entries.
+- **Startup invariants are the smallest harness-side defense
+  against cross-build drift.** Both prior builds were
+  deliberately designed to define `REFUSAL_SENTENCE` and the
+  trace helpers *independently* — each build is self-contained
+  — and to rely on a startup-asserted byte/behavior equivalence
+  for the cross-build guarantee. The harness is the natural
+  place to assert it: it is the only artifact that reads
+  records from both builds, and it is the artifact whose
+  metrics would silently skew if either drifted. Two ~3-line
+  fixtures and one string-equality check are enough; a full
+  helper test suite inside the harness would duplicate work
+  each build's own unit tests already cover.
+
+**Out of scope for this build** (named here so the next four
+iterations don't drift): model-graded scoring (re-introduces
+key dependency and judge variance), labeled-set authoring tools
+(`queries.jsonl` is hand-edited at the start, with a future
+`seed` subcommand left as a candidate), regression dashboards
+or run-history persistence (Markdown snapshot is the artifact),
+latency benchmarking (the harness reads the `latency_ms` the
+agent already emits and does not re-time anything), and fine-
+tuning loops (eval scoring describes behavior; it does not
+change weights or prompts). Each of these would be a separate
+build, not a slice of this one.
