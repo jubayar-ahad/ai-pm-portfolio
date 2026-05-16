@@ -1914,3 +1914,81 @@ to roll up)` document with exit code 0. Prior
 subcommands (`ingest`, `score --rubric refusal`,
 cross-build startup invariants) all continue to
 pass unchanged.
+
+## 2026-05-16 — teardown-prd CANDIDATES.md and the user-pick gate
+
+**Decision:** `teardown-prd/CANDIDATES.md` ships now as the gate before
+any teardown drafting. It ranks 3 of the 5 default OBJECTIVE.md
+candidates (Cursor, Perplexity, GitHub Copilot — in that order) with
+PM-framed rationale per candidate, names the two cuts (Linear AI,
+Notion AI) with one-paragraph why-not, lists the five selection
+criteria applied uniformly, and closes with a "what pick-one means in
+practice" handoff to the next iteration. No teardown is drafted until
+the user names the target. The user may override the shortlist with a
+product not on the default pool; the override is recorded in the same
+DECISIONS pick entry that captures the pick rationale.
+
+**Why a shortlist of 3 (not 5, not 1):** ranking all 5 dilutes the
+recommendation into a feature matrix and makes the user weigh
+trade-offs the agent already weighed. Picking 1 unilaterally
+contradicts the user-gated rule from the iteration-1 DECISIONS entry
+(Teardown target selection is user-gated). 3 candidates is the smallest
+set that lets the user disagree with the agent's #1 without going
+off-pool, and is the same shape OBJECTIVE.md's guardrail prescribes
+("ranking 3 options").
+
+**Why the ranking favors AI-native products over AI-add-ons:** the
+five selection criteria in CANDIDATES.md were applied uniformly, but
+two of them (AI-native vs. AI-add-on, and failure-mode richness) push
+hardest in favor of products where AI is the entire surface. Linear AI
+and Notion AI failed those two criteria — their AI features sit on top
+of strong host products with non-AI design languages, so a teardown
+risks drifting into a teardown of the host product and diluting the
+AI-PM framing this leave-behind needs. They remain on the bench if the
+user is interviewing specifically at one of those companies.
+
+**Why no fabricated metrics in CANDIDATES.md:** every claim in the
+shortlist is grounded in publicly observable surface — visible UI, mode
+names, pricing tiers, public docs/changelogs, and well-known failure
+modes the user can replicate by using the product. No invented user
+counts, revenues, internal-roadmap predictions, or "the PM at company
+X must have decided …" speculation. The same constraint binds the
+teardown itself once a target is picked: all quantitative claims must
+trace to a public source cited inline. This restates the
+no-fabrication guardrail at the artifact level so a future iteration
+cannot import it as a soft suggestion.
+
+**Why a separate top-level `teardown-prd/` directory:** matches the
+iteration-1 repo-layout DECISIONS entry, which pre-committed the path.
+Keeping the teardown out of `templates/` reflects that the teardown is
+a single concrete document for one named product, not a populatable
+scaffold like the interview tracker — different artifact category,
+different home.
+
+**Out of scope for this iteration** (deliberate, named so a follow-on
+iteration cannot silently inherit them):
+
+1. **The teardown PRD itself.** Drafting the teardown before the user
+   picks a target violates the iteration-1 user-gate rule. The next
+   iteration starts the draft only after the pick is recorded.
+2. **A `TEARDOWN_PICK.md` ballot or any other multi-vote artifact.**
+   The user names the pick directly to the agent (or in OBJECTIVE.md);
+   adding a ballot file is overhead for a single binary decision.
+3. **Pre-populating teardown sections for the top-ranked candidate.**
+   Even a stub `cursor-teardown.md` would short-circuit the gate by
+   biasing the user toward the agent's #1. The skeleton lands in the
+   pick-recording iteration, not before.
+
+**Validation:** CANDIDATES.md exists at `teardown-prd/CANDIDATES.md`,
+ranks Cursor / Perplexity / GitHub Copilot 1–2–3 with rationale and
+"why this user might want a different pick" counter-cases per
+candidate, names Linear AI and Notion AI as cuts with rationale, and
+closes with a three-step handoff for the next iteration. The new
+`teardown-prd/CANDIDATES.md` file is not in the rag-app corpus v1
+list (which is locked to OBJECTIVE.md, DECISIONS.md,
+templates/INTERVIEW_TRACKER.md, rag-app/README.md), so the file itself
+does not perturb the index — but this DECISIONS entry does, by the
+same per-iteration drift pattern earlier slices documented.
+Expanding the corpus to cover the teardown deliverable belongs to a
+deliberate corpus-v2 supersession, not this iteration.
+
