@@ -2997,3 +2997,213 @@ index. Tool-use-agent catalog is unchanged so its fingerprint
 stays at 626af64cb9bf48bf. Evals-harness cross-build invariants
 (refusal_sentence_byte_equal, trace_helpers_behavior_equivalent)
 still pass.
+
+## 2026-05-16 — Cursor teardown PRD slice 7 (polish): masthead reflects terminal state, source-list reconciled, cross-references cleaned
+
+**Decision:** The seven-step slicing plan locked in iteration 27's
+DECISIONS entry has now landed end-to-end. This is the final
+polish / leave-behind framing pass. The teardown PRD's body is
+unchanged in substance — no edits to §§1–6 prose beyond the four
+surgical fixes documented below. Three classes of polish ship:
+(1) the masthead Status line flips from "§§1–6 drafted; final
+iteration is polish" to terminal state declaring the document
+interview-ready, (2) two stale cross-references and one
+build-process leakage are corrected, (3) the source-list section
+heading and one bullet are reconciled with what the body actually
+cites.
+
+**Masthead Status flip.** The Status line is now in a terminal
+shape and will not need another flip without a substantive content
+revision. The slot is reserved for cumulative draft-state, locked
+in iteration 32's slice-6 entry as "polish iterations may touch
+this line; intervening slices may not." The terminal-state phrasing
+("polish pass complete (2026-05-16) — interview-ready") is
+deliberately dated so a reader can map the document's snapshot to
+the observation snapshot dated immediately below. A future
+substantive revision would write a new Status line whose date
+matches its content; mechanically advancing the snapshot date
+without changing the body would be a fabrication.
+
+**Three cross-reference fixes (surgical, not stylistic).**
+
+1. **§2 and §2's cut paragraph referenced "§1.4 cut paragraph"
+   twice (lines 251, 411 of the pre-polish file).** §1's cut
+   paragraph is an unnumbered `### Cut from the outline's four: …`
+   header, not a `### 1.4` heading — so "§1.4" pointed nowhere.
+   Polish replaces both with "§1's pricing-tier cut paragraph"
+   (lossless, more readable, points to a real location). This
+   typo class would have surfaced under any careful read-aloud
+   pass; logging it here so future multi-section artifacts
+   sectioning numbered sub-sections plus unnumbered cut paragraphs
+   pre-commit a reference grammar that does not invent slot
+   numbers for unnumbered slots.
+
+2. **Build-process leakage in §4.2.1 caveat.** The caveat sentence
+   said "the per-task scope from slice-4 DECISIONS is a feature
+   of the proposal." `slice-4 DECISIONS` is gnhf-iteration
+   scaffolding; a leave-behind PRD reader has no access to that
+   reference. Polish replaces with "the per-task scope from §3.3"
+   — same load-bearing claim, self-contained inside the document.
+   The §6.4 sentence carried the same leak and the same fix.
+
+3. **Scope decision had a "DECISIONS amendment" pointer plus a
+   non-sequitur "See the 'How I'd validate' section."** §6
+   validates §3 proposals, not the scope choice, so the pointer
+   was wrong. Polish rewrites the paragraph to a clean reader-
+   redirect frame ("This scope is open to reader feedback…") with
+   two named alternative scopes (Tab autocomplete, Cursor CLI)
+   drawn from the §5 out-of-scope list. The substantive property
+   from iteration-27's notes — that scope is reader-redirectable,
+   not pre-gated — is preserved in plain language without exposing
+   the iteration scaffolding.
+
+**Source-list reconciliation.** Two reconciliations against actual
+inline citation usage:
+
+- Section heading: "Sources & observation snapshot (drafted
+  alongside the body)" → "Sources & observation snapshot." The
+  parenthetical was outline-era process language; the body is now
+  drafted and the qualifier no longer carries meaning. Verb
+  tenses in the opening paragraph also shift from future
+  ("will cite") to present ("cites").
+- User-community-reports bullet: "(Discord, X, Hacker News)" →
+  "(Cursor's public forums; Discord, X, and Hacker News threads
+  that are public-readable)." Three §2 sub-sections cite "public
+  Cursor forum threads" inline; the original bullet omitted that
+  surface and named three platforms the body does not directly
+  cite. Reconciled to match what the body actually says.
+- Pricing-page bullet: added "(cited in §4.4.1 only)" qualifier
+  since `cursor.com/pricing` appears in exactly one place in the
+  body — §4.4.1's evidence-sources paragraph. This is the
+  smallest accuracy gain that preserves the bullet's value as a
+  citation-grammar reference.
+
+**No-fabrication grep audit.** Scanned the drafted body for any
+specific numeric or surface-specific claim that was not either
+sourced inline or labeled as methodology / proposed-default /
+sample-size:
+
+- "≥60%", "15%+", "0%", "5%", "≥90%" — all in §6 as method
+  thresholds / sample percentages (proposed validation
+  shapes, not claimed Cursor metrics).
+- "80%" — §2.4 cut paragraph proposing a quota-meter warning
+  threshold (a proposed design pattern, not Cursor's current
+  threshold).
+- "30 seconds", "300ms", "~5k files", "~100k files",
+  "~10–15", "~200 turns", "~5%" — all methodology shapes
+  (defaults / sample sizes / observable thresholds for
+  reproduction), each tied to a method or proposal that names
+  the number as proposed, not asserted about Cursor.
+
+No fabricated Cursor metrics, revenue numbers, user counts,
+support-ticket volumes, or roadmap claims found in the body.
+The no-fabrication guardrail from OBJECTIVE.md is intact and
+the audit will not need re-running on subsequent reads unless
+new numeric content is added.
+
+**Read-aloud touch-up scope.** Deliberately narrow. The polish
+slice changes exactly four prose locations (masthead Status,
+scope-decision reader-redirect paragraph, §4.2.1 caveat tail,
+§6.4 sentence in the middle of the method) plus the source-list
+heading and two bullets. No sentences in §§1–3 body, §4 metric
+paragraphs, §5 out-of-scope items, or §6.1–§6.3/§6.5 methods are
+touched. The discipline: a polish slice corrects defects (typos,
+wrong cross-refs, stale framings), it does not re-edit prose
+that is doing its job. This bounds the iteration so a reviewer
+diff can be read in five minutes and the substantive arguments
+of §§1–6 stand exactly as they were drafted.
+
+**Lessons on what "polish" can and cannot do for multi-iteration
+PM documents.** Three rules carry forward to any future polish
+slice on a similar multi-iteration artifact:
+
+1. **Polish corrects defects, not arguments.** A sentence the
+   polish slice author *would have written differently* but
+   that is doing its argumentative job stays as drafted. Polish
+   is for typos, stale cross-references, build-process
+   leakage, and reconciling lists with body content. Anything
+   load-bearing belongs to a substantive-revision slice with
+   its own DECISIONS entry naming the change.
+2. **Polish surfaces what the drafted slices accumulated as
+   technical debt.** §1.4 cross-reference, "slice-4 DECISIONS"
+   leakage, the wrong "See §6 for scope checks" pointer — none
+   of these were drafting errors at the time, each was correct
+   *for the iteration it landed in* and then became incorrect
+   as the document grew around it. Naming this dynamic helps
+   the next multi-iteration artifact pre-commit a polish slice
+   rather than treat each drafted slice as
+   already-shipped-clean.
+3. **Polish ships the Status line to terminal state.** The
+   pre-polish Status line ("final iteration is polish") was
+   self-referencing scaffolding. A leave-behind document's
+   Status line should describe the *document*, not its
+   production process. Future polish slices on similar
+   artifacts should plan the final Status-line phrasing as a
+   first-class output, same way an engineering release's
+   final commit message phrases the user-visible change rather
+   than the bisect-recovery surgery.
+
+**Out of scope for this iteration** (deliberate, named so no
+future iteration silently inherits them as polish-class):
+
+1. **Any substantive prose revision in §§1–6.** No
+   re-argued tensions, no swapped examples, no new tradeoffs
+   surfaced. A polish slice that ships a new tradeoff is no
+   longer a polish slice — it is an unnumbered slice 8.
+2. **A new "Limitations" or "Caveats" section.** Adding a
+   chapter would expand the seven-section structure pre-
+   committed in iteration 27 and re-affirmed every drafted
+   slice since. Limitations are already named per-section
+   (§5 out-of-scope, §§1–4 cut paragraphs, evidence-sources
+   paragraphs) — duplicating them under a chapter heading
+   would dilute the per-section discipline.
+3. **Promoting the four §6 methods into a comparison table.**
+   §6 reads as a workflow because the methods are pre-launch-
+   to-post-launch ordered; promoting them to a side-by-side
+   table would lose the workflow framing and re-introduce the
+   "open-ended methodology grab-bag" risk slice 6's DECISIONS
+   entry explicitly excluded.
+4. **A masthead "Read this if you are…" frame for different
+   reader audiences.** Adding reader-audience framing would
+   bias the document toward a single reader segment (Cursor PM
+   vs. interviewer vs. competing-product PM) when the drafted
+   §§1–6 deliberately let all three read the same body.
+5. **Any change to the rag-app corpus v1 file list.** Corpus
+   v1 stays locked to (OBJECTIVE.md, DECISIONS.md, templates/
+   INTERVIEW_TRACKER.md, rag-app/README.md). The teardown file
+   remains outside corpus v1; its polish edits do not perturb
+   the rag-app index.
+6. **A regenerated source-citation index at the document
+   foot.** The per-section evidence-sources paragraphs plus
+   the source-list bullets already enumerate every category;
+   a full citation index would be the right addition if this
+   document grew a citations-per-paragraph density that
+   warranted footnote numbering, which it does not at this
+   word count.
+
+**Implication for the rag-app corpus_fingerprint.** This
+iteration touches DECISIONS.md (this entry) plus the teardown
+file's masthead, scope-decision reader-redirect paragraph, two
+mid-body sentences (§4.2.1 caveat tail, §6.4 method body), and
+the source-list heading and two bullets. Per the per-iteration
+drift pattern documented since iteration 16, the rag-app
+corpus_fingerprint will rotate because DECISIONS.md is in corpus
+v1; the teardown file is *not* in corpus v1 so its polish edits
+do not perturb the rag-app index directly. Tool-use-agent
+catalog is unchanged so its fingerprint stays at
+626af64cb9bf48bf. Evals-harness cross-build invariants
+(refusal_sentence_byte_equal, trace_helpers_behavior_equivalent)
+still pass.
+
+**Status of the seven-step slicing plan.** Complete. The plan
+locked in iteration 27 mapped exactly to iterations 27→33:
+outline (27) → §1 (28) → §2 (29) → §3 (30) → §4 (31) →
+§§5–6 combined (32) → polish (33, this entry). Cursor teardown
+PRD is the third and final concrete artifact in the AI PM
+portfolio scoped by OBJECTIVE.md (alongside rag-app, tool-use-
+agent, and evals-harness, all complete). The DECISIONS.md
+record of seven iterations on this document plus 21 prior
+iterations on the three builds and two on the user-gated pick
+gates is intended to read as a portfolio-of-decisions in its
+own right — the audit trail an interviewer asking "how did you
+get here" can scan in roughly the time it takes to read §§1–6.

@@ -1,9 +1,10 @@
 # Cursor — Teardown PRD
 
-**Status:** §§1–6 ("What's working", "What's broken", "What to ship
-next", "Proposed metrics", "Out of scope", "How I'd validate") drafted.
-The final iteration is a polish / leave-behind framing pass per the
-seven-step slicing plan locked in DECISIONS.md.
+**Status:** All six sections drafted; polish pass complete
+(2026-05-16). The document is interview-ready as an AI PM
+leave-behind. Sections: §1 What's working / §2 What's broken /
+§3 What to ship next / §4 Proposed metrics / §5 Out of scope /
+§6 How I'd validate.
 
 **Product under teardown:** Cursor — the AI-native code editor (VS
 Code fork) by Anysphere. https://cursor.com
@@ -56,11 +57,11 @@ Copilot on a single dimension; the full-product slice would force the
 draft to spread thin across surfaces the user does not exercise
 daily.
 
-**User redirect:** the scope is not user-pre-gated (the candidate
-pick was), so a user redirect to a narrower or different surface lands
-as a one-paragraph DECISIONS amendment, not a full supersession. See
-the "How I'd validate" section for the cheapest checks the user can
-run before committing to the scope as drafted.
+**Reader redirect:** this scope is open to reader feedback. A
+redirect to a narrower or different surface within Cursor — e.g. Tab
+autocomplete as a standalone deep-dive, or the Cursor CLI — would
+land as a one-paragraph amendment at the top of this section, not a
+rewrite of the body.
 
 ---
 
@@ -247,8 +248,8 @@ disagree concretely.
 
 Three sub-sections follow, narrowed from the outline's four candidate
 sub-areas. The cut — free-tier quota surprises — is named at the end
-of this section with a one-paragraph rationale, mirroring the §1.4
-cut paragraph.
+of this section with a one-paragraph rationale, mirroring §1's
+pricing-tier cut paragraph.
 
 ### 2.1 Auto-mode router opacity
 
@@ -407,7 +408,7 @@ interruption mid-edit. It is a real product friction and the fix is
 straightforward (a persistent quota meter near the model menu, a
 warning at 80% consumed, a clear path to upgrade). It is also
 structurally a monetization-positioning concern more than a
-PM-design call, mirroring the pricing-tier cut from §1.4: the deeper
+PM-design call, mirroring §1's pricing-tier cut paragraph: the deeper
 "why is this acceptable" question is about Anysphere's free-tier-as-
 funnel strategy, which the no-fabrication posture cannot interrogate
 without snapshot-pinned quota numbers and conversion data the public
@@ -712,9 +713,8 @@ per-task opt-in) contribute "no-stop-needed" runs that inflate the
 precision number without telling you anything about default
 behavior. Report default-mode and opt-in-mode separately, treat
 the default-mode number as the headline, and resist any temptation
-to "average across modes" — the per-task scope from slice-4
-DECISIONS is a feature of the proposal, not a detail to abstract
-over.
+to "average across modes" — the per-task scope from §3.3 is a
+feature of the proposal, not a detail to abstract over.
 
 **4.2.2 Index-freshness coverage.** Share of `@Codebase` and agent
 turns served when the project indexer was within a configurable
@@ -955,10 +955,10 @@ repo adjacent to this teardown as a worked example: same per-
 record JSONL shape, same `stop_reason` enum, same separation
 between *ended_clean* and *cap-exhausted* terminations. This is
 the validation path for §4.2.1's default-mode stop-precision; the
-opt-in stop-permissive subset (the per-task scope locked in §3.3 /
-slice-4 DECISIONS) is reported on a separate fixture sub-set, with
-its own threshold, so the proposal's "per-task scope is a feature,
-not a detail" promise is preserved end-to-end through validation.
+opt-in stop-permissive subset (the per-task scope locked in §3.3)
+is reported on a separate fixture sub-set, with its own threshold,
+so the proposal's "per-task scope is a feature, not a detail"
+promise is preserved end-to-end through validation.
 Success threshold: ≥90% agreement with ground-truth on the
 default-mode subset before the proposal can ship; the opt-in subset
 number is reported but not a ship-gate. Limit: labeled sets
@@ -989,25 +989,27 @@ JSONL shape and `stop_reason` enum semantics §6.4 names.
 
 ---
 
-## Sources & observation snapshot (drafted alongside the body)
+## Sources & observation snapshot
 
-Every quantitative or surface-specific claim in the drafted sections
-above will cite from one of these source categories, with the
-specific URL or version recorded inline at draft time:
+Every quantitative or surface-specific claim in the drafted
+sections above cites from one of these source categories, with the
+specific URL or version recorded inline at the point of use:
 
 - Cursor docs (`cursor.com/docs`) — accessed 2026-05-16.
 - Cursor changelog (`cursor.com/changelog`) — specific version
   numbers cited for any behavior tied to a release.
-- Cursor pricing page (`cursor.com/pricing`) — snapshot date pinned.
+- Cursor pricing page (`cursor.com/pricing`) — snapshot date
+  pinned; cited in §4.4.1 only.
 - Public statements from Anysphere (blog posts, founder interviews,
   public conference talks) — cited by title + date, never
   paraphrased as if internal.
 - Author's reproduction notes — labeled "observed on 2026-05-16,
   Cursor [version], [OS], [tier]" so a reader can recreate the
   conditions.
-- User-community reports (Discord, X, Hacker News) — cited only
-  as patterns ("multiple users report X") with a representative
-  link, never quoted as authoritative on Cursor internals.
+- User-community reports (Cursor's public forums; Discord, X, and
+  Hacker News threads that are public-readable) — cited only as
+  patterns ("multiple users report X") with a representative link,
+  never quoted as authoritative on Cursor internals.
 
 No internal Cursor information, no fabricated metrics, no invented
 user counts or revenue numbers, no roadmap claims that go beyond
