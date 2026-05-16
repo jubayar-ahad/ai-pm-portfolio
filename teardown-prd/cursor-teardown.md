@@ -1,9 +1,9 @@
 # Cursor — Teardown PRD
 
-**Status:** §§1–3 ("What's working", "What's broken", "What to ship
-next") drafted; §§4–6 remain in outline / intent-paragraph state.
-Per-section prose lands in subsequent iterations in the order locked
-in DECISIONS.md.
+**Status:** §§1–4 ("What's working", "What's broken", "What to ship
+next", "Proposed metrics") drafted; §§5–6 remain in outline /
+intent-paragraph state. Per-section prose lands in subsequent
+iterations in the order locked in DECISIONS.md.
 
 **Product under teardown:** Cursor — the AI-native code editor (VS
 Code fork) by Anysphere. https://cursor.com
@@ -627,24 +627,164 @@ broader triad surface. The framework is the PM artifact, not the
 specific numbers — naming any specific number Cursor should hit
 would either fabricate it or quote it without attribution.
 
-**Coverage map (the draft will fill in ~6 metrics across the four
-quadrants):**
+Six metrics follow, organized in the standard PM 2×2 (leading vs.
+lagging × adoption vs. quality-or-business) with a 2-2-1-1
+distribution across the four quadrants. The leading-heavy
+distribution is deliberate: PM action lives on the leading side, so
+the framework should be denser there; the lagging side gets the
+minimum needed to anchor the leading metrics to outcomes Anysphere
+already tracks. Each metric names what it computes, what PM
+decision it informs, the §3 proposal or §1–§2 sub-section it most
+directly maps to, and a caveat naming the common way the metric
+would mislead. No targets, no baselines — the framework is the
+artifact, not the dashboard.
 
-- **Leading × adoption:** e.g. share of sessions using `@`-mentions,
-  share of edits accepted vs. rejected, share of Auto-mode messages
-  vs. pinned-model messages.
-- **Leading × quality:** e.g. agent stop-precision (did the agent
-  stop where the user wanted), index-freshness coverage (share of
-  edits with index lag < N seconds).
-- **Lagging × adoption:** e.g. paid-tier conversion from free,
-  weekly-active developers, retention by tenure cohort.
-- **Lagging × business:** e.g. revenue per developer, gross margin
-  given model-cost mix, net dollar retention on Business tier.
+Each §3 proposal has at least one leading-quadrant metric pointed
+at it. §4.1.2 Auto-mode mix evaluates Proposal A (routing
+transparency), §4.2.1 Agent stop-precision evaluates Proposal C
+(stop-criteria UI), and §4.2.2 Index-freshness coverage evaluates
+Proposal B (index-freshness indicator). The two
+adoption-quadrant metrics (§4.1.1 `@`-mention adoption and §4.3.1
+retention by cohort) test the §1.1/§1.2 thesis that the
+explicit-context model is what earns long-tenure trust. The single
+business-quadrant metric (§4.4.1) is deliberately minimal,
+mirroring the §1 and §2 pricing-tier and free-tier cuts: a teardown
+that cannot pin Cursor's revenue numbers without fabrication is
+better off naming one defensible business-shaped check than
+inventing a dashboard.
+
+### 4.1 Leading × adoption
+
+**4.1.1 `@`-mention adoption rate.** Share of chat and Cmd+K
+sessions in a given week containing at least one explicit
+`@`-mention before the first model turn. Computed as
+sessions-with-mention ÷ total-sessions over a rolling 7-day window,
+segmented by user-tenure cohort (first-week / first-month /
+90-day+). **What decision it informs:** whether the §1.2
+explicit-context bet is paying off in the field. A rising rate
+inside the first-month cohort confirms cold-start friction is
+amortizing as designed; a flat or falling rate inside that cohort
+warns the `@` discovery path needs more empty-state surfacing or a
+better in-product onboarding nudge. **Caveat:** a high headline rate
+driven by `@Codebase`-only usage can mask the deeper
+`@File` / `@Docs` / `@Web` value, so split the metric by mention
+type — reading "one mention-shaped behavior" as adoption of the
+whole context system would let a single popular chip carry credit
+for the system's design.
+
+**4.1.2 Auto-mode mix.** Share of triad-surface turns served via
+Auto vs. served via an explicitly pinned model, computed weekly.
+The *trend* is the actionable signal, not the level — the absolute
+level reflects user preference and is not directly actionable; the
+trend responds to Proposal A's per-message routing labels and the
+"Auto with model pinned" setting. **What decision it informs:**
+whether the per-message model label re-surfaces the model menu so
+visibly that users abandon Auto. A small post-launch drop is
+expected (some users pin to the model the label revealed, a fine
+outcome on its own); a large or sustained drop warns Auto's
+"users don't have to think about it" property is being eroded
+faster than the transparency benefits compound, which would mean
+typographic restraint on the label is the wrong knob and a stronger
+"hide this caption" affordance is needed. **Caveat:** pinning is
+not failure. A user who pins to the right model for their workflow
+may end up better off than under Auto. Pair this metric with
+§4.3.1 retention to read whether the pinned cohort sticks; without
+that pairing, the mix shift reads as loss when it may be a quality
+gain.
+
+### 4.2 Leading × quality
+
+**4.2.1 Agent stop-precision.** Among agent runs that halted before
+hitting a hard stop (max-steps or user-cancel), the share that
+halted at the user's intended boundary, measured against an
+offline labeled eval set of agent transcripts. The eval set is the
+same fixture shape this repo's evals-harness scores in its
+termination rubric, named explicitly because §6's "How I'd
+validate" section calls out the eval-harness as a PM-craft
+validation method and §4.2.1 is the metric that worked example
+would feed. **What decision it informs:** whether Proposal C's
+pre-run plan + pause-and-amend interrupt actually reduces overrun.
+A pre/post-deployment lift is the primary read; a flat number
+warns the stop-criteria UI is being dismissed or ignored, which
+would mean the affordance needs to be louder or less skippable.
+**Caveat:** heavy power users in stop-permissive mode (Proposal C's
+per-task opt-in) contribute "no-stop-needed" runs that inflate the
+precision number without telling you anything about default
+behavior. Report default-mode and opt-in-mode separately, treat
+the default-mode number as the headline, and resist any temptation
+to "average across modes" — the per-task scope from slice-4
+DECISIONS is a feature of the proposal, not a detail to abstract
+over.
+
+**4.2.2 Index-freshness coverage.** Share of `@Codebase` and agent
+turns served when the project indexer was within a configurable
+lag threshold (default 30 seconds) of the working tree. Computed
+per-turn at request time, aggregated weekly, segmented by repo-size
+cohort (small / medium / large). **What decision it informs:**
+whether Proposal B's freshness indicator changes user behavior
+post-launch. The metric should rise (users resync before asking,
+or learn to wait) or rise-then-plateau (users learn the staleness
+signal and only ask when it is clean). A flat or falling rate after
+launch means the chip is being ignored or hidden, and the
+indicator's typography or placement needs revisiting. **Caveat:**
+large-repo cohorts will always run colder than small-repo cohorts;
+segmenting prevents the small-repo majority from making the
+headline number look healthier than the large-repo subset's reality,
+which is exactly the segment where indexer staleness was the
+original §2.2 symptom.
+
+### 4.3 Lagging × adoption
+
+**4.3.1 90-day retention by `@`-mention cohort.** Among users
+active in a given week N, the share still active 90 days later,
+split by their week-N usage of `@`-mentions (zero / 1–3 / 4+
+mentions in the cohort week). **What decision it informs:** whether
+the §1.2 explicit-context bet correlates with stickiness in a way
+that survives self-selection scrutiny. If the 4+ cohort retains
+markedly higher than the zero cohort and the gap holds when matched
+on tenure and repo size, the thesis is doing real work and the
+§1.2 PM defense rests on more than a predictability argument. If
+the gap collapses on matching, the explicit-context system may be
+correlated with — rather than causing — retention, and the §1.2
+defense should rest on the predictability argument alone.
+**Caveat:** power users self-select into `@` usage, so the
+observational retention gap is suggestive, not causal. Any product
+call that claims causation should be backed by a flag-gated
+experiment that varies the `@` empty-state surfacing, not by the
+cohort read alone — confusing cohort correlation with intervention
+effect is the most common metric-misread in this quadrant.
+
+### 4.4 Lagging × business
+
+**4.4.1 Net revenue retention on the Business tier.** Among Cursor
+accounts that crossed into Business tier in quarter Q, the share
+still on Business 12 months later, plus seat-expansion or
+contraction within retained accounts. **What decision it informs:**
+whether the developer-relevant features the Business tier sells
+continue to earn the upgrade over time. Falling NRR within the
+12-month window points to a thin upper tier (Business buyers
+churning back to Pro or off-platform); flat-or-rising NRR suggests
+the Business surface is doing genuine work for buyers and the tier
+is defensible. **Caveat:** 12 months is the wrong window for a
+fast-moving product whose adjacent market reshapes quarter by
+quarter — report the metric alongside the quarter-by-quarter trend
+so the lagging read does not lag so far it ceases to inform action.
+This is the only business-shaped metric in the framework, same
+posture as the §1 pricing-tier and §2 free-tier quota cuts: a
+teardown that cannot pin Cursor's revenue numbers without
+fabrication is better off naming one defensible business check than
+inventing a dashboard.
 
 **Evidence sources for this section:** the metric *categories* are
-standard PM craft and need no citation; the *applicability* to
-Cursor specifically is grounded in publicly observable product
-behavior — no fabricated baselines, no invented benchmarks.
+standard PM craft and need no external citation. The *applicability*
+to Cursor specifically is grounded in publicly observable product
+behavior already sourced in §§1–2 — the `@`-mention surface from
+§1.2, Auto mode from §2.1, the project indexer from §2.2, agent
+stop conditions from §2.3, and the Business tier as named on
+cursor.com/pricing accessed 2026-05-16. No fabricated baselines,
+no invented benchmarks, no quoted targets — the framework is the
+artifact, the dashboard would be Anysphere's to define on internal
+data this teardown cannot read.
 
 ---
 

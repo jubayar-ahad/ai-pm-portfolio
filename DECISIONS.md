@@ -2603,3 +2603,208 @@ teardown file do (and only the DECISIONS entry, because the teardown
 file is not in corpus v1). Tool-use-agent catalog is unchanged so its
 fingerprint stays at 626af64cb9bf48bf. Both builds and the
 evals-harness cross-build invariants still pass.
+
+## 2026-05-16 — Cursor teardown PRD slice 5: "Proposed metrics" drafted
+
+**Decision:** The "Proposed metrics" section of
+`teardown-prd/cursor-teardown.md` ships in drafted state, replacing
+the outline slice's four-bullet "Coverage map" with six metrics
+organized as four sub-sections (4.1 Leading × adoption, 4.2
+Leading × quality, 4.3 Lagging × adoption, 4.4 Lagging × business)
+following the 2-2-1-1 distribution. Sections 5 and 6 remain in
+outline / intent-paragraph state and are picked up in the next
+slice per the seven-step plan from iteration 27 (slices 5 + 6 land
+together as §§5–6 in the next iteration; final iteration is polish).
+
+**Six metrics, 2-2-1-1 across the 2×2:** the leading-heavy
+distribution is deliberate — PM action lives on the leading side,
+so the framework is denser there. The lagging side gets the minimum
+needed to anchor leading metrics to outcomes Anysphere already
+tracks. Concretely:
+
+1. **§4.1.1 `@`-mention adoption rate** (Leading × adoption,
+   tied to §1.2): sessions-with-mention ÷ total-sessions over a
+   rolling 7-day window, segmented by user-tenure cohort. Caveat:
+   `@Codebase`-only usage can mask the deeper context system.
+2. **§4.1.2 Auto-mode mix** (Leading × adoption, tied to §2.1
+   and Proposal A): share of triad-surface turns served via Auto
+   vs. pinned model, weekly. The trend is the actionable signal,
+   not the level. Caveat: pinning is not failure; pair with §4.3.1
+   retention to read whether the pinned cohort sticks.
+3. **§4.2.1 Agent stop-precision** (Leading × quality, tied to
+   §2.3 and Proposal C): of agent runs that halted before hitting a
+   hard stop, the share that halted at the user's intended
+   boundary, measured against an offline labeled eval set whose
+   fixture shape matches this repo's evals-harness termination
+   rubric. Caveat: report default-mode and opt-in-mode separately;
+   the per-task scope of the stop-permissive opt-in (slice-4
+   contract) is a feature of the proposal, not a detail to
+   abstract over.
+4. **§4.2.2 Index-freshness coverage** (Leading × quality, tied
+   to §2.2 and Proposal B): share of `@Codebase` and agent turns
+   served when the indexer was within a configurable lag threshold
+   of the working tree, segmented by repo-size cohort. Caveat:
+   large-repo cohorts always run colder; segmenting prevents the
+   small-repo majority from making the headline number look
+   healthier than the large-repo reality.
+5. **§4.3.1 90-day retention by `@`-mention cohort** (Lagging ×
+   adoption, tied to §1.2): retention split by week-N
+   `@`-mention usage (zero / 1–3 / 4+). Caveat: power users
+   self-select into `@` usage; observational gaps are suggestive,
+   not causal — any causal claim needs a flag-gated experiment.
+6. **§4.4.1 Net revenue retention on the Business tier**
+   (Lagging × business, the only business-quadrant metric):
+   accounts that crossed into Business in Q, share still on
+   Business 12 months later, plus seat-expansion within retained
+   accounts. Caveat: 12 months lags too far in a fast-moving
+   market; report alongside the quarter-by-quarter trend.
+
+**§4 deviates from the §§1–3 five-slot shape, deliberately.** The
+slice-4 entry pre-committed that "if §4 ('Proposed metrics') needs
+a different shape, the slice-5 entry will name and justify the
+deviation." It does. §§1–3's five-slot shape (PM decision/failure/
+proposal — observable behavior or proposed shape — why this is
+right / fixable gap / what could go wrong — tension worth naming —
+inline source) is sized for *arguments*. §4's metrics are
+*computations with decision-implications*, which fit a four-slot
+shape: **(1) name + what is computed**, **(2) what PM decision the
+metric informs**, **(3) the §1–§3 link this metric measures**, and
+**(4) a caveat naming the common way the metric would mislead**.
+The inline-source slot is deliberately absent at the per-metric
+level because metric categories are PM craft, not fact-claims about
+Cursor; the section's evidence-sources paragraph carries the
+applicability grounding once. The "tension worth naming" slot is
+absorbed into the caveat slot because a metric's tension *is* the
+way it can mislead — collapsing the two preserves the
+load-bearing-slot property without forcing per-metric prose to do
+the same job twice. Carrying the §§1–3 shape mechanically into §4
+would have produced metrics-shaped-like-arguments and either
+inflated each metric to 200+ words or left two slots underwritten.
+
+**Each §3 proposal has at least one §4 metric pointed at it.**
+This is the load-bearing job §4 was supposed to do for §3, locked
+explicitly so a future revision cannot quietly drop a §3 proposal
+without also revisiting its measuring metric. The pairings:
+Proposal A (routing transparency) → §4.1.2 Auto-mode mix; Proposal
+B (index-freshness indicator) → §4.2.2 Index-freshness coverage;
+Proposal C (stop-criteria UI) → §4.2.1 Agent stop-precision. The
+two non-§3-paired leading-quadrant metrics (§4.1.1 `@`-mention
+adoption, §4.3.1 retention by cohort) test the §1.1/§1.2 thesis
+that the explicit-context model is what earns long-tenure trust —
+they are the §§1.1–1.2 monitoring metrics, distinct in purpose
+from the §3-proposal evaluation metrics, and the framework labels
+both purposes inline so a reader knows whether each metric is for
+evaluating a *shipped change* or monitoring an *existing PM
+choice*.
+
+**Slice-4 cross-section binding discharged.** Slice 4's DECISIONS
+entry asserted "the per-task scope of the stop-permissive opt-in is
+itself a contract for slice 5's metrics: any 'agent stop-precision'
+metric that defines success has to read the per-task scope as a
+feature of the proposal, not as a detail to abstract over." §4.2.1
+discharges this contract: the caveat slot names default-mode and
+opt-in-mode reporting separately, with the default-mode read as
+headline, and explicitly cites the slice-4 per-task scope as
+load-bearing for the metric's interpretation. The §6 worked example
+('Eval-harness for agent stop-criteria') in the outline also cross-
+binds to §4.2.1 — the §6 method is what produces the §4.2.1 number,
+so any later §6 polish that changes the worked example must keep
+the §4.2.1 link intact or rewrite both together.
+
+**No fabricated baselines, targets, or benchmarks.** Every metric
+names what to compute, what decision it informs, and how it can
+mislead — none names a target Cursor should hit. Quoting an
+internal Cursor number would fabricate it; quoting a public
+benchmark would mis-cite a measurement made on a different product
+or population. The framework is the artifact, not the dashboard.
+This carries the masthead no-fabrication posture into the metrics
+section verbatim and matches the §1 pricing-tier and §2 free-tier
+quota cut rationale.
+
+**Cross-section linkage table (informational, not in document):**
+
+| Metric | §-link | §3 proposal | Quadrant |
+|---|---|---|---|
+| 4.1.1 `@`-mention adoption | §1.2 | — | Lead × Adopt |
+| 4.1.2 Auto-mode mix | §2.1 | A | Lead × Adopt |
+| 4.2.1 Agent stop-precision | §2.3 | C | Lead × Quality |
+| 4.2.2 Index-freshness coverage | §2.2 | B | Lead × Quality |
+| 4.3.1 90-day retention by `@` cohort | §1.2 | — | Lag × Adopt |
+| 4.4.1 NRR on Business tier | §1 pricing | — | Lag × Business |
+
+**Word-budget discipline carried from slices 2–4 with a section-
+shape caveat.** §§1–3 sub-sections ran ~360–500 words per slot-5
+sub-section. §4's metrics use a four-slot shape and are intended to
+be shorter per metric: ~150–250 words per metric × 6 metrics
+= ~1100 words total for the section body, comparable to a §§1–3
+section total. Per-metric brevity is a feature: the metrics section
+should be scan-readable as a framework, not a debate. If a future
+polish slice finds a metric ballooning past the per-metric budget,
+the right move is to split into "metric + child metric" or to
+demote to a follow-up artifact, not to inflate prose.
+
+**Header convention** carries from slices 2–4 unchanged: `## 4.
+Proposed metrics` for the top-level section, `### 4.M …` three-
+level headers for sub-sections that group metrics by quadrant, and
+`**4.M.N <metric name>.**` bold-inline numbered headers for each
+metric inside its quadrant sub-section. Bold-inline rather than
+`####`-headers because each metric is paragraph-sized; promoting
+each to a fourth-level header would over-fragment the section and
+defeat the scan-readable framework property.
+
+**Out of scope for this iteration** (deliberate, named so the next
+iteration cannot silently inherit them):
+
+1. **Edits to §§5–6.** Those sections remain in outline /
+   intent-paragraph state. The next slice drafts §§5–6 together
+   (out-of-scope items and how-I'd-validate methodology) per the
+   slice-3 entry's "slices 5 + 6 land together" pre-commitment
+   from the seven-step plan; the final iteration is polish.
+2. **Revisions to §§1–3, the masthead, or the scope decision.**
+   The drafted §§1–3, the §1 and §2 cut paragraphs, the §3
+   transition paragraph, and the scope decision all stand. If a §4
+   metric appears to require restating a §3 proposal's mechanism,
+   the §4 metric is revised, not the upstream proposal.
+3. **A seventh metric added mid-draft, or a fifth quadrant.** §4
+   has exactly six metrics in a 2-2-1-1 distribution across the
+   standard PM 2×2. Adding a seventh (e.g. a "Leading × business"
+   metric like gross margin per developer-week) would re-open the
+   pricing-and-positioning cuts §1 and §2 closed and break the
+   no-fabrication posture by requiring per-model unit-cost
+   numbers Anysphere does not publish.
+4. **Specific targets, baselines, or benchmarks.** Every metric
+   names what to compute and how it can mislead — never what
+   Cursor should hit. A future iteration that promotes a target
+   number is a supersession requiring a citation or a labeled
+   conjecture, not an additive edit.
+5. **Promotion of the cut sub-areas (pricing-tier from §1,
+   free-tier quota from §2) into deep-dive metrics with multiple
+   sub-metrics.** Pricing surfaces lightly via §4.4.1 NRR on
+   Business tier; free-tier quota does not surface in §4 at all,
+   matching the slice-3 entry's "free-tier quota surfaces …
+   lightly … in §4's lagging-adoption metrics row (free-to-paid
+   conversion)" — which the slice-5 draft chose *against*
+   including, replacing it with a Business-tier NRR metric because
+   the free-to-paid conversion number would require a quota baseline
+   the public surface does not expose. The slice-3 entry's pre-
+   commitment is hereby narrowed: free-tier quota does not appear
+   in §4. Recording this narrowing here so future polish does not
+   reopen it on the strength of the slice-3 hint.
+6. **Any change to the rag-app corpus v1 file list.** Corpus v1
+   stays locked to (OBJECTIVE.md, DECISIONS.md,
+   templates/INTERVIEW_TRACKER.md, rag-app/README.md). The teardown
+   file itself remains outside the corpus and its drafted §4 does
+   not perturb the rag-app index.
+
+**Implication for the rag-app corpus_fingerprint:** this iteration
+touches DECISIONS.md but not the other three corpus-v1 files; per
+the per-iteration drift pattern documented from iteration 16 onward,
+the rag-app corpus_fingerprint will rotate. The
+teardown-prd/cursor-teardown.md file's drafted §4 is not in the
+corpus, so its drafting does not perturb the index — only this
+DECISIONS entry and the small status-line update at the top of the
+teardown file matter, and only the DECISIONS entry actually
+contributes to corpus drift. Tool-use-agent catalog is unchanged so
+its fingerprint stays at 626af64cb9bf48bf. Evals-harness cross-build
+invariants (refusal_sentence_byte_equal, trace_helpers_behavior_
+equivalent) still pass.
