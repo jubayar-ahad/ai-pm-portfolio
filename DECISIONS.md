@@ -4621,3 +4621,124 @@ files. This DECISIONS entry itself will rotate the rag-app
 fingerprint by the standard per-iteration drift pattern; the new
 `pyproject.toml` file does not perturb the fingerprint.
 
+## 2026-05-16 — Build verification across all three pyproject contracts (NEXT_WORK item 1, sub-checkbox 4 of 5)
+
+**Decision.** Sub-checkbox 4 of NEXT_WORK item 1 closes by running the
+canonical `python -m build --sdist --wheel` path against all three
+builds (rag-app, tool-use-agent, evals-harness) and exercising each
+resulting wheel inside a fresh `python3 -m venv` to confirm the
+console-script entry point dispatches and the CLI surface works. The
+`build` module was not present on the stock toolchain but was a
+30-second `pip install --user build` away (PyPI 1.4.4 in this
+iteration's environment), so the canonical primary path was taken and
+the `(or pip install -e . if build unavailable)` fallback clause
+remained unused — this iteration's verification is therefore strictly
+stronger than the per-build `pip install -e . --no-deps` checks done
+in iterations 46 / 47 / 48.
+
+**The verification matrix.**
+
+| Build           | sdist           | wheel               | install verb                                     | CLI dispatch check     | Key-free functional check               |
+|-----------------|-----------------|---------------------|--------------------------------------------------|------------------------|------------------------------------------|
+| rag-app         | 25.1 kB (.tar.gz) | 21.4 kB (.whl)    | `pip install --no-deps rag_app-0.1.0-...whl`     | `rag-app --help`       | `rag-app load --corpus-root <repo>` → 125 chunks |
+| tool-use-agent  | 34.6 kB (.tar.gz) | 29.8 kB (.whl)    | `pip install --no-deps tool_use_agent-0.1.0-...whl` | `tool-use-agent --help` | `tool-use-agent catalog` → 6 tools, exact catalog names |
+| evals-harness   | 41.2 kB (.tar.gz) | 34.5 kB (.whl)    | `pip install evals_harness-0.1.0-...whl` (no runtime deps) | `evals-harness --help` | `evals-harness ingest --help` (functional ingest needs repo, see finding below) |
+
+All three `python -m build` invocations completed cleanly with `setuptools`'
+PEP-517 build isolation pulling the modern build-time `setuptools` and
+`wheel` into a temporary env (the `setuptools>=61.0` requirement is met
+by build isolation, not by the user's system Python — same property
+iteration 46 documented for editable installs and which still holds for
+non-editable sdist+wheel builds). The wheel filenames are exactly the
+PyPA-canonical `<dist>-0.1.0-py3-none-any.whl` shape with no platform
+or ABI tags, confirming the pure-Python posture of all three builds.
+
+**Wheel-size heuristic, updated.** Iteration 47's
+linear-with-module-count prediction overshot for the first two builds
+(predicted ~9.6 kB / ~11.9 kB; built 21.4 kB / 29.8 kB) and undershot
+for evals-harness (predicted ~12-15 kB; built 34.5 kB). The factor-2
+overshoot on the editable-install measurements iterations 46/47 took
+was because editable wheels are just dispatch stubs — the real `.whl`
+size scales with source-byte-total, not module count. Updated
+heuristic: a pure-Python build's non-editable wheel weighs roughly
+0.4× the source-byte-total (compressed). Worth carrying as the
+prediction model going forward.
+
+**The in-repo-anchoring finding (real, but not a packaging
+regression).** All three builds locate their working data (corpus
+files, pipeline rows, sibling-build source) by walking up from
+`Path(__file__).resolve().parent` looking for `OBJECTIVE.md` — and
+when installed as a non-editable wheel into `/tmp/.../site-packages/`,
+no `OBJECTIVE.md` exists above the package files, so
+`find_repo_root()` raises. Concretely: `rag-app ask` /
+`rag-app retrieve`, `tool-use-agent tool` / `tool-use-agent ask`, and
+`evals-harness ingest` / `score` / `report` all fail when invoked from
+a non-editable wheel install outside the repo. `rag-app load` happens
+to expose a `--corpus-root` override so it works; the other six
+commands have no equivalent flag. **This is the *design property* the
+three builds have always had, not a packaging defect introduced by the
+new `pyproject.toml` files** — iterations 1-15's repo-as-corpus
+framing locked it deliberately, and editable installs done from inside
+the repo (iterations 46/47/48) preserve the property because
+`Path(__file__)` then points inside the repo checkout. Surfacing it
+here because it is the natural conclusion of the verification work
+this sub-checkbox owns: the wheels are PyPI-shape and install
+cleanly, but they are not PyPI-distributable as standalone CLIs; they
+are *in-repo dev tools whose install-and-run pattern is editable from
+inside the checkout*. The packaging contract honestly represents the
+build shape; downstream PyPI distribution (if ever pursued) would
+require a separate slice that adds `--repo-root` overrides to the
+other six commands or vendors the corpus into each package. Both are
+out of scope for NEXT_WORK; recording the finding so future iterations
+that consider PyPI distribution start with the right expectation.
+
+**Why the verification ran via non-editable wheel install, not
+`pip install -e .`.** The sub-checkbox's primary path is
+`python -m build --sdist --wheel`, which produces an sdist and a
+non-editable wheel; verifying those artifacts means installing them as
+non-editable wheels, which is also what a downstream PyPI install
+would do. Editable installs (iterations 46/47/48) verify the editable
+contract; non-editable installs (this iteration) verify the wheel
+contract. The two are different surfaces and the canonical sub-
+checkbox-4 verification covers the wheel-side surface that the prior
+three iterations did not.
+
+**Verification residue cleanup.** All three `dist/` directories
+(holding the sdists and wheels) live inside the per-build `.gitignore`
+glob added in iterations 46/47/48 (`dist/`, `build/`, `*.egg-info/`),
+so `git status` returns clean after the verification run with no
+manual cleanup needed. The verification venvs (`/tmp/verify-rag-app`,
+`/tmp/verify-tua`, `/tmp/verify-eh`) live entirely outside the repo
+and are not version-controlled; no background processes were started.
+
+**Item 1 status after this slice.** Sub-checkboxes 1/2/3/4 of 5 are
+now ticked. Sub-checkbox 5 ("DECISIONS.md entry locking the packaging
+convention …") remains the only open item under NEXT_WORK item 1.
+The three per-build entries (iterations 46/47/48) and this verification
+entry together cover the substance the sub-checkbox 5 entry would
+record, but a deliberate consolidating entry that names the contract
+in one place — build backend (`setuptools>=61.0` /
+`setuptools.build_meta`), Python floor (`>=3.9`), dev-dep names
+(`pytest>=7` / `mypy>=1.0` / `ruff>=0.1`), license-field deferral, the
+hyphen-vs-underscore convention, the canonical `pip install --no-deps`
+verification pattern — is the natural next slice.
+
+**Out of scope for this iteration.** (1) **No code change to any of
+the three builds** — the verification exercises the existing CLI
+surface; adding `--repo-root` flags to the six in-repo-anchored
+commands is a separate product-quality slice not owned by NEXT_WORK
+item 1. (2) **No edit to any `pyproject.toml`** — the three contracts
+land verbatim from iterations 46/47/48; this iteration only proves
+they build and install. (3) **No `LICENSE` file at the repo root or
+any build directory, no `license = ...` field added to any
+`pyproject.toml`** — all four belong to NEXT_WORK item 2. (4) **No
+`tests/` directory at any build, no `pytest` invocation in any venv**
+— NEXT_WORK item 3. (5) **No GitHub Actions workflow, no CI badge in
+any README** — NEXT_WORK item 4. (6) **No rag-app corpus v1
+expansion** — the iteration-3 corpus list (`OBJECTIVE.md`,
+`DECISIONS.md`, `templates/INTERVIEW_TRACKER.md`,
+`rag-app/README.md`) is unchanged; the verification run wrote
+`/tmp/verify-rag-app-chunks.jsonl` outside the repo and did not modify
+any committed file. This DECISIONS entry itself rotates the rag-app
+fingerprint by the standard per-iteration drift pattern.
+
