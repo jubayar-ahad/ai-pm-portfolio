@@ -31,6 +31,12 @@ from tool_use_agent.catalog import (
     catalog_as_anthropic_tools,
 )
 from tool_use_agent.tools_repo import find_repo_root
+from tool_use_agent.trace import (
+    SCHEMA_VERSION,
+    compute_corpus_fingerprint,
+    compute_record_id,
+    now_iso,
+)
 
 
 def _json_default(obj: Any) -> Any:
@@ -138,16 +144,43 @@ def _print_human(tool_name: str, result: Any) -> None:
     sys.stdout.write("\n")
 
 
-def _agent_result_to_payload(result: AgentResult) -> dict[str, Any]:
+def _agent_result_to_payload(
+    result: AgentResult, requested_model: str
+) -> dict[str, Any]:
     """Render an AgentResult as a JSON-friendly dict for `ask --json`.
 
-    Slice 5 will add the trace-record fields (schema_version, record_id,
-    corpus_fingerprint, generated_at) to this payload by reusing the
-    rag-app trace helpers — the shape here is the slice-3 baseline.
+    Trace-record fields (``schema_version``, ``record_id``,
+    ``generated_at``, ``corpus_fingerprint``) lead the payload so a
+    human reading the JSON sees identity-and-version first. The
+    ``record_id`` is computed over the *logical query* tuple
+    (question, requested_model, max_steps, mode, corpus_fingerprint)
+    so the same query against the same catalog produces the same id
+    on different days. ``requested_model`` is the user-facing
+    ``--model`` argument (matching rag-app's pattern), not the SDK
+    response's ``model`` field, which may carry a more specific
+    version pin that does not define the *logical* query. The
+    catalog fingerprint is computed from
+    ``catalog_as_anthropic_tools()`` — the model-facing surface —
+    rather than from the Python ``impl`` callables, so a
+    behavior-preserving impl refactor does not bust the id.
     """
+    catalog = catalog_as_anthropic_tools()
+    corpus_fingerprint = compute_corpus_fingerprint(catalog)
+    record_id = compute_record_id(
+        question=result.question,
+        model=requested_model,
+        max_steps=result.max_steps,
+        mode=result.mode,
+        corpus_fingerprint=corpus_fingerprint,
+    )
     return {
+        "schema_version": SCHEMA_VERSION,
+        "record_id": record_id,
+        "generated_at": now_iso(),
+        "corpus_fingerprint": corpus_fingerprint,
         "mode": result.mode,
         "question": result.question,
+        "requested_model": requested_model,
         "prompt": {
             "system": result.system_prompt,
             "user": result.user_message,
@@ -247,7 +280,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
         )
 
     if args.json:
-        payload = _agent_result_to_payload(result)
+        payload = _agent_result_to_payload(result, requested_model=args.model)
         print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
         return 0
 
@@ -333,8 +366,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help=(
-            "Emit a structured JSON record (prompt, tool_calls, answer) "
-            "for downstream tooling. Trace-record fields land in slice 5."
+            "Emit a structured tool-use-agent.ask.v1 record: "
+            "schema_version, record_id, generated_at, corpus_fingerprint "
+            "(SHA-256 of catalog_as_anthropic_tools() canonical JSON), "
+            "plus prompt, tool_calls[] (each with tool/input/output/"
+            "is_error/step/latency_ms/output_len), stop_reason, "
+            "refusal_reason, final_text, and token usage."
         ),
     )
     ask.set_defaults(func=cmd_ask)

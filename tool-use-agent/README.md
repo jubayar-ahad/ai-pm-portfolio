@@ -18,7 +18,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Single-step agent loop (one tool call, then answer) | Shipped |
 | Multi-step agent loop (chained tool calls, bounded) | Shipped |
 | Refusal + bounded-step termination | Shipped |
-| Eval-trace records (`tool-use-agent.ask.v1`) | Not yet |
+| Eval-trace records (`tool-use-agent.ask.v1`) | Shipped |
 
 The `ask` subcommand runs in two modes, matching the `rag-app/` build.
 With `ANTHROPIC_API_KEY` set it calls Claude with `tools=[…]`, runs whichever
@@ -275,19 +275,36 @@ Each line below is intended to map to a single future iteration:
    `refusal_reason=null`. The evals harness can bucket every
    refusal across both builds with a single string-equality check
    on `REFUSAL_SENTENCE` or by grouping on `refusal_reason`.
-5. **Eval-trace records.** `ask --json` emits a
-   `tool-use-agent.ask.v1` record carrying `schema_version`,
-   `record_id`, `corpus_fingerprint`, `generated_at`, plus a
-   `tool_calls[]` array with `{tool, input, output_len,
-   latency_ms, error?}` per step. Reuses `rag-app/rag_app/trace.py`
-   helpers via import so record IDs and corpus fingerprints are
-   byte-identical across builds.
+5. **Eval-trace records.** *(Shipped.)* `ask --json` now emits a
+   `tool-use-agent.ask.v1` record. Trace-record fields lead the
+   payload: `schema_version`, `record_id`, `generated_at`,
+   `corpus_fingerprint`. The `record_id` is a deterministic
+   16-hex-char SHA-256 over the logical-query tuple `{schema,
+   question, requested_model, max_steps, mode,
+   corpus_fingerprint}` — same question against the same catalog
+   yields the same id across days. `corpus_fingerprint` is a
+   16-hex-char SHA-256 of the canonical-JSON serialization of
+   `catalog_as_anthropic_tools()` (the model-facing surface), so a
+   behavior-preserving `impl` refactor does *not* bust the id.
+   `tool_calls[]` gains additive `latency_ms` and `output_len`
+   fields per call (the slice-3/4 `tool`/`input`/`output`/
+   `is_error`/`step` keys are unchanged), serving as the per-step
+   cost signal the harness reads without re-running tools.
+   Implementation in `tool_use_agent/trace.py` mirrors
+   `rag-app/rag_app/trace.py` structurally (same hashing
+   algorithm, same truncation, same timestamp shape) so the
+   harness can use one verification path across both builds; the
+   two modules are *not* cross-imported — each build remains
+   self-contained, and byte-equality of the helper *behavior* is
+   a harness-asserted contract, mirroring the same approach taken
+   for `REFUSAL_SENTENCE` in slice 4.
 
 ## How to run
 
-Slices 1–4 have landed: the six tools, the `catalog`/`tool`
-subcommands, the bounded multi-step `ask` subcommand, and canonical
-refusal on every non-`end_turn` exit are all runnable. Live `ask`
+All five slices have landed: the six tools, the `catalog`/`tool`
+subcommands, the bounded multi-step `ask` subcommand, canonical
+refusal on every non-`end_turn` exit, and the
+`tool-use-agent.ask.v1` eval-trace record on `--json`. Live `ask`
 needs `ANTHROPIC_API_KEY` and `pip install -r requirements.txt`;
 everything else is stdlib-only.
 
@@ -322,10 +339,12 @@ python -m tool_use_agent ask "<question>" --max-steps 3
 # in the dry-run output so you can verify the cap that would apply:
 python -m tool_use_agent ask "<question>" --dry-run
 
-# Structured JSON output for downstream tooling. Each ToolCallTrace
-# carries a `step` field (1-indexed bounded-loop round); the payload
-# also reports `max_steps`, `steps_taken`, and `stop_reason`
-# (`end_turn` or `max_steps_exhausted`):
+# Structured JSON output for downstream tooling. The payload is a
+# tool-use-agent.ask.v1 record: top-level `schema_version`,
+# `record_id` (deterministic across days for the same logical query
+# + catalog), `generated_at`, `corpus_fingerprint` (catalog hash),
+# plus `tool_calls[]` (each with `step`, `latency_ms`, `output_len`)
+# and the refusal/termination discriminators from slices 3 and 4:
 python -m tool_use_agent ask "<question>" --json
 ```
 

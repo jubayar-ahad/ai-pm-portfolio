@@ -735,3 +735,110 @@ the two would create a fuzzy "stuck-detector" with parameters
 the evals harness would have to tune, instead of the two clean,
 independent signals (`max_steps_exhausted` and
 `repeated_tool_error`) the harness has today.
+
+## 2026-05-16 — tool-use-agent slice 5: eval trace schema (`tool-use-agent.ask.v1`)
+
+**Decision:** Every `python -m tool_use_agent ask --json` record
+carries the same four trace fields shipped by `rag-app/`'s slice 5,
+defined in a new module `tool_use_agent/trace.py`:
+
+1. **`schema_version`** — constant `"tool-use-agent.ask.v1"`. The
+   future `evals-harness/` version-gates on the prefix
+   (`rag-app.ask.v1` vs `tool-use-agent.ask.v1`) to route to the
+   right scorer. Additive top-level or per-call fields keep the
+   version; renames, removed fields, or changed semantics of
+   existing fields require a bump.
+2. **`corpus_fingerprint`** — SHA-256 of the canonical-JSON
+   serialization (`sort_keys=True, ensure_ascii=False`) of
+   `catalog_as_anthropic_tools()`, truncated to 16 hex chars. The
+   tool-use agent has no chunks file; its analog of a corpus is
+   the catalog the model perceives. Fingerprinting the
+   Anthropic-tools view (not the Python `impl` callables) means a
+   behavior-preserving refactor of a tool implementation does
+   *not* invalidate cross-iteration record comparison, while
+   adding/removing/re-describing a tool does.
+3. **`record_id`** — SHA-256 over the canonical JSON of
+   `{schema, question, model, max_steps, mode,
+   corpus_fingerprint}`, truncated to 16 hex chars. The `model`
+   used here is the CLI's `--model` argument (the *requested*
+   model), not the SDK response's `model` (which may carry a
+   more specific version pin); this matches `rag-app/`'s pattern
+   and means the same logical query against the same catalog
+   produces the same id on different days, including for the
+   dry-run path. `top_k`/`min_score` from the rag-app shape are
+   replaced by `max_steps` because the tool-use loop's bound is
+   the relevant cost knob (and changing it materially changes
+   behavior). `generated_at` is excluded for the same reason as
+   in rag-app: wall-clock time is not part of the query.
+4. **`generated_at`** — ISO-8601 UTC with second precision and a
+   `Z` suffix. Same shape as `rag-app/`.
+
+The `tool_calls[]` array gains two additive per-call fields:
+`latency_ms` (wall-clock duration of the local tool execution,
+measured with `time.perf_counter` and rounded to int
+milliseconds) and `output_len` (byte length of the UTF-8 encoded
+JSON serialization of the tool output, which is the cost signal
+the harness reads without re-running tools). The slice-3/4 inner
+keys (`tool`, `input`, `output`, `is_error`, `step`) are
+unchanged, so this remains additive and does not require a
+schema-version bump.
+
+**Cross-build helper alignment.** `tool_use_agent/trace.py`
+mirrors `rag-app/rag_app/trace.py` *structurally* — same hashing
+algorithm (canonical JSON with sorted keys → SHA-256 → 16-hex-
+char truncation), same `_HEX_LEN = 16` truncation, same
+`now_iso()` timestamp shape — but the two modules deliberately
+do **not** cross-import. Each top-level build remains self-
+contained; the alignment guarantee is a startup assertion the
+future evals harness will own (parallel to slice 4's
+`REFUSAL_SENTENCE` byte-equality contract). The earlier "import
+trace.py from rag-app" plan locked in the iteration-9 stack
+entry is superseded by the same iteration-11 pattern that
+walked back cross-import of `REFUSAL_SENTENCE`: per-build self-
+containment beats a cross-directory `sys.path` hack, and the
+harness can assert behavior equivalence with two ~3-line
+fixtures (hash a known catalog twice, one per build) at startup.
+
+**Rationale.** Three properties earned by this slice.
+
+- **Cross-day record diffability for the same logical query.**
+  Excluding `generated_at` from `record_id` and pinning the
+  `model` to the user-facing `--model` argument means three
+  consecutive runs of the same `ask` invocation share an id, and
+  three runs across iterations 13 → 14 → 20 also share one — as
+  long as the catalog surface and the requested-model string
+  don't change. This is the property the harness needs to ask
+  "did the answer to this exact logical query change between
+  two runs?"
+- **Fingerprint on the model-facing surface, not the impl.**
+  Hashing `catalog_as_anthropic_tools()` rather than the
+  Python `impl` callables means a behavior-preserving refactor
+  (e.g. rewriting `grep_repo` for performance with no surface
+  change) does not invalidate every prior record. The
+  conservative alternative — hashing every `impl` callable's
+  bytecode — would silently bust id stability on every
+  refactor, hiding genuine answer-regression signal under
+  spurious id churn. If a future iteration finds the
+  surface-only fingerprint too lax (e.g. a buggy `impl`
+  produces wrong answers without changing its surface), the
+  evals harness's correctness rubric will catch it; that is
+  the right separation of concerns between trace identity and
+  trace correctness.
+- **Per-call cost signals are additive.** Surfacing
+  `latency_ms` and `output_len` per `ToolCallTrace` rather than
+  computing them at harness scoring time means the harness
+  doesn't need to re-execute tools or hash outputs to know
+  "which tool dominated this query's cost." Keeping the
+  existing `output` field alongside (rather than dropping it
+  for `output_len` only) costs trace-size bytes but pays back
+  on every debugging session — at this build's record volume
+  (tens per eval run) the full output is genuinely useful for
+  spot-checking, and the additive policy lets a future
+  iteration drop `output` (which would be a v2 bump) without
+  rewriting the slice-5 shape today.
+
+The `requested_model` field also appears at the top level of
+the payload, separate from `model` (which is the SDK response's
+model id, `null` on dry-run). The harness can read either; the
+record_id is computed against `requested_model` so it stays
+stable across SDK version-pin changes.

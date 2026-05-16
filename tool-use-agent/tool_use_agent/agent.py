@@ -34,6 +34,7 @@ two are equal at startup.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -87,6 +88,14 @@ class ToolCallTrace:
     ``step`` is the 1-indexed bounded-loop round in which this call was
     issued. Multiple tool calls can share the same ``step`` when the
     model emits parallel ``tool_use`` blocks in a single turn.
+
+    ``latency_ms`` is the wall-clock duration of the local tool
+    execution (not the model call), measured with ``time.perf_counter``
+    in milliseconds rounded to int. ``output_len`` is the byte length
+    of the JSON-serialized output (the cost signal the evals harness
+    reads); the full ``output`` is also retained for skim-debugging at
+    this corpus size and gets dropped if a future iteration's trace
+    storage grows.
     """
 
     tool: str
@@ -94,6 +103,8 @@ class ToolCallTrace:
     output: Any
     is_error: bool = False
     step: int = 1
+    latency_ms: int = 0
+    output_len: int = 0
 
 
 @dataclass
@@ -219,11 +230,16 @@ def run_agent(
             tool_name = tu.name
             tool_input = dict(tu.input)
             is_error = False
+            t0 = time.perf_counter()
             try:
                 output = call_tool(tool_name, repo_root, **tool_input)
             except (KeyError, TypeError, ValueError) as err:
                 output = f"ERROR: {type(err).__name__}: {err}"
                 is_error = True
+            latency_ms = int(round((time.perf_counter() - t0) * 1000))
+            content_json = json.dumps(
+                output, ensure_ascii=False, default=str
+            )
             if is_error:
                 this_step_error_keys.add(
                     canonical_call_key(tool_name, tool_input)
@@ -235,13 +251,15 @@ def run_agent(
                     output=output,
                     is_error=is_error,
                     step=step_num,
+                    latency_ms=latency_ms,
+                    output_len=len(content_json.encode("utf-8")),
                 )
             )
             tool_result_blocks.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": tu.id,
-                    "content": json.dumps(output, ensure_ascii=False, default=str),
+                    "content": content_json,
                     "is_error": is_error,
                 }
             )
