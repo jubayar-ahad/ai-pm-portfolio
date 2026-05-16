@@ -1,26 +1,34 @@
 """Bounded multi-step agent loop for the tool-use-agent.
 
-Slice 3: run the model with ``tools=[…]`` in a bounded loop, executing
-whichever tool(s) the model requests each turn, until the model returns
-``end_turn`` without a new ``tool_use`` block or ``max_steps`` is reached.
+Slice 3 shipped the bounded loop; slice 4 canonicalizes the refusal
+surface. The loop now exits in one of three deterministic states, all
+of which write to ``AgentResult.refusal_reason`` so the future evals
+harness can bucket them without parsing ``final_text``:
 
-Each "step" is one round of (model call → tool execution). ``max_steps``
-caps the number of tool-execution rounds and is the only knob a caller
-needs for cost-bounding. A model turn that emits no ``tool_use`` blocks
-terminates the loop with ``stop_reason=end_turn`` and the model's text
-as ``final_text``. Reaching the cap exits with
-``stop_reason=max_steps_exhausted`` and a deterministic cap note as
-``final_text`` — slice 4 will swap that for the canonical refusal
-sentence.
+* ``stop_reason="end_turn"`` — the model emitted no ``tool_use`` blocks
+  and the loop returns its text as ``final_text``. When that text is
+  byte-equal to ``REFUSAL_SENTENCE`` per system-prompt rule 1,
+  ``refusal_reason="model_refused"`` is set so the harness can group
+  it with the other refusal paths.
+* ``stop_reason="repeated_tool_error"`` — the same ``(tool, input)``
+  pair errored in two consecutive steps. The loop terminates with
+  ``final_text=REFUSAL_SENTENCE`` and
+  ``refusal_reason="repeated_tool_error"`` rather than letting the
+  model spin on a broken call.
+* ``stop_reason="max_steps_exhausted"`` — the bounded loop hit
+  ``--max-steps`` without an ``end_turn``. ``final_text`` is now the
+  canonical ``REFUSAL_SENTENCE`` (replacing the slice-3 placeholder
+  cap note), with ``refusal_reason="max_steps_exhausted"``.
 
 The dry-run path returns the assembled first-turn prompt and the
 configured ``max_steps`` cap, without importing the SDK. This is the
 same property the ``rag-app/`` build holds: the CLI is verifiable
 without an API key.
 
-Cross-build refusal alignment: ``REFUSAL_SENTENCE`` is defined with the
-same literal string as ``rag-app/rag_app/verify.py`` so the future
-evals harness can bucket refusals from both builds without fuzzy match.
+Cross-build refusal alignment: ``REFUSAL_SENTENCE`` is defined exactly
+once in ``tool_use_agent/verify.py`` and byte-identical with
+``rag-app/rag_app/verify.py``. The future evals harness asserts the
+two are equal at startup.
 """
 
 from __future__ import annotations
@@ -34,14 +42,16 @@ from tool_use_agent.catalog import (
     call_tool,
     catalog_as_anthropic_tools,
 )
+from tool_use_agent.verify import (
+    REFUSAL_SENTENCE,
+    canonical_call_key,
+    detect_repeated_error,
+    is_model_refusal,
+)
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_MAX_STEPS = 6
-
-REFUSAL_SENTENCE = (
-    "I don't have enough information in the provided context to answer this."
-)
 
 SYSTEM_PROMPT = f"""\
 You are a careful question-answering assistant for the AI PM 90-day project repo.
@@ -99,6 +109,7 @@ class AgentResult:
     tool_calls: list[ToolCallTrace] = field(default_factory=list)
     final_text: str = ""
     stop_reason: str | None = None
+    refusal_reason: str | None = None
     model: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
@@ -161,7 +172,7 @@ def run_agent(
     messages: list[dict[str, Any]] = [
         {"role": "user", "content": user_message},
     ]
-    last_text_parts: list[str] = []
+    prev_step_error_keys: set[str] = set()
 
     for step_num in range(1, max_steps + 1):
         response = client.messages.create(
@@ -185,20 +196,25 @@ def run_agent(
                 text_parts.append(block.text)
             elif block_type == "tool_use":
                 tool_use_blocks.append(block)
-        last_text_parts = text_parts
 
         if not tool_use_blocks:
             # Model decided it has enough — emit final answer. Steps taken
             # is the count of tool rounds actually executed (0 if the model
             # answered directly on turn 1).
-            result.final_text = "".join(text_parts).strip()
+            final_text = "".join(text_parts).strip()
+            result.final_text = final_text
             result.steps_taken = step_num - 1
+            if is_model_refusal(final_text):
+                result.refusal_reason = "model_refused"
             return result
 
-        # Execute every tool the model requested in this turn. Errors
-        # are surfaced as tool_result.is_error=true so the model can
-        # recover on a subsequent step; slice 4 will add policy on top.
+        # Execute every tool the model requested in this turn. Recoverable
+        # errors surface as tool_result.is_error=true so the model can
+        # react; we additionally track the canonical (tool, input) keys
+        # that errored this step so we can refuse if the model retries
+        # the same broken call on the next step.
         tool_result_blocks: list[dict[str, Any]] = []
+        this_step_error_keys: set[str] = set()
         for tu in tool_use_blocks:
             tool_name = tu.name
             tool_input = dict(tu.input)
@@ -208,6 +224,10 @@ def run_agent(
             except (KeyError, TypeError, ValueError) as err:
                 output = f"ERROR: {type(err).__name__}: {err}"
                 is_error = True
+            if is_error:
+                this_step_error_keys.add(
+                    canonical_call_key(tool_name, tool_input)
+                )
             result.tool_calls.append(
                 ToolCallTrace(
                     tool=tool_name,
@@ -226,21 +246,29 @@ def run_agent(
                 }
             )
 
-        messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": tool_result_blocks})
         result.steps_taken = step_num
 
-    # Loop exhausted before the model returned end_turn. Surface the cap
-    # explicitly; slice 4 will replace this deterministic note with the
+        # Refusal trigger: same (tool, input) errored in two consecutive
+        # steps. Terminate with the canonical refusal rather than
+        # appending another tool_result turn the model would just retry.
+        repeated = detect_repeated_error(
+            prev_step_error_keys, this_step_error_keys
+        )
+        if repeated is not None:
+            result.stop_reason = "repeated_tool_error"
+            result.refusal_reason = "repeated_tool_error"
+            result.final_text = REFUSAL_SENTENCE
+            return result
+
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_result_blocks})
+        prev_step_error_keys = this_step_error_keys
+
+    # Loop exhausted before the model returned end_turn. Emit the
     # canonical REFUSAL_SENTENCE so the evals harness can bucket the
-    # max_steps_exhausted path together with other refusals.
+    # max_steps_exhausted path with other refusals via a single
+    # equality check.
     result.stop_reason = "max_steps_exhausted"
-    cap_note = (
-        f"(reached max_steps={max_steps} without a grounded answer; "
-        f"canonical refusal lands in slice 4.)"
-    )
-    closing_text = "".join(last_text_parts).strip()
-    result.final_text = (
-        f"{closing_text}\n\n{cap_note}" if closing_text else cap_note
-    )
+    result.refusal_reason = "max_steps_exhausted"
+    result.final_text = REFUSAL_SENTENCE
     return result

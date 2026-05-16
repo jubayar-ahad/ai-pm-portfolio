@@ -17,7 +17,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Tool catalog (pure-Python, no LLM) | Shipped |
 | Single-step agent loop (one tool call, then answer) | Shipped |
 | Multi-step agent loop (chained tool calls, bounded) | Shipped |
-| Refusal + bounded-step termination | Not yet |
+| Refusal + bounded-step termination | Shipped |
 | Eval-trace records (`tool-use-agent.ask.v1`) | Not yet |
 
 The `ask` subcommand runs in two modes, matching the `rag-app/` build.
@@ -25,11 +25,18 @@ With `ANTHROPIC_API_KEY` set it calls Claude with `tools=[…]`, runs whichever
 tool(s) the model requests, returns the results, loops up to
 `--max-steps` (default 6) until the model returns an `end_turn` without a
 new tool call, and prints Claude's final answer plus a per-step trace.
-Without a key (or with explicit `--dry-run`) it prints the assembled
+The loop terminates in one of three deterministic states surfaced as a
+`refusal_reason` discriminator in the JSON trace: `end_turn` (clean
+finish, `refusal_reason=null` unless the model itself returned the
+canonical refusal sentence, in which case `refusal_reason="model_refused"`),
+`max_steps_exhausted` (cap reached — `final_text` becomes the canonical
+`REFUSAL_SENTENCE`, byte-identical to `rag-app/`'s), or
+`repeated_tool_error` (same `(tool, input)` errored in two consecutive
+steps — the loop refuses rather than letting the model spin). Without a
+key (or with explicit `--dry-run`) the command prints the assembled
 first-turn prompt and the tool catalog the model would see — enough to
 validate the tool schema and prompt construction in a sandbox or CI
-environment. Refusal canonicalization for the `max_steps_exhausted` path
-lands in slice 4.
+environment.
 
 ## What this demo is, in one sentence
 
@@ -123,10 +130,19 @@ agent loop  ──►  Claude (tool_choice="auto")
 ```
 
 Notes:
-- The loop terminates when (a) the model returns an `end_turn` without a
-  new tool call, (b) `max_steps` is reached, or (c) a tool raises a
-  recoverable error twice in a row on the same input — the agent emits the
-  canonical refusal rather than spinning.
+- The loop terminates in exactly one of three states, all surfaced via
+  `stop_reason` and a parallel `refusal_reason` discriminator on
+  `AgentResult`: (a) `end_turn` — the model emitted no `tool_use`
+  block this turn, `refusal_reason` is `null` unless the model's text
+  is byte-equal to `REFUSAL_SENTENCE` (in which case
+  `refusal_reason="model_refused"`); (b) `max_steps_exhausted` — the
+  cap was hit, `final_text` is `REFUSAL_SENTENCE`,
+  `refusal_reason="max_steps_exhausted"`; (c) `repeated_tool_error` —
+  the same `(tool, input)` errored in two consecutive steps,
+  `final_text` is `REFUSAL_SENTENCE`,
+  `refusal_reason="repeated_tool_error"`. Recoverable single-shot
+  errors (a different input the next step, or a successful retry)
+  continue the loop normally.
 - All tool outputs are passed back to the model as plain JSON strings.
   Binary outputs are never produced; tools that would otherwise return
   bytes (none in v1) would Base64-encode at the boundary.
@@ -243,12 +259,22 @@ Each line below is intended to map to a single future iteration:
    `max_steps_exhausted` cap note with the canonical
    `REFUSAL_SENTENCE` so refusals bucket the same as
    `rag-app/`'s.
-4. **Refusal + bounded-step termination.** Canonical refusal sentence
-   defined once and emitted whenever the loop terminates without a
-   grounded answer (no useful tool result, or `max_steps` exhausted,
-   or two consecutive tool errors on the same input). Mirrors
-   `rag-app/`'s refusal pattern so the evals harness treats both as
-   one bucket.
+4. **Refusal + bounded-step termination.** *(Shipped.)*
+   `REFUSAL_SENTENCE` is now defined once in
+   `tool_use_agent/verify.py` (byte-identical with
+   `rag-app/rag_app/verify.py`) and is the `final_text` for every
+   non-`end_turn` exit of the bounded loop. The slice also adds a
+   `refusal_reason` discriminator on `AgentResult` (additive JSON
+   field — no `tool-use-agent.ask.v1` schema bump needed when slice
+   5 lands) populated in three cases: `max_steps_exhausted` (cap hit
+   without an `end_turn`), `repeated_tool_error` (canonical
+   `(tool, input)` key — built via `verify.canonical_call_key` —
+   errored in two consecutive steps), and `model_refused` (the
+   model's `end_turn` text is byte-equal to `REFUSAL_SENTENCE` per
+   system-prompt rule 1). The `end_turn` happy path leaves
+   `refusal_reason=null`. The evals harness can bucket every
+   refusal across both builds with a single string-equality check
+   on `REFUSAL_SENTENCE` or by grouping on `refusal_reason`.
 5. **Eval-trace records.** `ask --json` emits a
    `tool-use-agent.ask.v1` record carrying `schema_version`,
    `record_id`, `corpus_fingerprint`, `generated_at`, plus a
@@ -259,10 +285,11 @@ Each line below is intended to map to a single future iteration:
 
 ## How to run
 
-Slices 1–3 have landed: the six tools, the `catalog`/`tool`
-subcommands, and the bounded multi-step `ask` subcommand are all
-runnable. Live `ask` needs `ANTHROPIC_API_KEY` and `pip install -r
-requirements.txt`; everything else is stdlib-only.
+Slices 1–4 have landed: the six tools, the `catalog`/`tool`
+subcommands, the bounded multi-step `ask` subcommand, and canonical
+refusal on every non-`end_turn` exit are all runnable. Live `ask`
+needs `ANTHROPIC_API_KEY` and `pip install -r requirements.txt`;
+everything else is stdlib-only.
 
 ```bash
 cd tool-use-agent
@@ -310,10 +337,15 @@ Notes:
   currently return empty / zero histograms because the tracker
   contains only placeholder rows. They start returning real data the
   moment the user fills in real rows, with no code change required.
-- When the loop exits with `stop_reason=max_steps_exhausted`,
-  `final_text` is a deterministic cap note rather than the canonical
-  `REFUSAL_SENTENCE`. Slice 4 will reconcile this so the eval harness
-  can bucket the cap-exhaustion path with other refusals.
+- The `--json` payload carries a `refusal_reason` field (one of
+  `null`, `"model_refused"`, `"max_steps_exhausted"`,
+  `"repeated_tool_error"`). The first three states share
+  `stop_reason=end_turn` or `=max_steps_exhausted`; the fourth
+  introduces `stop_reason=repeated_tool_error` for the
+  consecutive-same-input failure case. `final_text` on every refusal
+  path is byte-equal to `REFUSAL_SENTENCE` from
+  `tool_use_agent/verify.py`, which is byte-equal to
+  `rag-app/rag_app/verify.py::REFUSAL_SENTENCE`.
 
 ## Design tradeoffs called out for interview discussion
 

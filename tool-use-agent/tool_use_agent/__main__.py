@@ -156,6 +156,7 @@ def _agent_result_to_payload(result: AgentResult) -> dict[str, Any]:
         "steps_taken": result.steps_taken,
         "tool_calls": [dataclasses.asdict(call) for call in result.tool_calls],
         "stop_reason": result.stop_reason,
+        "refusal_reason": result.refusal_reason,
         "model": result.model,
         "input_tokens": result.input_tokens,
         "output_tokens": result.output_tokens,
@@ -196,8 +197,13 @@ def _print_agent_result_human(result: AgentResult) -> None:
     print("--- answer ---")
     print(result.final_text or "(empty)")
     print()
+    refusal = (
+        f"  refusal_reason={result.refusal_reason}"
+        if result.refusal_reason
+        else ""
+    )
     print(
-        f"(model={result.model}  stop_reason={result.stop_reason}  "
+        f"(model={result.model}  stop_reason={result.stop_reason}{refusal}  "
         f"steps={result.steps_taken}/{result.max_steps}  "
         f"input_tokens={result.input_tokens}  "
         f"output_tokens={result.output_tokens})"
@@ -310,7 +316,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_STEPS,
         help=(
             f"Max tool-execution rounds before the loop exits with "
-            f"stop_reason=max_steps_exhausted (default {DEFAULT_MAX_STEPS})."
+            f"stop_reason=max_steps_exhausted and the canonical "
+            f"refusal sentence as final_text (default "
+            f"{DEFAULT_MAX_STEPS})."
         ),
     )
     ask.add_argument(

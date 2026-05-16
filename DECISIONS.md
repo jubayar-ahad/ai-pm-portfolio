@@ -621,3 +621,117 @@ eval metric quietly wrong. The deterministic cap-note final-text
 contract minimal: slice 3 owns "what does the loop do," slice 4
 owns "what string represents a refusal," and the diff between them
 is a one-line swap, not a re-architecture.
+
+## 2026-05-16 — tool-use-agent slice 4: canonical refusal surface and termination discriminator
+
+Slice 4 closes out the agent loop's termination semantics by routing
+every non-`end_turn` exit through a single canonical refusal string
+and adding a `refusal_reason` discriminator that the future evals
+harness can group on without parsing `final_text`. The contract is
+implemented in `tool_use_agent/verify.py` and consumed by
+`tool_use_agent/agent.py::run_agent`. Four pieces are locked here:
+
+1. **`REFUSAL_SENTENCE` lives in `tool_use_agent/verify.py`, defined
+   exactly once in this build.** Imported into `agent.py` (replacing
+   the slice-2 local constant). The string is byte-identical with
+   `rag-app/rag_app/verify.py::REFUSAL_SENTENCE`. The two builds
+   continue to define the string independently — neither imports
+   from the other top-level directory — so each build remains
+   self-contained; the alignment guarantee is a string-equality
+   check the future evals harness will assert at startup. Drifting
+   the sentence in either build is the single failure mode this
+   slice trades off against, and the harness's startup assertion is
+   the smallest possible canary.
+
+2. **Three termination states, one canonical `final_text` shape.**
+   `run_agent` now exits in exactly one of:
+   (a) `stop_reason="end_turn"` — the model emitted no `tool_use`
+   block. `final_text` is the model's text, stripped.
+   `refusal_reason` is `null` unless the text is byte-equal to
+   `REFUSAL_SENTENCE` per system-prompt rule 1, in which case
+   `refusal_reason="model_refused"`.
+   (b) `stop_reason="max_steps_exhausted"` — the bounded loop hit
+   `--max-steps` without an `end_turn`. `final_text` is
+   `REFUSAL_SENTENCE` (the slice-3 placeholder cap note is removed).
+   `refusal_reason="max_steps_exhausted"`.
+   (c) `stop_reason="repeated_tool_error"` (new in slice 4) — the
+   same `(tool, input)` canonical key, computed by
+   `verify.canonical_call_key`, errored in two consecutive steps.
+   `final_text` is `REFUSAL_SENTENCE`.
+   `refusal_reason="repeated_tool_error"`. A single error followed
+   by a successful retry, or two errors with different inputs in
+   consecutive steps, do **not** trigger the refusal — the loop
+   continues so the model can recover, mirroring the existing
+   recoverable-error-as-`tool_result.is_error=true` pattern from
+   slice 1/2.
+
+3. **`canonical_call_key` is the equality grammar for the
+   repeated-error detector.** Keys are
+   `json.dumps({"tool": ..., "input": ...}, sort_keys=True,
+   ensure_ascii=False)`. Sorted keys means parallel `tool_use`
+   blocks in one turn that emit identical `(tool, input)` pairs
+   collapse to one key (correct: they were emitted in the *same*
+   step, so they cannot be consecutive across steps). The detector
+   (`verify.detect_repeated_error`) takes the prior step's error-
+   key set and the current step's error-key set and returns the
+   first intersecting key, or `None`. Locking the key grammar in
+   `verify.py` (not inline in `agent.py`) is what lets the future
+   evals harness recompute the same key from a trace record if it
+   needs to score termination-quality per error type.
+
+4. **`AgentResult.refusal_reason` is an additive JSON field.**
+   Surfaced in the `ask --json` payload and the human-readable
+   trace footer. Slice-3's `tool-use-agent.ask.v1` baseline shape
+   is otherwise unchanged (same `mode`/`question`/`prompt`/
+   `tool_calls[]`/`stop_reason`/`model`/`max_steps`/`steps_taken`/
+   token usage/`final_text` keys), so this remains an additive
+   change and does not require a schema-version bump when slice 5
+   serializes trace records.
+
+**Rationale.** Three properties earned by this slice.
+
+- **One canonical string, three deterministic paths.** The future
+  evals harness's "refusal-when-uncertain rate" metric needs every
+  refusal path to collapse to one bucket without fuzzy matching.
+  With slice 3's placeholder cap note still in place, the harness
+  would have had to maintain a per-build refusal regex and re-tune
+  it every time the cap note's wording drifted. Replacing the cap
+  note with `REFUSAL_SENTENCE` is the smallest possible change
+  that makes the metric a one-line equality check.
+
+- **`refusal_reason` discriminator separates "why" from "what."**
+  The `final_text` becoming uniform across refusal paths is the
+  property that makes refusal a single bucket; the
+  `refusal_reason` field is the property that lets the harness
+  *also* score termination quality per cause — "% of refusals that
+  were cap-driven vs. error-driven vs. model-self-driven." Without
+  it, the harness would have to reconstruct cause from the trace,
+  which is exactly the dishonest signal slice 3's `stop_reason`
+  discriminator avoided. Three reasons (`model_refused`,
+  `max_steps_exhausted`, `repeated_tool_error`) is the smallest set
+  that covers the three deterministic refusal paths the loop can
+  produce, and the field is `null` on the happy path so a single
+  `is None` check answers "did this run succeed."
+
+- **Repeated-error refusal is consecutive-across-steps, not
+  total-across-loop.** A model that errors once, sees the
+  `is_error=true` tool_result, and retries with a corrected input
+  is the *intended* recovery path and must not refuse. Checking
+  for the same canonical key in *consecutive* steps (not across
+  the whole trace) is the smallest detector that fires only on
+  genuine retry-loops while leaving recovery semantics intact.
+  Parallel `tool_use` blocks within one turn share a `step`
+  number (locked in slice 3), so two identical bad calls emitted
+  in parallel collapse to one canonical key in `this_step_error_keys`
+  and do not self-trigger the refusal — which is the correct
+  semantics, because they are not "consecutive errors" but "one
+  bad turn."
+
+The detector intentionally does *not* try to detect "model is
+spinning but each call succeeds" (e.g. reading the same file ten
+times). That is a cost-bound, not a refusal-bound, and the
+existing `--max-steps` cap is the right tool for it. Conflating
+the two would create a fuzzy "stuck-detector" with parameters
+the evals harness would have to tune, instead of the two clean,
+independent signals (`max_steps_exhausted` and
+`repeated_tool_error`) the harness has today.
