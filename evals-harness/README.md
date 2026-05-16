@@ -20,7 +20,8 @@ incrementally — see [Status](#status) for what currently runs.
 | Refusal-bucket scorer (cross-build) | Shipped |
 | Groundedness scorer (rag-app) + first-call tool scorer (tool-use-agent) | Shipped |
 | Termination quality scorer (tool-use-agent) | Shipped |
-| Cost scorer + aggregate report | Not started |
+| Cost scorer (cross-build aggregate stats) | Shipped |
+| Aggregate `report` subcommand | Not started |
 
 The harness deliberately performs **no model calls of its own**. It scores
 trace records that the two LLM builds already emit via their `ask --json`
@@ -321,12 +322,27 @@ Each line below is intended to map to a single future iteration:
    `refusal_reason=null` and a non-`end_turn` `stop_reason` (or an
    unknown `refusal_reason` value) is treated as a build contract
    violation and raises with a named error.
-6. **Cost scorer + aggregate report.** Final slice rolls up
-   `input_tokens + output_tokens` p50/p95/max per build and (for
-   tool-use-agent) `steps_taken` p50/p95 + summed per-call
-   `latency_ms`, then joins every per-record scored row into a
-   single Markdown report (`python -m evals_harness report
-   --scored <path>`), and reports `corpus_fingerprint` diversity as
+6. **Cost scorer.** *Shipped.*
+   `python -m evals_harness score --rubric cost --ingested <path>`
+   joins traces to labels by (question, schema_version ∈
+   applies_to) and emits a per-build aggregate Markdown table of
+   `total_tokens` p50/p95/max plus (tool-use-agent only)
+   `steps_taken` and `tool_latency_ms_sum` p50/p95/max so a PM can
+   read tool-side cost independently of model-side cost (the
+   iteration-14 latency-split decision). Dry-run /
+   `refused-low-score` / refused-other-mode traces classify as
+   `no_observation` and are excluded from every stats denominator;
+   live refusals (e.g. tool-use-agent `model_refused`) still count
+   in the stats because the tokens *were* consumed. Per-record
+   scored JSONL carries the cross-rubric core columns plus the
+   six cost fields (`input_tokens`, `output_tokens`,
+   `total_tokens`, `steps_taken`, `max_steps`,
+   `tool_latency_ms_sum`); rag-app rows have the three tua-only
+   fields set to `null` so the schema stays uniform.
+7. **Aggregate report.** Final slice joins every per-record scored
+   row (refusal + groundedness + first-call + termination + cost)
+   into a single Markdown report (`python -m evals_harness report
+   --scored <path>`) and reports `corpus_fingerprint` diversity as
    a warning row when more than one fingerprint shows up per build.
    This is the artifact an interviewer reads.
 
@@ -411,7 +427,7 @@ python3 -m evals_harness score \
 #   per-row "mismatches / missing-first-call" list naming the
 #   expected vs observed tool per failing question.
 
-# (slice 5, shipped) termination quality — tool-use-agent traces only.
+# (slice 5a, shipped) termination quality — tool-use-agent traces only.
 python3 -m evals_harness score \
     --rubric termination \
     --ingested .cache/ingested.jsonl \
@@ -421,6 +437,16 @@ python3 -m evals_harness score \
 #   repeated_tool_error / no_observation), accuracy reported as
 #   ended_clean / observable, and a per-row non-clean list naming
 #   the bucket + steps_taken/max_steps per failing question.
+
+# (slice 5b, shipped) cost — aggregate p50/p95/max stats per build.
+python3 -m evals_harness score \
+    --rubric cost \
+    --ingested .cache/ingested.jsonl \
+    --out .cache/scored_cost.jsonl
+# → per-build total_tokens p50/p95/max, plus (tool-use-agent only)
+#   a second table with steps_taken and tool_latency_ms_sum
+#   p50/p95/max. Each row reads `observable = N_live / N_paired`
+#   so a reader can tell at a glance how many traces contributed.
 ```
 
 The locked CLI shape for the remaining slice is:
@@ -428,8 +454,7 @@ The locked CLI shape for the remaining slice is:
 ```bash
 cd evals-harness
 
-# (slice 5 remainder) cost rubric + aggregate report.
-python3 -m evals_harness score --rubric cost --ingested .cache/ingested.jsonl
+# (slice 7) aggregate report rolling up every per-rubric scored.jsonl.
 python3 -m evals_harness report --scored .cache/scored.jsonl
 ```
 

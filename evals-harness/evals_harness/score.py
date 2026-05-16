@@ -1,4 +1,4 @@
-"""Per-rubric scorers for the evals harness (slices 3 + 4).
+"""Per-rubric scorers for the evals harness (slices 3 + 4 + 5).
 
 Reads a normalized ``ingested.jsonl`` envelope produced by ``ingest``,
 joins traces to labels by (question, schema_version ∈ applies_to),
@@ -48,12 +48,14 @@ RUBRIC_REFUSAL = "refusal"
 RUBRIC_GROUNDEDNESS = "groundedness"
 RUBRIC_FIRST_CALL_TOOL = "first_call_tool"
 RUBRIC_TERMINATION = "termination"
+RUBRIC_COST = "cost"
 
 ALL_RUBRICS = (
     RUBRIC_REFUSAL,
     RUBRIC_GROUNDEDNESS,
     RUBRIC_FIRST_CALL_TOOL,
     RUBRIC_TERMINATION,
+    RUBRIC_COST,
 )
 
 OBSERVED_REFUSE = "refuse"
@@ -1081,6 +1083,347 @@ def _write_termination_jsonl(out_path: Path, rows: list[TerminationRow]) -> None
 
 
 # ---------------------------------------------------------------------------
+# Cost rubric (cross-build; live traces only)
+# ---------------------------------------------------------------------------
+
+
+COST_OBSERVED = "observed"
+COST_NONE = "no_observation"
+
+
+@dataclass(frozen=True)
+class CostRow:
+    """One scored cost observation.
+
+    Cross-rubric core columns (``rubric/record_id/schema_version/question/
+    label_id/match``) plus cost extras. ``match`` is True iff the trace was
+    live and the per-build token fields were readable — it is **not** a
+    correctness signal, it is a per-record observability flag so the
+    aggregate accuracy column reads ``observed / observable`` consistently
+    with slices 3–5a. The real cost signal lives in the numeric fields.
+
+    rag-app traces emit ``answer.input_tokens`` / ``answer.output_tokens``
+    only in ``mode=='live'`` (refused-low-score has no ``answer`` block);
+    tool-use-agent traces emit top-level ``input_tokens`` /
+    ``output_tokens`` plus per-call ``latency_ms`` in ``mode=='live'``.
+    Dry-run traces are no_observation for both builds.
+
+    ``steps_taken`` / ``max_steps`` / ``tool_latency_ms_sum`` are
+    tool-use-agent-only and None on rag-app rows; this keeps the JSONL
+    schema uniform across builds without the report aggregator needing a
+    per-build dispatch.
+    """
+
+    rubric: str
+    record_id: str
+    schema_version: str
+    question: str
+    label_id: str
+    input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
+    steps_taken: int | None
+    max_steps: int | None
+    tool_latency_ms_sum: int | None
+    observed_outcome: str  # COST_OBSERVED / COST_NONE
+    match: bool
+
+
+@dataclass
+class CostResult:
+    rows: list[CostRow] = field(default_factory=list)
+    n_labels: int = 0
+    n_traces: int = 0
+    n_unpaired_traces: int = 0
+    n_unpaired_labels: int = 0
+
+
+def _extract_cost_rag_app(
+    trace: dict[str, Any],
+) -> tuple[str, int | None, int | None]:
+    """Return (observed_outcome, input_tokens, output_tokens) for rag-app."""
+    if trace.get("mode") != "live":
+        return COST_NONE, None, None
+    answer = trace.get("answer")
+    if not isinstance(answer, dict):
+        return COST_NONE, None, None
+    inp = answer.get("input_tokens")
+    out = answer.get("output_tokens")
+    if not isinstance(inp, int) or not isinstance(out, int):
+        return COST_NONE, None, None
+    return COST_OBSERVED, inp, out
+
+
+def _extract_cost_tool_use_agent(
+    trace: dict[str, Any],
+) -> tuple[str, int | None, int | None, int | None, int | None, int | None]:
+    """Return (outcome, input_tokens, output_tokens, steps_taken, max_steps,
+    tool_latency_ms_sum) for tool-use-agent.
+
+    Per-call ``latency_ms`` lives inside ``tool_calls[i]``; the sum is the
+    tool-side cost the agent owns, deliberately separate from model-side
+    latency (which is implicit in token usage). Tool calls with missing or
+    non-integer ``latency_ms`` contribute 0 to the sum.
+    """
+    if trace.get("mode") != "live":
+        return COST_NONE, None, None, None, None, None
+    inp = trace.get("input_tokens")
+    out = trace.get("output_tokens")
+    if not isinstance(inp, int) or not isinstance(out, int):
+        return COST_NONE, None, None, None, None, None
+    steps_taken = trace.get("steps_taken")
+    max_steps = trace.get("max_steps")
+    steps_taken = steps_taken if isinstance(steps_taken, int) else None
+    max_steps = max_steps if isinstance(max_steps, int) else None
+    calls = trace.get("tool_calls")
+    latency_sum = 0
+    if isinstance(calls, list):
+        for call in calls:
+            if isinstance(call, dict):
+                lat = call.get("latency_ms")
+                if isinstance(lat, int):
+                    latency_sum += lat
+    return COST_OBSERVED, inp, out, steps_taken, max_steps, latency_sum
+
+
+def score_cost(envelope_path: Path) -> CostResult:
+    """Run the cost rubric over a normalized ingested.jsonl envelope.
+
+    Joins traces to labels by (question, schema_version ∈ applies_to),
+    same as slices 3–5a. Both ``expected_outcome=answer`` and
+    ``expected_outcome=refuse`` labels are eligible — refusal traces
+    *also* incur (small) live cost on the tool-use-agent side when the
+    model emitted text before stopping, so the cost rubric does not
+    filter by expected_outcome. Dry-run / refused-low-score traces are
+    no_observation and excluded from the stats denominators.
+    """
+    labels, traces = _read_envelope(envelope_path)
+    labels_by_q = _index_labels_by_question(labels)
+
+    rows: list[CostRow] = []
+    matched_label_ids: set[str] = set()
+    unpaired_traces = 0
+    eligible_traces = 0
+
+    for trace in traces:
+        schema = trace.get("schema_version")
+        if schema not in (SCHEMA_RAG_APP, SCHEMA_TOOL_USE_AGENT):
+            continue
+        eligible_traces += 1
+        question = trace.get("question")
+        candidates = [
+            lab
+            for lab in labels_by_q.get(question, [])
+            if schema in lab.get("applies_to", [])
+        ]
+        if not candidates:
+            unpaired_traces += 1
+            continue
+
+        if schema == SCHEMA_RAG_APP:
+            outcome, inp, out = _extract_cost_rag_app(trace)
+            steps_taken = None
+            max_steps = None
+            latency_sum = None
+        else:
+            outcome, inp, out, steps_taken, max_steps, latency_sum = (
+                _extract_cost_tool_use_agent(trace)
+            )
+
+        total = (inp + out) if (inp is not None and out is not None) else None
+        for lab in candidates:
+            rows.append(
+                CostRow(
+                    rubric=RUBRIC_COST,
+                    record_id=trace["record_id"],
+                    schema_version=schema,
+                    question=question,
+                    label_id=lab["id"],
+                    input_tokens=inp,
+                    output_tokens=out,
+                    total_tokens=total,
+                    steps_taken=steps_taken,
+                    max_steps=max_steps,
+                    tool_latency_ms_sum=latency_sum,
+                    observed_outcome=outcome,
+                    match=(outcome == COST_OBSERVED),
+                )
+            )
+            matched_label_ids.add(lab["id"])
+
+    eligible_labels = [
+        lab
+        for lab in labels
+        if SCHEMA_RAG_APP in lab.get("applies_to", [])
+        or SCHEMA_TOOL_USE_AGENT in lab.get("applies_to", [])
+    ]
+    unpaired_labels = sum(
+        1 for lab in eligible_labels if lab["id"] not in matched_label_ids
+    )
+
+    rows.sort(key=lambda r: (r.schema_version, r.record_id, r.label_id))
+
+    return CostResult(
+        rows=rows,
+        n_labels=len(eligible_labels),
+        n_traces=eligible_traces,
+        n_unpaired_traces=unpaired_traces,
+        n_unpaired_labels=unpaired_labels,
+    )
+
+
+def _percentile(values: list[int], pct: float) -> int:
+    """Return the ``pct`` percentile of ``values`` using linear interpolation.
+
+    Implemented locally (rather than via ``statistics.quantiles``) so the
+    fixed-point semantics are obvious: empty input returns 0, single
+    value returns itself, and p50/p95/max are computed against the same
+    sorted-and-interpolated convention. Rounded to int because the
+    underlying signals (tokens, ms, steps) are all integers and the
+    stats table reads cleaner without trailing ``.0``.
+    """
+    if not values:
+        return 0
+    if len(values) == 1:
+        return values[0]
+    s = sorted(values)
+    if pct >= 100:
+        return s[-1]
+    if pct <= 0:
+        return s[0]
+    rank = (pct / 100.0) * (len(s) - 1)
+    lo = int(rank)
+    hi = min(lo + 1, len(s) - 1)
+    frac = rank - lo
+    return int(round(s[lo] + frac * (s[hi] - s[lo])))
+
+
+def _cost_stats(values: list[int]) -> tuple[int, int, int, int]:
+    """Return (n, p50, p95, max). ``n`` is the count of observed values."""
+    if not values:
+        return 0, 0, 0, 0
+    return (
+        len(values),
+        _percentile(values, 50.0),
+        _percentile(values, 95.0),
+        max(values),
+    )
+
+
+def render_cost_report(result: CostResult) -> str:
+    """Render a per-build cost stats table as Markdown.
+
+    Both builds report p50/p95/max for ``total_tokens``; the
+    tool-use-agent additionally reports ``steps_taken`` and
+    ``tool_latency_ms_sum`` so a PM can read tool-side cost
+    independently of model-side cost (the iteration-14 split decision).
+    """
+    by_schema: dict[str, list[CostRow]] = {}
+    for r in result.rows:
+        by_schema.setdefault(r.schema_version, []).append(r)
+    schemas_seen = sorted(by_schema)
+
+    lines: list[str] = []
+    lines.append("# Cost rubric")
+    lines.append("")
+    lines.append(
+        f"applicable_labels={result.n_labels}  traces={result.n_traces}  "
+        f"scored_rows={len(result.rows)}  "
+        f"unpaired_traces={result.n_unpaired_traces}  "
+        f"unpaired_labels={result.n_unpaired_labels}"
+    )
+    lines.append("")
+    if not result.rows:
+        lines.append("(no paired (label, trace) records — nothing to score)")
+        return "\n".join(lines) + "\n"
+
+    lines.append(
+        "| build | observable | total_tokens p50 | total_tokens p95 "
+        "| total_tokens max |"
+    )
+    lines.append("| --- | --- | --- | --- | --- |")
+    for schema in schemas_seen:
+        rows = by_schema[schema]
+        totals = [
+            r.total_tokens for r in rows
+            if r.observed_outcome == COST_OBSERVED and r.total_tokens is not None
+        ]
+        n, p50, p95, mx = _cost_stats(totals)
+        n_none = sum(1 for r in rows if r.observed_outcome == COST_NONE)
+        observable = f"{n}/{n + n_none}"
+        cells = (
+            f"{p50} | {p95} | {mx}" if n else "n/a | n/a | n/a"
+        )
+        lines.append(f"| {schema} | {observable} | {cells} |")
+
+    # Tool-use-agent-only extras: steps_taken + tool_latency_ms_sum.
+    tua_rows = by_schema.get(SCHEMA_TOOL_USE_AGENT, [])
+    tua_observed = [
+        r for r in tua_rows if r.observed_outcome == COST_OBSERVED
+    ]
+    if tua_observed:
+        lines.append("")
+        lines.append(
+            "| build | observable | steps_taken p50 | steps_taken p95 "
+            "| steps_taken max | tool_latency_ms_sum p50 "
+            "| tool_latency_ms_sum p95 | tool_latency_ms_sum max |"
+        )
+        lines.append(
+            "| --- | --- | --- | --- | --- | --- | --- | --- |"
+        )
+        steps_vals = [
+            r.steps_taken for r in tua_observed if r.steps_taken is not None
+        ]
+        lat_vals = [
+            r.tool_latency_ms_sum
+            for r in tua_observed
+            if r.tool_latency_ms_sum is not None
+        ]
+        s_n, s_p50, s_p95, s_max = _cost_stats(steps_vals)
+        l_n, l_p50, l_p95, l_max = _cost_stats(lat_vals)
+        n_none_tua = sum(1 for r in tua_rows if r.observed_outcome == COST_NONE)
+        observable = f"{len(tua_observed)}/{len(tua_observed) + n_none_tua}"
+        s_cells = (
+            f"{s_p50} | {s_p95} | {s_max}" if s_n else "n/a | n/a | n/a"
+        )
+        l_cells = (
+            f"{l_p50} | {l_p95} | {l_max}" if l_n else "n/a | n/a | n/a"
+        )
+        lines.append(
+            f"| {SCHEMA_TOOL_USE_AGENT} | {observable} | {s_cells} "
+            f"| {l_cells} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _write_cost_jsonl(out_path: Path, rows: list[CostRow]) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fp:
+        for r in rows:
+            fp.write(
+                json.dumps(
+                    {
+                        "rubric": r.rubric,
+                        "record_id": r.record_id,
+                        "schema_version": r.schema_version,
+                        "question": r.question,
+                        "label_id": r.label_id,
+                        "input_tokens": r.input_tokens,
+                        "output_tokens": r.output_tokens,
+                        "total_tokens": r.total_tokens,
+                        "steps_taken": r.steps_taken,
+                        "max_steps": r.max_steps,
+                        "tool_latency_ms_sum": r.tool_latency_ms_sum,
+                        "observed_outcome": r.observed_outcome,
+                        "match": r.match,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+
+# ---------------------------------------------------------------------------
 # CLI dispatch
 # ---------------------------------------------------------------------------
 
@@ -1118,11 +1461,16 @@ def cmd_score(args: argparse.Namespace) -> int:
             report = render_first_call_tool_report(f_result)
             if args.out:
                 _write_first_call_tool_jsonl(Path(args.out), f_result.rows)
-        else:  # RUBRIC_TERMINATION
+        elif args.rubric == RUBRIC_TERMINATION:
             t_result = score_termination(envelope_path)
             report = render_termination_report(t_result)
             if args.out:
                 _write_termination_jsonl(Path(args.out), t_result.rows)
+        else:  # RUBRIC_COST
+            c_result = score_cost(envelope_path)
+            report = render_cost_report(c_result)
+            if args.out:
+                _write_cost_jsonl(Path(args.out), c_result.rows)
     except ScoreError as exc:
         print(f"SCORE FAILED: {exc}", file=sys.stderr)
         return 2

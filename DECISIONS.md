@@ -1650,3 +1650,125 @@ warning** that flags when more than one fingerprint
 appears for a single build. Slice 5a ships the
 per-record scorer; slice 5b ships the cross-rubric
 aggregate.
+
+## 2026-05-16 — evals-harness slice 5b (cost rubric)
+
+**Decision:** `python -m evals_harness score --rubric
+cost --ingested <path>` ships now as the cross-build
+cost rubric. It runs the slice-2 startup invariants,
+reads the normalized envelope, joins every trace to the
+labels carrying that trace's `question` plus
+`schema_version ∈ applies_to` (same key as slices 3–5a),
+and emits two surfaces: a per-record JSONL with the
+cross-rubric core columns (`rubric`, `record_id`,
+`schema_version`, `question`, `label_id`, `match`) plus
+six cost extras (`input_tokens`, `output_tokens`,
+`total_tokens`, `steps_taken`, `max_steps`,
+`tool_latency_ms_sum`), and a per-build Markdown
+aggregate of `total_tokens` p50/p95/max for both builds
+followed by a tool-use-agent-only second table for
+`steps_taken` and `tool_latency_ms_sum` p50/p95/max.
+Live traces classify as `observed`; dry-run /
+`refused-low-score` / any non-`live` mode classifies as
+`no_observation` and is excluded from every stats
+denominator. The aggregate `report` subcommand is the
+remaining slice and is **deliberately not in 5b**.
+
+**Why split slice 5 into 5a (termination) and 5b
+(cost):** the slice-5a iteration-20 learning was that
+per-record match/mismatch rubrics (refusal,
+groundedness, first-call, termination) and aggregate
+stats rubrics (cost) have fundamentally different
+output shapes — match rows vs. percentile rows — and
+forcing them into one iteration would have either
+bloated the slice or quietly skipped the per-build
+latency split. Slice 5a kept the per-record shape
+clean and slice 5b now adds the aggregate shape
+without compromising either.
+
+**Why the cost rubric does not filter by
+`expected_outcome`:** the cost rubric scores **what was
+spent**, not **whether the answer was correct**. A
+live trace that ended in `refusal_reason=model_refused`
+still consumed tokens — the model emitted text and
+chose to refuse, which has a real cost — so the
+`expected_outcome=refuse` labels are eligible. The
+refusal rubric is the right home for the
+correct/incorrect-refusal signal; the cost rubric
+records the dollars-and-cents impact independently.
+Confined to live mode, this collapses to "every
+billable interaction shows up in the stats."
+
+**Why live tool-use-agent refusals contribute zero to
+`steps_taken` and `tool_latency_ms_sum`:** when the
+model refuses on turn 1 (no tools called) the
+`steps_taken=0` and per-call latency sum is 0 by
+definition. Counting these in the p50/p95 calculation
+is correct — they are a real cost surface (slow first
+turn, no useful work) — and is what makes the stats
+table honest about the agent's *actual* per-question
+behavior rather than its idealized successful-path
+behavior. The alternative (excluding refusals from
+the steps/latency stats) would inflate the medians
+toward the agent's best case and hide refusal-as-cost
+from the PM read.
+
+**Per-record JSONL schema is additive, not a v2 bump:**
+the six cost fields are *additional* per-row columns
+on the cross-rubric core shape, identical in pattern
+to slice 4's `citations_total` / slice 5a's
+`stop_reason`. The slice-7 report aggregator can read
+every rubric's scored JSONL through the same
+cross-rubric core (`rubric`, `record_id`,
+`schema_version`, `question`, `label_id`, `match`) and
+ignore the per-rubric extras. No rubric requires a
+`scored.v2` schema bump.
+
+**Stats convention locked:** the harness computes
+percentiles via a small local `_percentile()` helper
+(linear interpolation on the sorted values, rounded to
+int because all underlying signals — tokens, ms,
+steps — are integers and the Markdown table reads
+cleaner without trailing `.0`s). `_cost_stats()`
+returns `(n, p50, p95, max)`. `statistics.quantiles`
+was rejected because its `n=` parameter returns `n-1`
+cut points, which is the wrong shape for the
+p50/p95/max triple the report needs.
+
+**rag-app rows carry `null` for the three
+tool-use-agent-only fields** (`steps_taken`,
+`max_steps`, `tool_latency_ms_sum`) rather than
+omitting them, mirroring the slice-1 labels-with-
+explicit-nulls convention. The cost is roughly +30
+bytes per rag-app row; the payoff is that any
+downstream pandas/jq reader sees a uniform schema and
+can do `df.groupby('schema_version')[
+'tool_latency_ms_sum'].quantile(0.5)` cleanly.
+
+**Out of scope for slice 5b** (so slice 7 cannot
+silently inherit them): the **`report` subcommand**
+(`python -m evals_harness report --scored <path>`)
+that joins every rubric's scored JSONL into a single
+Markdown report, the **`corpus_fingerprint` diversity
+warning** that flags when more than one fingerprint
+appears for a single build, and any **cross-rubric
+joint aggregations** (e.g. "groundedness conditional
+on cost bucket"). Slice 5b ships the cost rubric as
+its own scorer; slice 7 will roll up every rubric
+including this one.
+
+**Validated against the synthetic envelope built in
+this iteration** (7 traces against the real
+`queries.jsonl`): rag-app shows `observable=2/4`
+(two live answers, one `refused-low-score`, one
+dry-run) with `total_tokens` p50=1935, p95=2282,
+max=2320; tool-use-agent shows `observable=2/3`
+(one live answer, one live `model_refused`, one
+dry-run) with `total_tokens` p50=2705, p95=3492,
+max=3580 and `steps_taken` p50=2, max=3 and
+`tool_latency_ms_sum` p50=18, max=35. Empty-traces
+envelope, an unpaired-trace envelope, and the
+prior slice-3/4/5a rubrics all continue to run
+cleanly against the same envelope. rag-app
+`retrieve` and tool-use-agent `catalog` produce
+their iteration-20 outputs unchanged.

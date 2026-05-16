@@ -63,7 +63,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Score a normalized ingested.jsonl against a labeled set. "
             "Slice 3 wires 'refusal'; slice 4 adds 'groundedness' "
             "(rag-app only) and 'first_call_tool' (tool-use-agent only); "
-            "slice 5 adds 'termination' (tool-use-agent only)."
+            "slice 5a adds 'termination' (tool-use-agent only); "
+            "slice 5b adds 'cost' (cross-build, aggregate stats)."
         ),
     )
     p_score.add_argument(
@@ -74,7 +75,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Which rubric to score. 'refusal' is cross-build; "
             "'groundedness' applies only to rag-app traces; "
             "'first_call_tool' and 'termination' apply only to "
-            "tool-use-agent traces. Slice 5 will additionally add 'cost'."
+            "tool-use-agent traces; 'cost' is cross-build (aggregate "
+            "p50/p95/max stats over live traces)."
         ),
     )
     p_score.add_argument(
