@@ -326,3 +326,85 @@ later iteration ever needs it. The trace lives in its own module
 harness can import the same helpers and produce records that are
 byte-identical to ones the CLI emits — no duplicated hashing logic to
 drift.
+
+## 2026-05-16 — tool-use-agent stack and tool catalog (v1)
+
+**Decision:** The `tool-use-agent/` build is Python 3.9+ (matching the
+`rag-app/` runtime), generation via the Anthropic SDK using the SDK's
+native tool-use API (`tools=[…]`, `tool_choice="auto"`, `tool_use` /
+`tool_result` blocks; default model `claude-haiku-4-5-20251001`,
+configurable), tools implemented as pure-Python stdlib-only functions
+with explicit JSON schemas, dispatched through a single mutable
+catalog. The CLI is a three-subcommand entry point
+(`python -m tool_use_agent {tool,ask,catalog}`): `tool` invokes a
+registered tool directly for testing without an API key, `catalog`
+prints the JSON schemas, `ask` runs the LLM-driven agent loop. The
+agent loop is bounded (`max_steps=6` default). The dry-run fallback
+(`ask` auto-runs without an API key) is preserved from the `rag-app/`
+pattern. The v1 tool catalog is exactly six read-only tools:
+`list_repo_files`, `read_repo_file`, `grep_repo`, `list_pipeline_rows`,
+`count_by_stage`, `count_by_bucket`. No write tools, no network tools,
+no tool composition / planning, no cross-query persistence. Refusal
+emits the same canonical sentence shape as `rag-app/` (a single
+string defined once in the build, referenced from every refusal
+path) so the future evals harness can bucket refusals across both
+builds the same way.
+
+**Rationale:** The stack reuses every load-bearing choice from
+`rag-app/` (Python version, provider, model default, lazy SDK
+import, dry-run fallback, exactly-one-API-key property) so an
+interviewer who has already seen the rag-app demo does not pay
+context-switch cost. The SDK's native tool-use API is the right
+dispatch layer because it enforces the JSON schema and emits
+structured `tool_use` / `tool_result` blocks — re-implementing tool
+parsing over plain text would reproduce a known failure mode
+(parameter hallucination) for no upside. The six-tool v1 catalog is
+chosen for three reinforcing reasons: (a) it covers the two access
+patterns a PM-relevant agent demo needs (read repo content; compute
+structured rollups over the interview tracker), (b) it stays stdlib-
+only so the dependency surface matches `rag-app/`, and (c) it
+deliberately overlaps the data surface with the rag-app build so the
+RAG-vs-tool-use tradeoff has a concrete in-repo answer to point at
+during interviews. The bounded `max_steps=6` cap matches the
+expected worst-case demo (one list-files, one read, one grep, one
+rollup, one re-read, one summary) and turns "infinite loop" from a
+silent failure into a structured `max_steps_exhausted` outcome the
+evals harness can score. Read-only is a deliberate scope cap: write
+tools open a separate product surface (confirmation UX, undo,
+scoping) that belongs in its own iteration, not this one.
+
+## 2026-05-16 — tool-use-agent ships incrementally, README first
+
+**Decision:** The `tool-use-agent/` README is shipped before any code,
+mirroring the `rag-app/` pattern. Subsequent iterations implement:
+(1) tool catalog as pure-Python functions with `python -m
+tool_use_agent tool <name>` direct-invocation and `… catalog` schema
+printer, (2) single-step agent loop with one tool call then answer,
+(3) multi-step bounded loop with inline tool trace, (4) refusal +
+bounded-step termination (canonical refusal sentence single-source-
+of-truth, emitted on no-useful-tool-result / `max_steps_exhausted` /
+two-consecutive-errors), (5) eval-trace records (`tool-use-
+agent.ask.v1`) reusing `rag-app/rag_app/trace.py` helpers via
+import so `record_id` and `corpus_fingerprint` are byte-identical
+across builds. The repo root README will only mark `tool-use-agent/`
+as "demo-ready" once the multi-step loop slice runs against a real
+model.
+
+**Rationale:** The README-first sequencing earned its keep on the
+`rag-app/` build (six implementation iterations all landed without
+re-litigating scope, stack, or interface). The same property is
+worth more here, not less: an agent-loop build has more places for
+scope creep (every "what if it could also …" is a new tool), and a
+locked v1 catalog in the README is the smallest possible commitment
+device against catalog drift. Importing `trace.py` from the
+`rag-app/` build rather than copying the helpers is the only way to
+keep `record_id` hashes byte-identical across the two builds, which
+is the property the evals harness will lean on to compare refusal
+and groundedness behavior across them; copying the helpers would
+silently drift the first time someone tweaked the canonical-JSON
+ordering or the truncation length. The slice list is deliberately
+five (not six like `rag-app/`) because there is no separate
+"retrieval CLI before generation" slice analog — the tools *are*
+the retrieval surface, and they are exercised directly by the
+`tool` subcommand from slice 1, so slice 2 can land the LLM loop
+without an intermediate step.
