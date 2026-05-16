@@ -4867,3 +4867,135 @@ deliberately not done here. (6) **No rag-app corpus v1 expansion**
 unchanged; this DECISIONS entry itself rotates the rag-app
 fingerprint by the standard per-iteration drift pattern.
 
+## 2026-05-16 — Root `/LICENSE` (MIT) at repo root (NEXT_WORK item 2, sub-checkbox 1 of 5)
+
+**Decision.** `/LICENSE` lands at the repo root with the canonical
+OSI-approved MIT License text, copyright line `Copyright (c) 2026
+Jubayar Ahad`. The file is the byte-for-byte template that GitHub's
+"Add license" picker produces for MIT (21 lines, ~1070 bytes), with
+exactly two project-specific substitutions: the year (`2026`) and the
+copyright holder (`Jubayar Ahad`, no email, no `<author@…>` bracket).
+This is the canonical text the next three sub-checkboxes
+(`rag-app/LICENSE`, `tool-use-agent/LICENSE`, `evals-harness/LICENSE`)
+will mirror byte-for-byte; sub-checkbox 5 references the license from
+each `pyproject.toml`'s `license` field and from each build's README.
+
+**Why MIT over Apache-2.0 / BSD-3-Clause / GPL.** MIT is the lowest-
+friction permissive license for a portfolio repo whose primary
+purpose is being pointable-to in interviews: maximum permission with
+no attribution-beyond-copyright obligation, no patent-grant clause to
+explain, no `NOTICE` file to maintain, no copyleft to surprise a
+prospective employer who wants to fork a snippet. Apache-2.0 was
+considered for its explicit patent grant (relevant for any future
+LLM-tooling work where patent posture matters), but rejected here on
+three grounds: (a) the three builds are pure-Python orchestrators
+around the Anthropic SDK with no novel algorithms that would draw
+patent claims, (b) Apache-2.0 requires a `NOTICE` file and license
+headers in source files that would visibly clutter a ~30-file repo,
+and (c) MIT is the conventional default in the AI-tooling sub-
+ecosystem (anthropic-cookbook, langchain-core, llamaindex are all
+MIT), so picking MIT matches reader expectation. BSD-3-Clause was
+rejected because the "no endorsement" clause is a footgun for a
+portfolio repo whose entire point is being endorsed by its author in
+interviews. GPL/AGPL were rejected because copyleft on a portfolio
+repo would make snippet-borrowing in an interview-leave-behind
+context awkward.
+
+**Copyright holder convention: `Jubayar Ahad`, no email.** Matches the
+`authors = [{ name = "Jubayar Ahad" }]` line locked across all three
+`pyproject.toml` files at iterations 46-48 (no `email = …` key,
+deliberate per the iteration-46 entry's privacy-deferral rationale).
+The MIT template's `<copyright holders>` placeholder is filled with
+exactly the same string the pyproject authors field uses — one source
+of truth for the canonical attribution name, used in both the legal
+artifact (LICENSE) and the packaging metadata (pyproject). The year is
+`2026` (single year, not a `2024-2026` range), matching the
+currentDate (`2026-05-16`) and the absence of any prior license
+history on this repo — there is no pre-2026 copyrightable work in the
+repo to bracket the lower bound to, so the convention is "year of
+first license publication," not "year of first commit."
+
+**Why the canonical OSI/GitHub MIT text byte-for-byte (not a
+paraphrase).** SPDX identifier `MIT` is matched by parsers (including
+GitHub's `licensee`, PyPI's classifier resolution, and pip's
+metadata-license-id pipeline) only when the LICENSE text matches the
+SPDX-canonical template within a tight similarity threshold.
+Paraphrasing the permissions clause ("free of charge … without
+restriction") or the warranty disclaimer would silently break the
+machine-readable license signal on the package index and on GitHub's
+repo sidebar, while gaining nothing — the canonical text is already
+maximally permissive for the use case. The byte-for-byte template
+(MIT License header, copyright line, three paragraphs in the locked
+order: permission grant, attribution requirement, warranty
+disclaimer) is the OSI's published text and matches GitHub's
+"Add license" output exactly.
+
+**Why a separate slice for the root LICENSE (not bundled with the
+three per-build copies).** NEXT_WORK item 2 has five sub-checkboxes
+that each map cleanly to one single-iteration-sized unit of work:
+(1) the root LICENSE, (2-4) the three per-build LICENSE files which
+mirror the root byte-for-byte, (5) the cross-build references
+(pyproject `license` fields and README mentions). Bundling (1) and
+(2-4) into a single commit would do four units in one slice and make
+the five-sub-checkbox structure dishonest — the same discipline that
+the iteration-50 packaging-convention entry locked for items 3, 4, 6,
+and 7. The byte-for-byte mirror property between root and per-build
+LICENSEs is what makes (2-4) trivially mechanical relative to (1):
+once the canonical text is locked here, each per-build copy is a
+verifiable diff-against-root of "zero changes."
+
+**Why per-build LICENSE copies (not just one root LICENSE).** Each
+build (`rag-app`, `tool-use-agent`, `evals-harness`) ships its own
+sdist + wheel via the iteration-49 build-verification path, and PyPI
+convention is that each distributable package carries its own LICENSE
+file in the dist root — readers of an installed wheel under
+`site-packages/<package>-<version>.dist-info/` expect a LICENSE file
+inside that dist-info, sourced via `setuptools`' `license-files`
+auto-discovery from the package's source root, not from a sibling
+directory. A single root LICENSE would satisfy GitHub's repo-level
+license signal but would leave each wheel's dist-info missing the
+LICENSE file. The three per-build LICENSE copies are not redundant —
+they are the source `setuptools` walks to populate each wheel's
+`dist-info/LICENSE`, and they make each build's source tree self-
+contained for downstream re-distribution (sub-tree extraction, vendor
+copies, monorepo split). This is why NEXT_WORK item 2 has four
+LICENSE sub-checkboxes (one root + three per-build), not one.
+
+**Out of scope for this iteration.** (1) **No per-build LICENSE
+file** — `/rag-app/LICENSE`, `/tool-use-agent/LICENSE`, and
+`/evals-harness/LICENSE` belong to NEXT_WORK item 2 sub-checkboxes
+2/3/4 respectively and are deliberately deferred to the next three
+slices. The mirror-from-root byte-for-byte property locked here is
+the contract those three slices will discharge. (2) **No `license`
+field added to any `pyproject.toml`** — all three pyproject files
+have the deliberate `license`-field-omission comment from iterations
+46-48 still in place; the `license = { file = "LICENSE" }` (or
+`license = "MIT"` SPDX-string per PEP 639) wiring belongs to
+sub-checkbox 5 along with the README mentions. The decision between
+the PEP-621 table form and the PEP-639 string form is itself a
+sub-decision to be locked in slice 5, not pre-committed here.
+(3) **No README mention of the license in any build** — none of the
+four READMEs (top-level, rag-app, tool-use-agent, evals-harness)
+gain a "License: MIT" line in this slice; that's sub-checkbox 5.
+(4) **No consolidating cross-license DECISIONS entry** — analogous
+to the iteration-50 consolidating packaging-convention entry, item
+2 will end with a convention-locking entry that records the
+canonical text, the mirror property, and the slot structure across
+the four LICENSE files and the three pyproject `license` fields in
+one canonical place; this iteration's entry is the per-instance
+entry for sub-checkbox 1, not the consolidator. (5) **No edit to
+`.gitignore` to exclude any license-related artifact** — the MIT
+LICENSE has no generated companion files (no `NOTICE`, no
+`COPYING.LESSER`, no `LICENSE.dependencies`), and the existing
+`.gitignore` lines from iterations 46-48 (`*.egg-info/`, `build/`,
+`dist/`) cover the only license-adjacent generated artifacts
+(wheel-dist-info auto-populated LICENSE copies), which are inside
+the already-ignored `build/` and `dist/` directories. (6) **No
+test for license-text byte-equivalence across the four LICENSE
+files** — that invariant becomes load-bearing only after the next
+three slices ship; if needed, a one-line `diff` check in the
+iteration-2-consolidator entry is the right place to record it, not
+a pytest fixture (which would land in NEXT_WORK item 3's test
+suites). The invariant is testable today by `diff` between the root
+LICENSE and each per-build LICENSE once those three exist.
+

@@ -24,7 +24,7 @@ Ordered first because tests + CI depend on clean packaging.
 
 ## 2. LICENSE — MIT, at repo root + per-build
 
-- [ ] `/LICENSE` at repo root (MIT, copyright "Jubayar Ahad <year>")
+- [x] `/LICENSE` at repo root (MIT, copyright "Jubayar Ahad <year>")
 - [ ] `/rag-app/LICENSE` (MIT, identical body, identical copyright line)
 - [ ] `/tool-use-agent/LICENSE`
 - [ ] `/evals-harness/LICENSE`
