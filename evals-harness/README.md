@@ -19,7 +19,8 @@ incrementally — see [Status](#status) for what currently runs.
 | Trace ingester + startup invariant checks | Shipped |
 | Refusal-bucket scorer (cross-build) | Shipped |
 | Groundedness scorer (rag-app) + first-call tool scorer (tool-use-agent) | Shipped |
-| Termination + cost scorers, aggregate report | Not started |
+| Termination quality scorer (tool-use-agent) | Shipped |
+| Cost scorer + aggregate report | Not started |
 
 The harness deliberately performs **no model calls of its own**. It scores
 trace records that the two LLM builds already emit via their `ask --json`
@@ -303,10 +304,28 @@ Each line below is intended to map to a single future iteration:
    accuracy denominator. Each emits a per-record scored JSONL with
    the rubric name baked into every row, so the slice-5 report
    aggregator stays uniform.
-5. **Termination quality + cost scorers, aggregate report.** Final
-   slice rolls up `refusal_reason` distribution and token/cost
-   p50/p95 per build, joins every per-record scored row into a single
-   Markdown report (`python -m evals_harness report
+5. **Termination quality scorer.** *Shipped.*
+   `python -m evals_harness score --rubric termination --ingested
+   <path>` runs the slice-2 startup invariants, reads each
+   tool-use-agent trace's `stop_reason` and `refusal_reason`, and
+   classifies the observed termination as one of `ended_clean`
+   (`stop_reason=end_turn` AND `refusal_reason=null`),
+   `model_refused`, `max_steps_exhausted`, `repeated_tool_error`, or
+   `no_observation` (dry-run / non-live traces). Applies only to
+   `expected_outcome=answer` labels paired with tool-use-agent
+   traces — refuse-labels stay in the refusal rubric. Emits a per-
+   record scored JSONL plus a Markdown table breaking out the five
+   buckets with `ended_clean / observable` as accuracy; non-clean
+   rows are listed individually with `steps_taken/max_steps` so a
+   reader can see *which* question hit the cap. A live trace with
+   `refusal_reason=null` and a non-`end_turn` `stop_reason` (or an
+   unknown `refusal_reason` value) is treated as a build contract
+   violation and raises with a named error.
+6. **Cost scorer + aggregate report.** Final slice rolls up
+   `input_tokens + output_tokens` p50/p95/max per build and (for
+   tool-use-agent) `steps_taken` p50/p95 + summed per-call
+   `latency_ms`, then joins every per-record scored row into a
+   single Markdown report (`python -m evals_harness report
    --scored <path>`), and reports `corpus_fingerprint` diversity as
    a warning row when more than one fingerprint shows up per build.
    This is the artifact an interviewer reads.
@@ -391,6 +410,17 @@ python3 -m evals_harness score \
 # → per-build counts of match / mismatch / no_observation, plus a
 #   per-row "mismatches / missing-first-call" list naming the
 #   expected vs observed tool per failing question.
+
+# (slice 5, shipped) termination quality — tool-use-agent traces only.
+python3 -m evals_harness score \
+    --rubric termination \
+    --ingested .cache/ingested.jsonl \
+    --out .cache/scored_termination.jsonl
+# → per-build counts across the five termination buckets
+#   (ended_clean / model_refused / max_steps_exhausted /
+#   repeated_tool_error / no_observation), accuracy reported as
+#   ended_clean / observable, and a per-row non-clean list naming
+#   the bucket + steps_taken/max_steps per failing question.
 ```
 
 The locked CLI shape for the remaining slice is:
@@ -398,7 +428,8 @@ The locked CLI shape for the remaining slice is:
 ```bash
 cd evals-harness
 
-# (slice 5) roll up to a Markdown report.
+# (slice 5 remainder) cost rubric + aggregate report.
+python3 -m evals_harness score --rubric cost --ingested .cache/ingested.jsonl
 python3 -m evals_harness report --scored .cache/scored.jsonl
 ```
 

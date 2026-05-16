@@ -47,8 +47,14 @@ RUBRIC = "refusal"  # kept for slice-3 callers; prefer the named constant below
 RUBRIC_REFUSAL = "refusal"
 RUBRIC_GROUNDEDNESS = "groundedness"
 RUBRIC_FIRST_CALL_TOOL = "first_call_tool"
+RUBRIC_TERMINATION = "termination"
 
-ALL_RUBRICS = (RUBRIC_REFUSAL, RUBRIC_GROUNDEDNESS, RUBRIC_FIRST_CALL_TOOL)
+ALL_RUBRICS = (
+    RUBRIC_REFUSAL,
+    RUBRIC_GROUNDEDNESS,
+    RUBRIC_FIRST_CALL_TOOL,
+    RUBRIC_TERMINATION,
+)
 
 OBSERVED_REFUSE = "refuse"
 OBSERVED_ANSWER = "answer"
@@ -797,6 +803,284 @@ def _write_first_call_tool_jsonl(
 
 
 # ---------------------------------------------------------------------------
+# Termination rubric (tool-use-agent only)
+# ---------------------------------------------------------------------------
+
+
+TERMINATION_CLEAN = "ended_clean"
+TERMINATION_MODEL_REFUSED = "model_refused"
+TERMINATION_MAX_STEPS = "max_steps_exhausted"
+TERMINATION_REPEATED_ERROR = "repeated_tool_error"
+TERMINATION_NONE = "no_observation"
+
+_TERMINATION_BUCKETS = (
+    TERMINATION_CLEAN,
+    TERMINATION_MODEL_REFUSED,
+    TERMINATION_MAX_STEPS,
+    TERMINATION_REPEATED_ERROR,
+    TERMINATION_NONE,
+)
+
+
+@dataclass(frozen=True)
+class TerminationRow:
+    """One scored termination-quality observation.
+
+    ``observed_outcome`` is one of the five ``TERMINATION_*`` buckets:
+    ``ended_clean`` is the success case (``stop_reason=end_turn`` and
+    ``refusal_reason=null``); ``model_refused`` /
+    ``max_steps_exhausted`` / ``repeated_tool_error`` mirror the
+    tool-use-agent ``refusal_reason`` enum from slice 4; and
+    ``no_observation`` covers dry-run / non-live traces. ``match`` is
+    True iff observed == ``ended_clean`` (these are
+    ``expected_outcome=answer`` labels — the refusal rubric scores
+    refuse-labels).
+    """
+
+    rubric: str
+    record_id: str
+    schema_version: str
+    question: str
+    label_id: str
+    stop_reason: str | None
+    refusal_reason: str | None
+    steps_taken: int | None
+    max_steps: int | None
+    observed_outcome: str
+    match: bool
+
+
+@dataclass
+class TerminationResult:
+    rows: list[TerminationRow] = field(default_factory=list)
+    n_labels: int = 0
+    n_traces: int = 0
+    n_unpaired_traces: int = 0
+    n_unpaired_labels: int = 0
+
+
+def _extract_termination(trace: dict[str, Any]) -> tuple[str, str | None, str | None, int | None, int | None]:
+    """Return (observed_outcome, stop_reason, refusal_reason, steps_taken, max_steps).
+
+    Dry-run / non-live traces classify as ``no_observation`` with the
+    raw signal fields preserved for the row record. If
+    ``refusal_reason`` is set, it is the canonical observed outcome:
+    cross-check that it agrees with the enumerated bucket and otherwise
+    raise ``ScoreError`` (a divergence is a build bug — the slice-4
+    contract requires the two signals to agree).
+    """
+    mode = trace.get("mode")
+    stop_reason = trace.get("stop_reason")
+    refusal_reason = trace.get("refusal_reason")
+    steps_taken = trace.get("steps_taken")
+    max_steps = trace.get("max_steps")
+    steps_taken = steps_taken if isinstance(steps_taken, int) else None
+    max_steps = max_steps if isinstance(max_steps, int) else None
+
+    if mode != "live":
+        return TERMINATION_NONE, stop_reason, refusal_reason, steps_taken, max_steps
+    if refusal_reason is None:
+        if stop_reason == "end_turn":
+            return (
+                TERMINATION_CLEAN,
+                stop_reason,
+                refusal_reason,
+                steps_taken,
+                max_steps,
+            )
+        # Live, no refusal_reason, but stop_reason isn't end_turn —
+        # the build's contract says these two signals agree. Treat the
+        # absence of refusal_reason as authoritative (the model emitted
+        # an end_turn-equivalent) but flag it: this should not happen
+        # for the current set of stop_reason values, so raise.
+        rid = trace.get("record_id", "?")
+        raise ScoreError(
+            f"tool-use-agent trace {rid}: refusal_reason is null but "
+            f"stop_reason={stop_reason!r}; expected stop_reason='end_turn' "
+            f"when no refusal — build contract violation"
+        )
+    # refusal_reason is set; it dictates the bucket.
+    bucket_map = {
+        "model_refused": TERMINATION_MODEL_REFUSED,
+        "max_steps_exhausted": TERMINATION_MAX_STEPS,
+        "repeated_tool_error": TERMINATION_REPEATED_ERROR,
+    }
+    bucket = bucket_map.get(refusal_reason)
+    if bucket is None:
+        rid = trace.get("record_id", "?")
+        raise ScoreError(
+            f"tool-use-agent trace {rid}: unknown refusal_reason "
+            f"{refusal_reason!r}; expected one of "
+            f"{sorted(bucket_map)} or null"
+        )
+    return bucket, stop_reason, refusal_reason, steps_taken, max_steps
+
+
+def score_termination(envelope_path: Path) -> TerminationResult:
+    """Run the termination rubric over a normalized ingested.jsonl envelope.
+
+    Applies only to (label.expected_outcome == "answer") paired with
+    tool-use-agent traces. Refuse-labels are out of scope — the refusal
+    rubric (slice 3) is the right home for them. Dry-run traces
+    classify as ``no_observation`` and are excluded from the accuracy
+    denominator (mirrors slices 3 and 4).
+    """
+    labels, traces = _read_envelope(envelope_path)
+    labels_by_q = _index_labels_by_question(labels)
+
+    rows: list[TerminationRow] = []
+    matched_label_ids: set[str] = set()
+    unpaired_traces = 0
+    eligible_traces = 0
+
+    for trace in traces:
+        schema = trace.get("schema_version")
+        if schema != SCHEMA_TOOL_USE_AGENT:
+            continue
+        eligible_traces += 1
+        question = trace.get("question")
+        candidates = [
+            lab
+            for lab in labels_by_q.get(question, [])
+            if schema in lab.get("applies_to", [])
+            and lab.get("expected_outcome") == OBSERVED_ANSWER
+        ]
+        if not candidates:
+            unpaired_traces += 1
+            continue
+
+        outcome, stop_reason, refusal_reason, steps_taken, max_steps = (
+            _extract_termination(trace)
+        )
+        for lab in candidates:
+            match = outcome == TERMINATION_CLEAN
+            rows.append(
+                TerminationRow(
+                    rubric=RUBRIC_TERMINATION,
+                    record_id=trace["record_id"],
+                    schema_version=schema,
+                    question=question,
+                    label_id=lab["id"],
+                    stop_reason=stop_reason,
+                    refusal_reason=refusal_reason,
+                    steps_taken=steps_taken,
+                    max_steps=max_steps,
+                    observed_outcome=outcome,
+                    match=match,
+                )
+            )
+            matched_label_ids.add(lab["id"])
+
+    eligible_labels = [
+        lab
+        for lab in labels
+        if lab.get("expected_outcome") == OBSERVED_ANSWER
+        and SCHEMA_TOOL_USE_AGENT in lab.get("applies_to", [])
+    ]
+    unpaired_labels = sum(
+        1 for lab in eligible_labels if lab["id"] not in matched_label_ids
+    )
+
+    rows.sort(key=lambda r: (r.schema_version, r.record_id, r.label_id))
+
+    return TerminationResult(
+        rows=rows,
+        n_labels=len(eligible_labels),
+        n_traces=eligible_traces,
+        n_unpaired_traces=unpaired_traces,
+        n_unpaired_labels=unpaired_labels,
+    )
+
+
+def render_termination_report(result: TerminationResult) -> str:
+    counts = {b: 0 for b in _TERMINATION_BUCKETS}
+    for r in result.rows:
+        counts[r.observed_outcome] += 1
+    observable = sum(counts[b] for b in _TERMINATION_BUCKETS if b != TERMINATION_NONE)
+    n_clean = counts[TERMINATION_CLEAN]
+    lines: list[str] = []
+    lines.append("# Termination rubric (tool-use-agent only)")
+    lines.append("")
+    lines.append(
+        f"applicable_labels={result.n_labels}  tua_traces={result.n_traces}  "
+        f"scored_rows={len(result.rows)}  "
+        f"unpaired_traces={result.n_unpaired_traces}  "
+        f"unpaired_labels={result.n_unpaired_labels}"
+    )
+    lines.append("")
+    if not result.rows:
+        lines.append(
+            "(no paired (answer-label, tool-use-agent trace) records — "
+            "nothing to score)"
+        )
+        return "\n".join(lines) + "\n"
+    lines.append(
+        "| build | ended_clean | model_refused | max_steps_exhausted "
+        "| repeated_tool_error | no_observation | total | accuracy |"
+    )
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    if observable:
+        pct = 100.0 * n_clean / observable
+        acc = f"{n_clean}/{observable} ({pct:.1f}%)"
+    else:
+        acc = "n/a"
+    lines.append(
+        f"| {SCHEMA_TOOL_USE_AGENT} | {counts[TERMINATION_CLEAN]} "
+        f"| {counts[TERMINATION_MODEL_REFUSED]} "
+        f"| {counts[TERMINATION_MAX_STEPS]} "
+        f"| {counts[TERMINATION_REPEATED_ERROR]} "
+        f"| {counts[TERMINATION_NONE]} | {len(result.rows)} | {acc} |"
+    )
+    # Per-row failure callouts so a reader can see which questions
+    # ended in which non-clean bucket.
+    failures = [
+        r
+        for r in result.rows
+        if r.observed_outcome != TERMINATION_CLEAN
+        and r.observed_outcome != TERMINATION_NONE
+    ]
+    if failures:
+        lines.append("")
+        lines.append("Non-clean terminations:")
+        for r in failures:
+            step_info = (
+                f"steps_taken={r.steps_taken}/{r.max_steps}"
+                if r.steps_taken is not None and r.max_steps is not None
+                else "steps_taken=?"
+            )
+            lines.append(
+                f"- {r.label_id} ({r.record_id}): {r.observed_outcome} "
+                f"({step_info})"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _write_termination_jsonl(out_path: Path, rows: list[TerminationRow]) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fp:
+        for r in rows:
+            fp.write(
+                json.dumps(
+                    {
+                        "rubric": r.rubric,
+                        "record_id": r.record_id,
+                        "schema_version": r.schema_version,
+                        "question": r.question,
+                        "label_id": r.label_id,
+                        "stop_reason": r.stop_reason,
+                        "refusal_reason": r.refusal_reason,
+                        "steps_taken": r.steps_taken,
+                        "max_steps": r.max_steps,
+                        "observed_outcome": r.observed_outcome,
+                        "match": r.match,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+
+# ---------------------------------------------------------------------------
 # CLI dispatch
 # ---------------------------------------------------------------------------
 
@@ -829,11 +1113,16 @@ def cmd_score(args: argparse.Namespace) -> int:
             report = render_groundedness_report(g_result)
             if args.out:
                 _write_groundedness_jsonl(Path(args.out), g_result.rows)
-        else:  # RUBRIC_FIRST_CALL_TOOL
+        elif args.rubric == RUBRIC_FIRST_CALL_TOOL:
             f_result = score_first_call_tool(envelope_path)
             report = render_first_call_tool_report(f_result)
             if args.out:
                 _write_first_call_tool_jsonl(Path(args.out), f_result.rows)
+        else:  # RUBRIC_TERMINATION
+            t_result = score_termination(envelope_path)
+            report = render_termination_report(t_result)
+            if args.out:
+                _write_termination_jsonl(Path(args.out), t_result.rows)
     except ScoreError as exc:
         print(f"SCORE FAILED: {exc}", file=sys.stderr)
         return 2

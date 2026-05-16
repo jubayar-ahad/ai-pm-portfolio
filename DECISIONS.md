@@ -1521,3 +1521,132 @@ and the aggregate Markdown report that joins all four
 rubrics. Each rubric in slice 4 writes its own scored
 JSONL; slice 5 reads them and rolls them up.
 
+
+## 2026-05-16 — evals-harness slice 5a (termination quality scorer)
+
+The fifth and final evals-harness slice is split into two
+shipping units. Slice 5a is the **termination quality**
+rubric, a per-record scorer that mirrors the slice-3
+refusal and slice-4 first-call patterns in shape. Slice
+5b will ship the **cost** rubric (an aggregate, not a
+per-record match/mismatch) and the **report**
+subcommand that rolls every rubric's scored JSONL into a
+single Markdown report. Splitting honors the
+"one complete artifact per iteration" rule: termination
+is a self-contained per-record scorer with its own
+locked output schema, while cost + report together are
+the cross-rubric aggregate layer.
+
+**Termination rubric contract:**
+
+- **Applies to** `(label.expected_outcome == "answer")`
+  paired with `tool-use-agent.ask.v1` traces. Refuse-
+  labels stay in the refusal rubric (slice 3); rag-app
+  traces have no `refusal_reason` field so they are out
+  of scope. Mirrors the eligibility-filter pattern from
+  groundedness (rag-app-only) and first-call tool (tua-
+  only).
+- **Five observed buckets**, with `ended_clean` as the
+  only success state:
+  - `ended_clean` — `stop_reason=end_turn` AND
+    `refusal_reason=null`. The agent answered cleanly
+    within the step cap.
+  - `model_refused` — `refusal_reason="model_refused"`.
+    The model emitted the canonical refusal sentence
+    when the label expected an answer; this is a
+    refusal-rate-vs-termination crossover and is
+    counted here so a PM can read "the agent refused
+    when it shouldn't have" as a termination failure
+    without also re-bucketing it in the refusal rubric.
+  - `max_steps_exhausted` — the agent ran out of steps.
+    A cost-bound signal, distinct from the model
+    refusing.
+  - `repeated_tool_error` — the agent hit the same
+    `(tool, input)` error in two consecutive steps and
+    bailed (slice-4 contract).
+  - `no_observation` — dry-run / non-live traces
+    (`mode != "live"`); excluded from the accuracy
+    denominator, same shape as slices 3 and 4.
+- **Accuracy denominator** = total scored rows minus
+  `no_observation`. Reported as `ended_clean / observable`
+  with the percent. Matches the slice-3 and slice-4
+  shape so the slice-5b report can sum across rubrics
+  without per-rubric special cases.
+- **`refusal_reason` is authoritative**, not `stop_reason`.
+  The slice-4 contract has the two signals agreeing
+  deterministically (`refusal_reason` is set iff the
+  loop exited via a refusal-bucket path). The scorer
+  reads `refusal_reason` first and maps it to the
+  bucket; an unknown enum value raises `ScoreError`. A
+  live trace with `refusal_reason=null` but a non-
+  `end_turn` `stop_reason` is treated as a build
+  contract violation and raises — same strict
+  cross-check pattern slice 3 used for tool-use-agent
+  `final_text` vs `refusal_reason`.
+- **Output schema** — per-record JSONL with the cross-
+  rubric core columns (`rubric`, `record_id`,
+  `schema_version`, `question`, `label_id`, `match`)
+  plus the per-rubric extras (`stop_reason`,
+  `refusal_reason`, `steps_taken`, `max_steps`,
+  `observed_outcome`). The extras let the slice-5b
+  report compute the "% of failures at cap vs. retry vs.
+  model-refusal" breakdown without re-parsing traces.
+- **Sorted by `(schema_version, record_id, label_id)`**,
+  the same key slices 3 and 4 use, so two runs over the
+  same envelope produce byte-identical scored JSONL.
+
+**Design choices worth naming for the interview leave-behind:**
+
+- **Five buckets, not three.** Collapsing
+  `max_steps_exhausted` / `repeated_tool_error` /
+  `model_refused` into a single "failed termination"
+  bucket would have made the rubric easier to render but
+  thrown away the very signals a PM cares about — "the
+  agent timed out 12% of the time" vs "the agent
+  declined to retry 3% of the time" are different
+  product conversations. The slice-4 `refusal_reason`
+  enum already paid the cost of distinguishing these;
+  the scorer just preserves it.
+- **`model_refused` is a termination failure here, not a
+  refusal success.** When the label expects `answer`
+  and the model emits `REFUSAL_SENTENCE`, the refusal
+  rubric records it as `observed=refuse, expected=answer
+  → mismatch`, and the termination rubric records it
+  as `model_refused` (an `ended_clean=false` bucket).
+  These are two correct readings of the same trace, one
+  per rubric, and they should be reported in parallel
+  rather than merged.
+- **Build-contract violations raise, not warn.** A live
+  trace with `refusal_reason=null` and a non-`end_turn`
+  `stop_reason` is a slice-4 invariant break; treating
+  it as a soft warning would let the bug ride into the
+  scored JSONL and silently miscount terminations.
+  Same posture as slice 3's tool-use-agent
+  `final_text`-vs-`refusal_reason` cross-check.
+
+**Validated against synthetic envelope data:** 5
+tool-use-agent traces covering each of the five buckets
+(ended_clean, model_refused, max_steps_exhausted,
+repeated_tool_error, dry-run no_observation) plus one
+refuse-label trace that the eligibility filter correctly
+excluded; accuracy reported as `1/4 (25.0%)`; non-clean
+rows listed individually with `steps_taken/max_steps`.
+Two unit-shaped checks exercise the build-contract
+raises (null refusal_reason + non-end_turn stop_reason
+and an unknown refusal_reason enum value). Slice-3 and
+slice-4 rubrics still produce their iteration-18 and
+iteration-19 outputs unchanged.
+
+**Out of scope for slice 5a** (so slice 5b cannot
+silently inherit them or treat them as already shipped):
+the **cost rubric** (`input_tokens + output_tokens`
+p50/p95/max per build, plus tool-use-agent
+`steps_taken` p50/p95 and summed per-call
+`latency_ms`), the **report subcommand**
+(`python -m evals_harness report --scored <path>`) that
+joins every rubric's scored JSONL into one Markdown
+document, and the **`corpus_fingerprint` diversity
+warning** that flags when more than one fingerprint
+appears for a single build. Slice 5a ships the
+per-record scorer; slice 5b ships the cross-rubric
+aggregate.
