@@ -4331,3 +4331,136 @@ itself will rotate the rag-app fingerprint by the standard per-iteration
 drift pattern (the corpus-listed `DECISIONS.md` gains new chunks); the
 new `pyproject.toml` file does not perturb the rag-app fingerprint.
 
+## 2026-05-16 — tool-use-agent packaging contract (NEXT_WORK item 1, sub-checkbox 2 of 5)
+
+**Decision.** `tool-use-agent/pyproject.toml` lands now, inheriting the
+six-piece packaging contract locked in the prior iteration's
+"rag-app packaging contract" entry byte-for-byte where the contract is
+shared and adapting only where this build's surface legitimately
+differs. This is the second of three near-identical pyproject files;
+recording the contract once and citing it twice (here and in the next
+iteration's evals-harness entry) is the right shape for the precedent.
+
+**What is inherited unchanged from the rag-app contract.**
+
+1. **Build backend.** `requires = ["setuptools>=61.0"]` /
+   `build-backend = "setuptools.build_meta"`, same rationale as
+   rag-app: setuptools is the only PEP-517 backend available without
+   an additional install step on stock Python, and `>=61.0` is the
+   floor that enables the `[project]` table from PEP 621.
+
+2. **Python floor.** `requires-python = ">=3.9"`, matching what the
+   package's `from __future__ import annotations` posture actually
+   requires and matching rag-app's reconciled floor (DECISIONS entry
+   "rag-app Python version pinned to 3.9+"). The `classifiers` list
+   redundantly names 3.9 / 3.10 / 3.11 / 3.12 to drive the upcoming
+   GitHub Actions matrix (NEXT_WORK item 4).
+
+3. **Dev-dep extras.** `pytest>=7`, `mypy>=1.0`, `ruff>=0.1` under
+   `[project.optional-dependencies].dev`, same trio for the same
+   reason: NEXT_WORK item 3 (pytest suites) and item 4 (CI matrix)
+   `pip install -e .[dev]` against this exact contract.
+
+4. **License-field deferral.** `license = ...` is deliberately omitted;
+   NEXT_WORK item 2 owns it. Adding it here would do half of item 2's
+   work in item 1's commit and silently couple two sub-items' scopes.
+
+**What this build adapts.**
+
+1. **Distribution name = `tool-use-agent` (hyphenated); package import
+   name = `tool_use_agent` (underscored).** Same hyphen-vs-underscore
+   convention rag-app uses (`rag-app` distribution name, `rag_app`
+   package). `[tool.setuptools.packages.find]` uses
+   `include = ["tool_use_agent*"]` to scope the editable install to
+   the package itself and exclude any future `tests/` (NEXT_WORK item
+   3) or `.cache/` directories.
+
+2. **Console script: `tool-use-agent = tool_use_agent.__main__:main`.**
+   The entry point is `tool_use_agent/__main__.py`'s
+   `main(argv: list[str] | None = None) -> int`, exactly as already
+   exposed by `python -m tool_use_agent`. Adding the console script
+   means `pip install -e .` plus `tool-use-agent catalog` (or
+   `tool-use-agent ask "..." --dry-run`) produces the same end-to-end
+   behavior as `python -m tool_use_agent`, additive at the install
+   layer with zero code change to the package.
+
+3. **Runtime dependencies = exactly `anthropic>=0.40`, byte-equivalent
+   to `requirements.txt`.** Same dual-source-of-truth posture as
+   rag-app: `requirements.txt` stays in the tree pointing at the same
+   pin so a contributor who prefers `pip install -r requirements.txt`
+   gets the same resolver behavior. The duplication is intentional,
+   not superseding. Only the `ask` slice consumes anthropic; `catalog`
+   and `tool` are stdlib-only, and the `ask --dry-run` path is
+   stdlib-only too, so a fresh checkout exercises tool schemas and
+   prompt construction without installing anything.
+
+4. **Description and `keywords` adapted to the build's domain.**
+   `description = "A bounded multi-step tool-using Claude agent,
+   framed for an AI PM portfolio."` mirrors the rag-app
+   description's shape ("framed for an AI PM portfolio" tail) but
+   names this build's distinctive surface (the bounded multi-step
+   loop, not BM25 retrieval). `keywords` swaps the rag-app set for
+   `tool-use / agent / anthropic / claude / agent-loop /
+   ai-pm-portfolio` — the `ai-pm-portfolio` tag is shared across
+   both builds so a future PyPI search would surface them together.
+
+**Why this is the right slice now, not bundled.** NEXT_WORK item 1
+explicitly lists the three pyproject files as three separate
+sub-checkboxes (1/2/3 of 5), and the prior iteration's DECISIONS
+entry explicitly named "no `tool-use-agent/pyproject.toml`" as one
+of its six out-of-scope items. Landing all three in one slice would
+have over-bundled and missed the precedent value of having the
+contract locked once and inherited twice. Landing zero (e.g.,
+starting with `evals-harness` or jumping ahead to item 2) would
+re-order against NEXT_WORK's top-to-bottom discipline.
+
+**The verification surface.** `python3 -m venv /tmp/tua-venv` followed
+by `pip install -e . --no-deps` (PyPI access not assumed) produced
+`tool_use_agent-0.1.0-0.editable-py3-none-any.whl` (~11.9 kB, larger
+than rag-app's ~9.6 kB because the package has more modules: agent,
+catalog, tools_pipeline, tools_repo, trace, verify). `tool-use-agent
+--help` printed the expected `argparse` usage line ("Tool-use agent
+demo: catalog + direct tool calls + bounded multi-step ask.").
+`tool-use-agent catalog | python3 -c '...len(json.load(sys.stdin))'`
+printed `tools_count=6` with names `[list_repo_files, read_repo_file,
+grep_repo, list_pipeline_rows, count_by_stage, count_by_bucket]`
+— matching the catalog the existing eval-trace schema fingerprints.
+`tool-use-agent ask "..." --dry-run --json` emitted the locked
+`tool-use-agent.ask.v1` schema_version with `mode=dry-run` and
+`max_steps=6`, confirming the agent loop's stdlib-only path
+resolves cleanly through the console-script entry point.
+
+**Same dual-file pattern as rag-app applies here.** `requirements.txt`
+remains the contributor-friendly install surface; `pyproject.toml`
+is the packaging-friendly surface. The two files describe the same
+install for the same use case, not two separate contracts. Future
+iterations may raise the dev-dep floors (`>=7`, `>=1.0`, `>=0.1`)
+without a supersession entry, per the standard
+pin-floor-not-ceiling discipline.
+
+**Out of scope for this iteration.** (1) **No edit to
+`requirements.txt`** — the file stays at its iteration-9 contents
+(`anthropic>=0.40`); the pyproject's `dependencies` list duplicates
+it deliberately, not superseding it. (2) **No
+`evals-harness/pyproject.toml`** — that is the next sub-checkbox
+under item 1 and gets its own slice / commit; the evals-harness
+build is stdlib-only today, so its pyproject will land with
+`dependencies = []` as the canonical single source (no
+`requirements.txt` exists to dual-source). (3) **No `LICENSE` file
+at `tool-use-agent/`, no `license = ...` line in this
+`pyproject.toml`, no license mention in `tool-use-agent/README.md`**
+— all three belong to NEXT_WORK item 2. (4) **No `tests/` directory
+and no `pytest` invocation** — that is NEXT_WORK item 3, which
+depends on this slice but is a separate item. (5) **No
+`.github/workflows/ci.yml`, no CI badge in any README, no GitHub
+Actions config of any kind** — that is NEXT_WORK item 4. (6) **No
+rag-app corpus v1 expansion** — the iteration-3 corpus list
+(OBJECTIVE.md, DECISIONS.md, templates/INTERVIEW_TRACKER.md,
+rag-app/README.md) is unchanged; `tool-use-agent/pyproject.toml` is
+NOT added to the corpus, matching the iteration-23 precedent for
+non-corpus-listed new files. This DECISIONS entry itself will
+rotate the rag-app fingerprint by the standard per-iteration drift
+pattern; the new `pyproject.toml` file does not perturb the
+fingerprint.
+
+

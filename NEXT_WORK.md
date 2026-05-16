@@ -17,7 +17,7 @@ in the same commit.
 Ordered first because tests + CI depend on clean packaging.
 
 - [x] `rag-app/pyproject.toml` (build-system, project metadata, entry-point `rag-app = rag_app.__main__:main` if applicable, runtime deps from `requirements.txt`, dev deps slot for pytest/mypy/ruff)
-- [ ] `tool-use-agent/pyproject.toml` (same shape)
+- [x] `tool-use-agent/pyproject.toml` (same shape)
 - [ ] `evals-harness/pyproject.toml` (same shape)
 - [ ] Verify each builds with `python -m build --sdist --wheel` (or `pip install -e .` if `build` unavailable) and the existing CLIs still work after install
 - [ ] DECISIONS.md entry locking the packaging convention (build backend choice, Python version floor, dev-dep names)

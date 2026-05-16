@@ -1,0 +1,75 @@
+# tool-use-agent — Packaging contract.
+#
+# Mirrors the rag-app/pyproject.toml contract locked in the prior
+# iteration's DECISIONS entry ("rag-app packaging contract", NEXT_WORK
+# item 1 sub-checkbox 1 of 5) byte-for-byte where the contract is
+# shared across the three Python builds — build backend, Python floor,
+# dev-extras trio, classifiers list, license-field deferral — and
+# adapts only where this build's surface legitimately differs:
+# distribution name (tool-use-agent), package import name
+# (tool_use_agent), console-script name (tool-use-agent), and the
+# description / keyword set.
+#
+# Runtime deps mirror requirements.txt exactly (anthropic>=0.40). Only
+# the `ask` slice (live agent loop) consumes anthropic; `catalog` and
+# `tool` are stdlib-only and the `ask --dry-run` path is stdlib-only
+# too, so a fresh checkout can exercise the prompt and tool schemas
+# without installing anything.
+#
+# The `license` field is deliberately omitted from this slice — NEXT_WORK
+# item 2 ("LICENSE — MIT, at repo root + per-build") owns the
+# `license = ...` line in each pyproject.toml in its second-to-last
+# sub-checkbox, and adding it here would do half of item 2's work in
+# item 1's commit.
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tool-use-agent"
+version = "0.1.0"
+description = "A bounded multi-step tool-using Claude agent, framed for an AI PM portfolio."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Jubayar Ahad" },
+]
+keywords = [
+    "tool-use",
+    "agent",
+    "anthropic",
+    "claude",
+    "agent-loop",
+    "ai-pm-portfolio",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+tool-use-agent = "tool_use_agent.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/jubayar-ahad/ai-pm-role-90days"
+Repository = "https://github.com/jubayar-ahad/ai-pm-role-90days"
+
+[tool.setuptools.packages.find]
+include = ["tool_use_agent*"]
+exclude = ["tests*", ".cache*"]
