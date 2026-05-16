@@ -92,3 +92,43 @@ or status command without re-parsing free text, and keeps the user's mental
 model consistent across artifacts. Encoding the Bucket 2 priority in the
 shorthand (rather than a free-text "AI scope" column) makes the
 objective-aligned filter trivial.
+
+## 2026-05-16 — rag-app stack and corpus
+
+**Decision:** The `rag-app/` build is Python 3.11+, generation via the
+Anthropic SDK (default model `claude-haiku-4-5-20251001`, configurable),
+embeddings via local `sentence-transformers/all-MiniLM-L6-v2`, an in-memory
+NumPy cosine-similarity index, and a single-command CLI
+(`python -m rag_app ask "<question>"`). Corpus v1 is the repo's own
+markdown (`OBJECTIVE.md`, `DECISIONS.md`, `templates/INTERVIEW_TRACKER.md`,
+`rag-app/README.md`). Corpus v2 (a small set of public AI-PM documents) is
+deferred to a later iteration.
+
+**Rationale:** This stack needs exactly one API key (`ANTHROPIC_API_KEY`) to
+run end-to-end — no vector DB to provision, no second account for hosted
+embeddings, no model fine-tuning. Local embeddings cost some retrieval
+quality but remove a setup step, which matters more for a demo a recruiter
+might watch on a screen share. NumPy beats a vector DB at this scale and
+reads cleanly in interviews. Eating the repo's own dog food for corpus v1
+sidesteps dataset licensing and lets the demo answer questions about its
+own design decisions, which is itself a useful interview moment. The default
+Haiku model keeps the per-query cost low enough that the demo can be run
+liberally during interviews without budget anxiety.
+
+## 2026-05-16 — rag-app ships incrementally, README first
+
+**Decision:** The `rag-app/` README is shipped before any code. Subsequent
+iterations implement: (1) corpus loader + chunker, (2) embedding index,
+(3) retrieval CLI, (4) generation with citations, (5) refusal hardening,
+(6) eval hooks for `evals-harness/`. Each lands in its own iteration. The
+repo root README will only mark `rag-app/` as "demo-ready" once the
+end-to-end `ask` slice runs against a real model.
+
+**Rationale:** Locking the design contract in a README before code prevents
+re-litigating stack and scope mid-build, which is the single biggest waste
+mode for one-iteration-at-a-time work. The README is also a complete
+standalone artifact today: it is the PM-framed writeup the objective asks
+for, regardless of how much code has landed. The honesty cost — explicitly
+labeling the build as "in progress" rather than claiming a working demo —
+is paid up front in the README's Status table so the user is never
+surprised.
