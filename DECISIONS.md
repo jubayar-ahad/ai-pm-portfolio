@@ -3295,3 +3295,106 @@ does not perturb the rag-app index directly; only this DECISIONS
 entry does, by the standard per-iteration drift pattern. (6) No
 edit to the three builds or the Cursor teardown PRD — this
 iteration is purely a templates/ addition.
+
+## 2026-05-16 — Cover-letter scaffold shape and opener-variant lock
+
+**Decision:** `templates/COVER_LETTER.md` ships as a populatable
+cover-letter scaffold paired with `templates/RESUME.md` and
+`templates/INTERVIEW_TRACKER.md`, discharging the deferral the prior
+DECISIONS entry pre-committed. The scaffold uses the same
+`_<placeholder>_` italic-marker grammar the tracker and resume use,
+so one regex (`_<.*>_`) now validates all three scaffolds. The body
+shape is fixed: **Header → Opening (one of three variants) → Para 2
+Track record → Para 3 AI craft proof → Para 4 Why this role and what
+you would do first → Closing**, with a target body length of
+**250–400 words** (excluding header and sign-off). The opening
+section ships three mutually-exclusive variants — **Cold
+application**, **Referral**, and **Inbound recruiter response** —
+each one a complete paragraph the user picks one of and deletes the
+other two before sending. Paragraph 3 deliberately quotes one or two
+artifacts from `RESUME.md`'s Selected AI/PM portfolio section in
+prose and points at the repo, rather than restating the portfolio
+bullet by bullet; this keeps the resume as the single source of
+truth for company-agnostic claims so the user maintains them in one
+place.
+
+**Rationale.** (a) **Why three opener variants, not one canonical.**
+The three sourcing channels (cold direct apply, referral, inbound
+recruiter response) require materially different opening rhetoric:
+a referral does the warm-intro work so the opener can pivot to the
+product observation immediately, a recruiter response has to first
+acknowledge their outreach to avoid reading as auto-replied, and a
+cold application has to earn attention in the first two sentences
+with a specific company-product observation. Shipping one canonical
+opener would have forced the user to rewrite it per channel anyway,
+silently inviting the bland "I'm passionate about your mission"
+default. Locking three variants with explicit "pick one and delete
+the other two" guidance puts the choice at the right level. (b)
+**Why 250–400 words and not shorter or longer.** Under 250 words
+reads as effort-light and gives the hiring manager no surface to
+react to; over 400 reads as a second resume and recruiters skim the
+middle. The target band lands at roughly four substantive paragraphs
+of three to four sentences each, which is the natural rhythm of a
+hiring-manager-readable letter and matches the upper bound recruiters
+report skimming. The "if you go over, cut from paragraph 3" rule
+is specific enough to be enforceable in editing without re-arguing
+the structure. (c) **Why paragraph 3 quotes the resume by reference,
+not by restatement.** Restating the Selected AI/PM portfolio bullets
+verbatim in the letter would force the user to keep two drafts of
+"what I shipped at <Company>" in sync, which is a maintenance burden
+and an inconsistency hazard (the two drafts will drift the first
+time the user edits one and forgets the other). Pointing the reader
+at `../templates/RESUME.md`'s portfolio section and quoting at most
+one or two artifacts in prose form is the single-source-of-truth
+discipline the iteration-34 DECISIONS entry pre-committed.
+(d) **Why the company-specific observation slot is named explicitly
+and rule-bound.** The single sentence that distinguishes a strong
+AI PM cover letter from a generic one is a specific, falsifiable
+observation about the company's AI product — a UX choice, a missing
+affordance, a metric they probably watch — that proves the user has
+actually used the product and thought about it as a PM. The "How to
+use" section names this explicitly as "the highest-leverage sentence
+in the letter" with an example shape that ties it back to the Cursor
+teardown PRD's PM craft pattern (sourced observation → trade-off it
+implies), so the user has a concrete model to imitate rather than
+inventing the rhetorical move from scratch. The same paragraph
+warns against "generic praise" as the easiest signal to discount.
+(e) **Why an explicit channel-hygiene rule about plain-text paste.**
+A recruiter or hiring manager reads cover letters in their mail
+client, not in a Markdown renderer; a docx attachment when the
+ATS asked for a paste-in is friction. Naming the channel hygiene
+in the "How to use" section rather than leaving it implicit
+prevents the most common formatting mistake at zero cost. (f)
+**Why no per-target-company example.** The same logic as the
+resume scaffold's "no filled-in example" decision applies here
+with extra force: an example cover letter would invite the user
+to copy phrasing rather than write their own company-specific
+observation, which is exactly the sentence that carries the
+letter's signal. The scaffold ships shape and rules, not draft
+prose.
+
+**Out of scope for this iteration.** (1) No follow-up-email
+scaffold — once the recruiter or hiring manager responds, the
+exchange is conversational and a templated follow-up would read
+as templated. The interview-tracker's "Next action" column carries
+the cadence load instead. (2) No LinkedIn-DM scaffold — DMs are
+30–60 words, structurally different from a 250–400-word letter,
+and trying to share a shape between the two would compromise both.
+A separate scaffold can land in a future iteration if outbound
+volume justifies it. (3) No automated lint script — the trailing
+`_<` grep reminder is enough at three scaffolds; the iteration-34
+"add a `python -m templates lint` command if a third scaffold
+lands" hint is intentionally not discharged here because three
+files do not yet justify a tool over a one-line grep, and the
+scaffold's own trailing reminder names the grep explicitly. The
+threshold for the lint command remains "fourth scaffold or first
+real misuse." (4) No filled-in example letter targeting a specific
+company — see rationale (f). (5) No edit to corpus v1 — the new
+`templates/COVER_LETTER.md` file is NOT in the rag-app corpus list
+(corpus v1 is locked to four specific files), so this scaffold
+does not perturb the rag-app index directly; only this DECISIONS
+entry does, by the standard per-iteration drift pattern documented
+since iteration 16. (6) No edit to the three builds, the Cursor
+teardown PRD, the resume scaffold, or the interview tracker — this
+iteration is purely a `templates/COVER_LETTER.md` addition plus
+this DECISIONS entry.
