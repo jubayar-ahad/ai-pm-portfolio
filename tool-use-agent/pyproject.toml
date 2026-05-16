@@ -16,11 +16,12 @@
 # too, so a fresh checkout can exercise the prompt and tool schemas
 # without installing anything.
 #
-# The `license` field is deliberately omitted from this slice — NEXT_WORK
-# item 2 ("LICENSE — MIT, at repo root + per-build") owns the
-# `license = ...` line in each pyproject.toml in its second-to-last
-# sub-checkbox, and adding it here would do half of item 2's work in
-# item 1's commit.
+# The `license` field points at the per-build LICENSE file shipped by
+# NEXT_WORK item 2 (MIT, byte-identical to repo root /LICENSE). The
+# `License :: OSI Approved :: MIT License` classifier is the canonical
+# machine-readable signal PyPI and pip's metadata pipeline use for the
+# license-id resolution; the `license` field tells setuptools to bundle
+# LICENSE into wheel `dist-info/LICENSE`.
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -35,6 +36,7 @@ requires-python = ">=3.9"
 authors = [
     { name = "Jubayar Ahad" },
 ]
+license = { file = "LICENSE" }
 keywords = [
     "tool-use",
     "agent",
@@ -51,6 +53,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
     "anthropic>=0.40",

@@ -519,3 +519,10 @@ the harness; no special script is required.
   fits an interview leave-behind; a dashboard would not. If this
   build were productized, the Markdown report would be the seed
   for a per-PR comment generator, not a Datadog graph.
+
+## License
+
+MIT. See [LICENSE](LICENSE), byte-identical to the repo-root
+[/LICENSE](../LICENSE) and to the LICENSE files shipped under each sibling
+build (`rag-app/`, `tool-use-agent/`); the per-build copy is what
+`setuptools` bundles into `dist-info/LICENSE` for wheel installs.

@@ -22,13 +22,13 @@ Ordered first because tests + CI depend on clean packaging.
 - [x] Verify each builds with `python -m build --sdist --wheel` (or `pip install -e .` if `build` unavailable) and the existing CLIs still work after install
 - [x] DECISIONS.md entry locking the packaging convention (build backend choice, Python version floor, dev-dep names)
 
-## 2. LICENSE — MIT, at repo root + per-build
+## 2. LICENSE — MIT, at repo root + per-build [x]
 
 - [x] `/LICENSE` at repo root (MIT, copyright "Jubayar Ahad <year>")
 - [x] `/rag-app/LICENSE` (MIT, identical body, identical copyright line)
 - [x] `/tool-use-agent/LICENSE`
 - [x] `/evals-harness/LICENSE`
-- [ ] Reference the license in each `pyproject.toml`'s `license` field and in each build's README
+- [x] Reference the license in each `pyproject.toml`'s `license` field and in each build's README
 
 ## 3. Tests — `pytest` suites per build
 

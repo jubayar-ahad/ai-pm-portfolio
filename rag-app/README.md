@@ -287,3 +287,10 @@ citations; `--json` mirrors this in a structured `verification` block.
   retriever once corpus crosses ~10⁵ chunks).
 - **Single-shot QA vs. multi-turn.** Cleaner eval surface; multi-turn is a
   separate product question, not a "make the demo bigger" question.
+
+## License
+
+MIT. See [LICENSE](LICENSE), byte-identical to the repo-root
+[/LICENSE](../LICENSE) and to the LICENSE files shipped under each sibling
+build (`tool-use-agent/`, `evals-harness/`); the per-build copy is what
+`setuptools` bundles into `dist-info/LICENSE` for wheel installs.

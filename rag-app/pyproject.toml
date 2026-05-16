@@ -11,9 +11,12 @@
 # type / lint floor that the upcoming pytest suite and GitHub Actions matrix
 # (NEXT_WORK items 3 and 4) will depend on.
 #
-# The `license` field is deliberately omitted from this slice — NEXT_WORK
-# item 2 owns the LICENSE files at repo root + per-build and explicitly owns
-# the `license = ...` line in each pyproject.toml.
+# The `license` field points at the per-build LICENSE file shipped by
+# NEXT_WORK item 2 (MIT, byte-identical to repo root /LICENSE). The
+# `License :: OSI Approved :: MIT License` classifier is the canonical
+# machine-readable signal PyPI and pip's metadata pipeline use for the
+# license-id resolution; the `license` field tells setuptools to bundle
+# LICENSE into wheel `dist-info/LICENSE`.
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -28,6 +31,7 @@ requires-python = ">=3.9"
 authors = [
     { name = "Jubayar Ahad" },
 ]
+license = { file = "LICENSE" }
 keywords = [
     "rag",
     "retrieval-augmented-generation",
@@ -44,6 +48,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
     "anthropic>=0.40",

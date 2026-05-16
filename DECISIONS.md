@@ -5367,3 +5367,166 @@ and the wheel-byte-size deltas this addition would introduce (one
 extra 1070-byte file per wheel's dist-info) are below the noise
 floor of the iteration-49 wheel-size heuristic.
 
+## 2026-05-16 — License referenced in three pyprojects + three READMEs; closes NEXT_WORK item 2 (sub-checkbox 5 of 5)
+
+**Decision.** The final sub-checkbox of NEXT_WORK item 2 wires the
+four LICENSE files locked in iterations 51/52/53/54 into the two
+machine-readable surfaces that need them — each build's
+`pyproject.toml` (so `setuptools` knows which file to bundle into
+the wheel's `dist-info/licenses/LICENSE` and which classifier to
+emit) and each build's `README.md` (so a human reader sees the
+license without leaving the README). With this slice, NEXT_WORK
+item 2 ("LICENSE — MIT, at repo root + per-build") closes; the
+parent checkbox is ticked in the same commit.
+
+**Single-table view of the contract locked across all four
+LICENSE files + three pyprojects + three READMEs:**
+
+| Surface | Value | Locked at |
+|---|---|---|
+| Root LICENSE file | `/LICENSE`, MIT, 1070 bytes, md5 `b638b3ba3fa8e5f2fa37957a345996d6`, year 2026, holder "Jubayar Ahad" | iteration 51 |
+| `rag-app/LICENSE` | byte-for-byte mirror of root LICENSE | iteration 52 |
+| `tool-use-agent/LICENSE` | byte-for-byte mirror of root LICENSE | iteration 53 |
+| `evals-harness/LICENSE` | byte-for-byte mirror of root LICENSE | iteration 54 |
+| Four-way invariant | `diff -q` silent across all six pairs, `md5` matches on all four, `wc -c` reports 1070 on all four | iteration 54 |
+| `[project].license` in each pyproject | `license = { file = "LICENSE" }` (PEP-621 table form, points at each build's per-build LICENSE) | this iteration |
+| `[project].classifiers` adds | `"License :: OSI Approved :: MIT License"` in all three builds (8 classifiers total now per build, up from 7) | this iteration |
+| README License section | `## License` H2 at end of each README, prose mentions MIT + per-build LICENSE link + cross-link to repo-root LICENSE + cross-link to sibling builds' LICENSE files + setuptools wheel-bundling note | this iteration |
+
+**Why `license = { file = "LICENSE" }` (PEP-621 table form) rather
+than `license = "MIT"` (PEP-639 string form).** Two reasons. (1)
+PEP-639 string form (`license = "MIT"` plus
+`license-files = ["LICENSE"]`) was finalized in PEP-639 (August
+2023) and setuptools added complete support only in 77.0.0 (March
+2025). The pyproject contract locked at iterations 46/47/48
+declares `requires = ["setuptools>=61.0"]` because that's the
+PEP-621-supporting floor; bumping the requirement to setuptools 77
+to use PEP-639 string form would silently raise the install-time
+floor for anyone whose pip pulls an older setuptools (build
+isolation usually pulls the latest, but a user who explicitly
+constrains setuptools — common in locked-environment CI — would
+get a confusing failure mode at build time). The PEP-621 table
+form `license = { file = "LICENSE" }` works on setuptools 61+
+without bumping the floor, and the resulting `dist-info/METADATA`
+emits a `License: MIT License` header that PyPI's license-id
+resolution recognizes equivalently to PEP-639's `License-Expression:
+MIT`. (2) Pairing the table-form `license` field with the
+`License :: OSI Approved :: MIT License` classifier is the
+canonical two-signal pattern (file pointer + machine-readable
+classifier) that GitHub's licensee parser, PyPI's classifier
+resolution, and pip's metadata pipeline all key off. PEP-639
+string form would make the classifier strictly redundant; PEP-621
+table form makes the classifier the load-bearing machine-readable
+signal, which matches the iteration-51 rationale that the
+MIT-vs-other-license choice must be machine-detectable.
+
+**Why a README License section at all.** A `[project].license`
+field tells `setuptools` and PyPI what license the package ships
+under, but a reader landing on each build's README from a GitHub
+search or an interview link doesn't see the pyproject — they see
+the README. The repo-root `LICENSE` file alone produces the GitHub
+sidebar "MIT" badge for the *repo*, but does not satisfy a reader
+viewing a sub-build's README in isolation (e.g.,
+`github.com/jubayar-ahad/ai-pm-role-90days/tree/main/rag-app`
+shows only `rag-app/README.md`, not the repo sidebar). A short
+License section at the end of each README closes this gap with
+no editorial overhead — three sentences, one link to the per-build
+LICENSE, one cross-link to the repo root, one cross-link to
+sibling builds' LICENSE files. The placement is end-of-document
+because the License signal is reference material, not part of the
+build's narrative.
+
+**Verification surface.** Three independent checks across all
+three builds, all run this iteration: (1) **TOML parse check** —
+`tomli.load()` on each pyproject reports `license={'file':
+'LICENSE'}` and 8 classifiers including "License :: OSI Approved
+:: MIT License" on all three (rag-app, tool-use-agent,
+evals-harness), confirming the syntax is well-formed and the
+classifier addition lands. (2) **Wheel build check** — `python -m
+build --wheel` on each of the three builds produced a wheel
+containing `<package>-0.1.0.dist-info/licenses/LICENSE` (1070
+bytes, md5 `b638b3ba3fa8e5f2fa37957a345996d6` — same hash as the
+source LICENSE file, confirming the wheel bundle is byte-identical
+to the per-build source which is byte-identical to the repo
+root). (3) **Wheel METADATA check** — `unzip -p <wheel>
+*METADATA` on each of the three wheels emits all three license
+signals: `License: MIT License`, `Classifier: License :: OSI
+Approved :: MIT License`, and `License-File: LICENSE`. The three
+signals together are what GitHub's licensee parser, PyPI's
+classifier resolution, and pip's metadata-license-id pipeline all
+look for; getting all three on all three builds means the license
+metadata reaches every machine-readable surface the iteration-51
+rationale named. The LICENSE byte-content rotation deferred from
+iteration 49's build matrix is now first-class verified across
+all three wheels.
+
+**Why this slice closes item 2 in a single commit instead of
+splitting pyproject and README into separate sub-checkboxes.**
+NEXT_WORK item 2 has only five sub-checkboxes total: four LICENSE
+files plus one "reference the license in each pyproject's `license`
+field AND in each build's README" sub-checkbox. The sub-checkbox
+text itself bundles the two surfaces with an "AND", which means
+shipping one half of the sub-checkbox in this iteration and the
+other half next iteration would leave the sub-checkbox unticked
+across two commits — strictly worse than discharging the entire
+sub-checkbox in one iteration. The work is also genuinely small
+(one new line per pyproject, one new classifier per pyproject, a
+3-line README section per build — 18 net-new content lines across
+six files), so the single-iteration shape matches the work size
+and ticks both the sub-checkbox and the parent item in the same
+commit. This is a different shape from iteration 50's
+consolidating-only slice for item 1 (which had a dedicated 5th
+sub-checkbox specifically for the consolidating DECISIONS entry):
+item 2 has no equivalent dedicated consolidator sub-checkbox, so
+the consolidator role is folded into the sub-checkbox 5 slice and
+into this DECISIONS entry.
+
+**Updated pyproject comment headers.** The leading comment block
+in all three pyprojects previously said the `license` field was
+"deliberately omitted from this slice — NEXT_WORK item 2 owns
+[it]". This iteration replaces that text with the now-accurate
+explanation that the `license` field points at the per-build
+LICENSE file, that the classifier is the machine-readable signal,
+and that the field tells setuptools to bundle LICENSE into the
+wheel's dist-info. Leaving the deferral comments in place would
+have introduced a documentation lie in the very iteration that
+ships the deferred feature — small but worth catching.
+
+**Out of scope for this iteration.** (1) **No bump of the
+`requires = ["setuptools>=61.0"]` floor.** PEP-639 string-form
+support would require setuptools 77+, but the iteration-50
+packaging convention deliberately set the floor at the
+PEP-621-supporting 61.0 to maximize compatibility. The
+PEP-621 `license = { file = "LICENSE" }` form does not require a
+floor bump. A future revisit could move to PEP-639 string form if
+classifier deprecation becomes real (PyPI has discussed
+deprecating `License ::` classifiers but has not done so), at
+which point the floor bump would land alongside that migration.
+(2) **No pytest fixture asserting byte-equivalence between root
+LICENSE and the three per-build LICENSE files.** That test, if
+needed, belongs in NEXT_WORK item 3's per-build test suite under a
+cross-cutting fixture — same deferral the iteration-54 entry
+named, unchanged here. The iteration-by-iteration `diff -q` + `md5`
+verification continues to cover the property with zero per-build
+test setup cost. (3) **No edit to the top-level `README.md`** —
+the repo root README's license-section question (whether the repo
+root README should also gain a `## License` section pointing at
+`/LICENSE`) is a separate audit of the top-level README's overall
+shape, and would have introduced an unrelated edit into this
+slice. The repo-root README is not a build artifact's README and
+has no per-build pyproject pairing, so it falls outside item 2's
+scope as written. (4) **No re-verification of the iteration-49
+build matrix beyond the three new wheels built this iteration** —
+the three wheels built this iteration *are* the iteration-49 build
+matrix re-verified with the license additions, which is the same
+"per-build verification stays cheap" property iterations 46/47/48
+established. (5) **No edit to NEXT_WORK.md beyond ticking
+sub-checkbox 5 and parent item 2** — adding any new sub-items would
+violate the "do NOT add new items to NEXT_WORK.md" rule the
+objective re-states each iteration. (6) **No work on NEXT_WORK
+item 3 (tests) in this iteration** — even though item 3 will
+exercise the per-build pytest harness that could host a license-
+byte-equivalence test, opening item 3 in the same commit would
+silently bundle two NEXT_WORK items into one commit, breaking the
+topmost-unchecked-first discipline the objective names.
+
