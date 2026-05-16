@@ -18,7 +18,8 @@ incrementally — see [Status](#status) for what currently runs.
 | Labeled query set scaffold (`queries.jsonl`) | Shipped |
 | Trace ingester + startup invariant checks | Shipped |
 | Refusal-bucket scorer (cross-build) | Shipped |
-| Groundedness + termination + cost scorers, aggregate report | Not started |
+| Groundedness scorer (rag-app) + first-call tool scorer (tool-use-agent) | Shipped |
+| Termination + cost scorers, aggregate report | Not started |
 
 The harness deliberately performs **no model calls of its own**. It scores
 trace records that the two LLM builds already emit via their `ask --json`
@@ -287,12 +288,21 @@ Each line below is intended to map to a single future iteration:
    never inflate or deflate the accuracy column. Unpaired traces
    and unpaired labels are surfaced as diagnostic counts in the
    table header.
-4. **Groundedness + first-call tool scorers.** Per-build rubrics that
-   are not cross-cuttable: groundedness reads the rag-app trace's
-   `verification` block; first-call tool accuracy reads
-   `tool_use_agent`'s `tool_calls[0].tool` against the label's
-   `expected_first_tool`. Each emits scored JSONL rows tagged with
-   their rubric name, so the report aggregator stays uniform.
+4. **Groundedness + first-call tool scorers.** *Shipped.*
+   Two per-build rubrics, each invoked via the same `score` CLI:
+   `python -m evals_harness score --rubric groundedness --ingested
+   <path>` reads each rag-app trace's `verification` block and counts
+   the answer as grounded iff every citation resolved AND (when the
+   label carries `expected_citation_source`) that source appears in
+   the resolved citations. `python -m evals_harness score --rubric
+   first_call_tool --ingested <path>` reads each tool-use-agent
+   trace's `tool_calls[0].tool` and compares against the label's
+   `expected_first_tool`. Both rubrics classify non-applicable
+   traces (refusal / dry-run / verification-missing / empty
+   `tool_calls`) as `no_observation` and exclude them from the
+   accuracy denominator. Each emits a per-record scored JSONL with
+   the rubric name baked into every row, so the slice-5 report
+   aggregator stays uniform.
 5. **Termination quality + cost scorers, aggregate report.** Final
    slice rolls up `refusal_reason` distribution and token/cost
    p50/p95 per build, joins every per-record scored row into a single
@@ -356,16 +366,37 @@ python3 -m evals_harness score \
 #   unpaired_traces/unpaired_labels.
 ```
 
-The locked CLI shape for the remaining slices is:
+The slice-4 per-build rubrics are also shipped. Each reads the same
+normalized `ingested.jsonl`, picks the schema_version it applies to,
+and emits a per-record JSONL with the rubric name baked in:
 
 ```bash
 cd evals-harness
 
-# (slice 4) score per-build rubrics.
-python3 -m evals_harness score --rubric groundedness \
-    --ingested .cache/ingested.jsonl --out .cache/scored.jsonl  # appends
-python3 -m evals_harness score --rubric first_call_tool \
-    --ingested .cache/ingested.jsonl --out .cache/scored.jsonl  # appends
+# (slice 4, shipped) groundedness — rag-app traces only.
+python3 -m evals_harness score \
+    --rubric groundedness \
+    --ingested .cache/ingested.jsonl \
+    --out .cache/scored_groundedness.jsonl
+# → per-build counts of grounded / not_grounded / no_observation,
+#   plus a per-row "not-grounded" list calling out which label_id
+#   tripped which failure (missing expected source / unresolved
+#   citation / refused).
+
+# (slice 4, shipped) first-call tool — tool-use-agent traces only.
+python3 -m evals_harness score \
+    --rubric first_call_tool \
+    --ingested .cache/ingested.jsonl \
+    --out .cache/scored_first_call.jsonl
+# → per-build counts of match / mismatch / no_observation, plus a
+#   per-row "mismatches / missing-first-call" list naming the
+#   expected vs observed tool per failing question.
+```
+
+The locked CLI shape for the remaining slice is:
+
+```bash
+cd evals-harness
 
 # (slice 5) roll up to a Markdown report.
 python3 -m evals_harness report --scored .cache/scored.jsonl

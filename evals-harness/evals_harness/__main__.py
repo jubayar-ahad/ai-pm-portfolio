@@ -11,7 +11,7 @@ import argparse
 import sys
 
 from .ingest import cmd_ingest
-from .score import RUBRIC as REFUSAL_RUBRIC, cmd_score
+from .score import ALL_RUBRICS, cmd_score
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -61,17 +61,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "score",
         help=(
             "Score a normalized ingested.jsonl against a labeled set. "
-            "Slice 3 wires only --rubric refusal."
+            "Slice 3 wires 'refusal'; slice 4 adds 'groundedness' "
+            "(rag-app only) and 'first_call_tool' (tool-use-agent only)."
         ),
     )
     p_score.add_argument(
         "--rubric",
         required=True,
-        choices=[REFUSAL_RUBRIC],
+        choices=list(ALL_RUBRICS),
         help=(
-            "Which rubric to score. Slice 3 supports 'refusal' only; "
-            "subsequent slices add 'groundedness', 'first_call_tool', "
-            "and 'termination'."
+            "Which rubric to score. 'refusal' is cross-build; "
+            "'groundedness' applies only to rag-app traces; "
+            "'first_call_tool' applies only to tool-use-agent traces. "
+            "Slice 5 will add 'termination' and 'cost'."
         ),
     )
     p_score.add_argument(

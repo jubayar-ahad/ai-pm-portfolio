@@ -1407,3 +1407,117 @@ diversity warnings (slice 5), and report aggregation
 across rubrics (slice 5 reads the scored JSONL). The
 harness remains stdlib-only, performs no LLM calls, and
 holds no state across runs.
+
+## 2026-05-16 — evals-harness slice 4 (groundedness + first-call tool)
+
+**Decision:** `python -m evals_harness score --rubric
+{groundedness,first_call_tool}` ships as two per-build
+rubrics dispatched through the same `score` subcommand
+that slice 3 wired. Four pieces of the contract are
+locked here:
+
+1. **Eligibility filters are rubric-specific, not
+   trace-wide.** Groundedness applies only to
+   (label.expected_outcome == "answer") paired with
+   rag-app traces (`schema_version == "rag-app.ask.v1"`).
+   First-call tool applies only to
+   (label.expected_first_tool != null) paired with
+   tool-use-agent traces. Labels that don't satisfy the
+   rubric's applicability filter are excluded from
+   `applicable_labels` so unpaired counts stay honest
+   (a refuse-labeled query is not "unpaired" from the
+   groundedness rubric — it's outside its scope).
+2. **Groundedness match condition is two-pronged.** A row
+   matches iff `verification.all_resolved == true` AND
+   (when the label carries a non-null
+   `expected_citation_source`) at least one *resolved*
+   citation has that source. The second prong catches
+   "all citations resolved but the model cited a
+   different valid corpus chunk than the one the label
+   pinned" — a real failure mode that pure
+   `all_resolved` would miss.
+3. **`no_observation` is excluded from accuracy, mirroring
+   slice 3.** A rag-app trace with `verification == null`
+   (refused-low-score, dry-run, or otherwise no answer
+   to verify) classifies as `no_observation` and is
+   counted in the per-build row's `no_observation`
+   column, but is excluded from the accuracy denominator.
+   Same shape for first-call tool when `tool_calls` is
+   empty. A reader can add more dry-runs to the input
+   without moving any accuracy percentage.
+4. **Per-rubric scored JSONL schemas are distinct but
+   share the cross-rubric core (`rubric`, `record_id`,
+   `schema_version`, `question`, `label_id`, `match`).**
+   Groundedness rows add `citations_total`,
+   `citations_resolved`, `all_resolved`,
+   `expected_citation_source`, `expected_source_cited`,
+   `observed_outcome`. First-call tool rows add
+   `expected_first_tool`, `observed_first_tool`,
+   `observed_outcome`. The slice-5 report aggregator
+   can read all three rubrics' JSONL outputs and group
+   by `rubric` without per-rubric special cases on the
+   shared columns.
+
+**Rationale (why this shape, not some other):**
+
+- **Two rubrics in one slice, not two iterations.** The
+  README's roadmap pre-committed slice 4 as the bundled
+  per-build pair. They share the envelope reader, the
+  question-string + schema-prefix join key from slice 3,
+  the `no_observation` exclusion pattern, and the
+  per-record JSONL output shape — splitting them across
+  iterations would duplicate four shared design
+  decisions for no extra signal. Shipping them together
+  keeps the "one complete artifact per iteration" rule
+  intact because the artifact is "per-build rubrics."
+- **Same `score` subcommand, three rubric choices.** A
+  separate `score_per_build` subcommand would have made
+  slice-5's aggregate report a sub-flag of yet a third
+  subcommand. One `--rubric` dimension covers all
+  current and future single-rubric runs; slice 5's
+  `report` subcommand reads JSONL files produced by
+  any rubric, so the CLI surface stays small.
+- **`expected_citation_source` in the match condition
+  (vs. only `all_resolved`).** The label set already
+  carries the pinned source for 6 of the 9
+  answer-expected queries; not using it would leave that
+  field as documentation rather than signal. The
+  expected-source-cited check is the cheapest possible
+  use of that pin and surfaces a real "right form,
+  wrong evidence" failure mode.
+- **Empty `tool_calls` is `no_observation`, not
+  `mismatch`.** A model that refused / answered without
+  tools / dry-ran did not *attempt* a tool call — there
+  is no first call to be right or wrong about. Counting
+  it as `mismatch` would mix "the agent picked the
+  wrong tool" with "the agent declined to use any
+  tool," and the first-call rubric's purpose is
+  unambiguously the first.
+- **Sorted JSONL output, same key as slice 3.** Output
+  rows are sorted by `(schema_version, record_id,
+  label_id)` so two runs over the same envelope produce
+  byte-identical scored JSONL — the determinism
+  property the harness's reproducibility-without-API
+  story rests on.
+
+**Validated against synthetic + real envelope data:** a
+7-label / 7-trace synthetic envelope exercises grounded
++ not_grounded (`all_resolved=false`) + not_grounded
+(`expected_source` not cited) + no_observation
+(refused-low-score) for groundedness; match + mismatch
++ no_observation (empty `tool_calls`) for first-call
+tool. Unpaired-trace counter increments on an extra
+trace with no matching label. The slice-2/3
+REFUSAL_SENTENCE byte-equality and trace-helper
+algorithm invariants still pass; the refusal rubric
+still produces its iteration-18 confusion matrix
+unchanged.
+
+**Out of scope for slice 4** (so slice 5 cannot silently
+inherit them): termination-quality scoring over
+`refusal_reason` distributions, token/latency
+percentiles, `corpus_fingerprint` diversity warnings,
+and the aggregate Markdown report that joins all four
+rubrics. Each rubric in slice 4 writes its own scored
+JSONL; slice 5 reads them and rolls them up.
+

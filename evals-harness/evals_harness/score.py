@@ -1,27 +1,27 @@
-"""Refusal-bucket scorer (slice 3) for the evals harness.
+"""Per-rubric scorers for the evals harness (slices 3 + 4).
 
 Reads a normalized ``ingested.jsonl`` envelope produced by ``ingest``,
 joins traces to labels by (question, schema_version ∈ applies_to),
-classifies each trace's observed outcome as ``refuse`` / ``answer`` /
-``no_observation``, and emits a per-record scored JSONL plus a small
-per-build Markdown confusion matrix on stdout.
+and applies a per-rubric scorer:
 
-The classifier is build-specific because the two builds expose their
-refusal signal differently:
-
-* rag-app emits ``mode == "refused-low-score"`` for the threshold-bypass
-  path (no model call) and otherwise carries the model's answer in
-  ``answer.text``. A model-emitted refusal is detected by strict-strip
-  byte-equality with ``REFUSAL_SENTENCE``.
-* tool-use-agent always carries the final string in ``final_text``;
-  ``refusal_reason`` is set to one of ``model_refused`` /
-  ``repeated_tool_error`` / ``max_steps_exhausted`` whenever the canonical
-  refusal is emitted. Both signals are checked and required to agree
-  (a divergence would surface as ``RuntimeError`` because it indicates
-  a build bug the slice-2 invariants did not catch).
-* Dry-run traces carry no answer / no final_text. They are classified as
-  ``no_observation`` so they do not pollute the confusion matrix; the
-  Markdown report counts them separately as a diagnostic row.
+* ``refusal`` (cross-build, slice 3). Classifies each trace as
+  ``refuse`` / ``answer`` / ``no_observation`` against the label's
+  ``expected_outcome``. rag-app refuses via ``mode == "refused-low-score"``
+  or ``answer.text == REFUSAL_SENTENCE``; tool-use-agent refuses via
+  ``final_text == REFUSAL_SENTENCE`` cross-checked against
+  ``refusal_reason`` (disagreement raises ``ScoreError``).
+* ``groundedness`` (rag-app only, slice 4). For labels with
+  ``expected_outcome == "answer"`` paired with rag-app traces, reads the
+  trace's ``verification`` block and counts the answer as grounded iff
+  ``all_resolved`` is true AND (when the label carries an
+  ``expected_citation_source``) that source appears in the resolved
+  citations. Refused / dry-run / verification-missing traces classify
+  as ``no_observation`` and are excluded from the accuracy denominator.
+* ``first_call_tool`` (tool-use-agent only, slice 4). For labels with
+  a non-null ``expected_first_tool`` paired with tool-use-agent traces,
+  checks whether ``tool_calls[0].tool`` matches. Empty ``tool_calls``
+  (refusal, dry-run, model-answered-without-tools) classify as
+  ``no_observation``.
 
 Cross-build alignment: ``REFUSAL_SENTENCE`` is imported from
 ``rag_app.verify`` because the slice-2 startup invariant has already
@@ -43,11 +43,19 @@ from typing import Any
 from . import _repo
 from .invariants import InvariantError, run_startup_invariants
 
-RUBRIC = "refusal"
+RUBRIC = "refusal"  # kept for slice-3 callers; prefer the named constant below
+RUBRIC_REFUSAL = "refusal"
+RUBRIC_GROUNDEDNESS = "groundedness"
+RUBRIC_FIRST_CALL_TOOL = "first_call_tool"
+
+ALL_RUBRICS = (RUBRIC_REFUSAL, RUBRIC_GROUNDEDNESS, RUBRIC_FIRST_CALL_TOOL)
 
 OBSERVED_REFUSE = "refuse"
 OBSERVED_ANSWER = "answer"
 OBSERVED_NONE = "no_observation"
+
+SCHEMA_RAG_APP = "rag-app.ask.v1"
+SCHEMA_TOOL_USE_AGENT = "tool-use-agent.ask.v1"
 
 
 class ScoreError(RuntimeError):
@@ -352,13 +360,452 @@ def _write_scored_jsonl(out_path: Path, rows: list[ScoredRow]) -> None:
             )
 
 
+# ---------------------------------------------------------------------------
+# Groundedness rubric (rag-app only)
+# ---------------------------------------------------------------------------
+
+
+GROUNDED_TRUE = "grounded"
+GROUNDED_FALSE = "not_grounded"
+GROUNDED_NONE = "no_observation"
+
+
+@dataclass(frozen=True)
+class GroundednessRow:
+    """One scored groundedness observation.
+
+    ``citations_total`` / ``citations_resolved`` mirror the rag-app
+    ``verification`` block. ``expected_citation_source`` is the label's
+    optional pinned source (e.g. ``"OBJECTIVE.md"``);
+    ``expected_source_cited`` is True iff *any* resolved citation has
+    that source. ``match`` is the final per-row pass/fail used by the
+    aggregate report; it is False whenever the observation is missing
+    so accuracy stays a per-observed-record fraction.
+    """
+
+    rubric: str
+    record_id: str
+    schema_version: str
+    question: str
+    label_id: str
+    citations_total: int
+    citations_resolved: int
+    all_resolved: bool
+    expected_citation_source: str | None
+    expected_source_cited: bool
+    observed_outcome: str  # grounded / not_grounded / no_observation
+    match: bool
+
+
+@dataclass
+class GroundednessResult:
+    rows: list[GroundednessRow] = field(default_factory=list)
+    n_labels: int = 0
+    n_traces: int = 0
+    n_unpaired_traces: int = 0
+    n_unpaired_labels: int = 0
+
+
+def _extract_groundedness(
+    trace: dict[str, Any],
+    expected_source: str | None,
+) -> tuple[str, int, int, bool, bool]:
+    """Return (observed_outcome, total, resolved, all_resolved, source_cited).
+
+    ``observed_outcome`` is one of GROUNDED_TRUE / GROUNDED_FALSE /
+    GROUNDED_NONE. A missing verification block (refused / dry-run /
+    non-answer mode) classifies as GROUNDED_NONE and the numeric fields
+    are zeroed.
+    """
+    verification = trace.get("verification")
+    if not isinstance(verification, dict):
+        return GROUNDED_NONE, 0, 0, False, False
+    total = int(verification.get("total", 0) or 0)
+    resolved = int(verification.get("resolved", 0) or 0)
+    all_resolved = bool(verification.get("all_resolved", False))
+    citations = verification.get("citations") or []
+    source_cited = False
+    if expected_source is not None and isinstance(citations, list):
+        source_cited = any(
+            isinstance(c, dict)
+            and c.get("source") == expected_source
+            and c.get("resolved")
+            for c in citations
+        )
+    if not all_resolved:
+        return GROUNDED_FALSE, total, resolved, all_resolved, source_cited
+    if expected_source is not None and not source_cited:
+        return GROUNDED_FALSE, total, resolved, all_resolved, source_cited
+    return GROUNDED_TRUE, total, resolved, all_resolved, source_cited
+
+
+def score_groundedness(envelope_path: Path) -> GroundednessResult:
+    """Run the groundedness rubric over a normalized ingested.jsonl envelope.
+
+    Applies only to (label.expected_outcome == "answer") paired with
+    rag-app traces. Non-applicable label/trace pairs (refuse-labels,
+    tool-use-agent traces, no-verification-block traces) are excluded
+    from the rubric's scored rows entirely — the refusal rubric is the
+    right home for those.
+    """
+    labels, traces = _read_envelope(envelope_path)
+    labels_by_q = _index_labels_by_question(labels)
+
+    rows: list[GroundednessRow] = []
+    matched_label_ids: set[str] = set()
+    unpaired_traces = 0
+    eligible_traces = 0
+
+    for trace in traces:
+        schema = trace.get("schema_version")
+        if schema != SCHEMA_RAG_APP:
+            continue
+        eligible_traces += 1
+        question = trace.get("question")
+        candidates = [
+            lab
+            for lab in labels_by_q.get(question, [])
+            if schema in lab.get("applies_to", [])
+            and lab.get("expected_outcome") == OBSERVED_ANSWER
+        ]
+        if not candidates:
+            unpaired_traces += 1
+            continue
+
+        for lab in candidates:
+            expected_source = lab.get("expected_citation_source")
+            outcome, total, resolved, all_resolved, source_cited = (
+                _extract_groundedness(trace, expected_source)
+            )
+            match = outcome == GROUNDED_TRUE
+            rows.append(
+                GroundednessRow(
+                    rubric=RUBRIC_GROUNDEDNESS,
+                    record_id=trace["record_id"],
+                    schema_version=schema,
+                    question=question,
+                    label_id=lab["id"],
+                    citations_total=total,
+                    citations_resolved=resolved,
+                    all_resolved=all_resolved,
+                    expected_citation_source=expected_source,
+                    expected_source_cited=source_cited,
+                    observed_outcome=outcome,
+                    match=match,
+                )
+            )
+            matched_label_ids.add(lab["id"])
+
+    # Unpaired labels: ones with expected_outcome=answer and applies_to
+    # listing rag-app, but no rag-app trace surfaced them.
+    eligible_labels = [
+        lab
+        for lab in labels
+        if lab.get("expected_outcome") == OBSERVED_ANSWER
+        and SCHEMA_RAG_APP in lab.get("applies_to", [])
+    ]
+    unpaired_labels = sum(
+        1 for lab in eligible_labels if lab["id"] not in matched_label_ids
+    )
+
+    rows.sort(key=lambda r: (r.schema_version, r.record_id, r.label_id))
+
+    return GroundednessResult(
+        rows=rows,
+        n_labels=len(eligible_labels),
+        n_traces=eligible_traces,
+        n_unpaired_traces=unpaired_traces,
+        n_unpaired_labels=unpaired_labels,
+    )
+
+
+def render_groundedness_report(result: GroundednessResult) -> str:
+    """Render a small Markdown summary of the groundedness rubric."""
+    n_grounded = sum(1 for r in result.rows if r.observed_outcome == GROUNDED_TRUE)
+    n_not = sum(1 for r in result.rows if r.observed_outcome == GROUNDED_FALSE)
+    n_none = sum(1 for r in result.rows if r.observed_outcome == GROUNDED_NONE)
+    observable = n_grounded + n_not
+    lines: list[str] = []
+    lines.append("# Groundedness rubric (rag-app only)")
+    lines.append("")
+    lines.append(
+        f"applicable_labels={result.n_labels}  rag_app_traces={result.n_traces}  "
+        f"scored_rows={len(result.rows)}  "
+        f"unpaired_traces={result.n_unpaired_traces}  "
+        f"unpaired_labels={result.n_unpaired_labels}"
+    )
+    lines.append("")
+    if not result.rows:
+        lines.append("(no paired (answer-label, rag-app trace) records — nothing to score)")
+        return "\n".join(lines) + "\n"
+    lines.append(
+        "| build | grounded | not_grounded | no_observation | total | accuracy |"
+    )
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+    acc = f"{n_grounded}/{observable}" if observable else "n/a"
+    if observable:
+        pct = 100.0 * n_grounded / observable
+        acc = f"{n_grounded}/{observable} ({pct:.1f}%)"
+    lines.append(
+        f"| {SCHEMA_RAG_APP} | {n_grounded} | {n_not} | {n_none} "
+        f"| {len(result.rows)} | {acc} |"
+    )
+    # Per-row not-grounded callouts so a reader can see *which* questions failed.
+    failures = [r for r in result.rows if r.observed_outcome == GROUNDED_FALSE]
+    if failures:
+        lines.append("")
+        lines.append("Not-grounded rows:")
+        for r in failures:
+            why = (
+                f"all_resolved={r.all_resolved}, "
+                f"resolved={r.citations_resolved}/{r.citations_total}"
+            )
+            if r.expected_citation_source is not None and not r.expected_source_cited:
+                why += f", expected_source={r.expected_citation_source!r} not cited"
+            lines.append(f"- {r.label_id} ({r.record_id}): {why}")
+    return "\n".join(lines) + "\n"
+
+
+def _write_groundedness_jsonl(
+    out_path: Path, rows: list[GroundednessRow]
+) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fp:
+        for r in rows:
+            fp.write(
+                json.dumps(
+                    {
+                        "rubric": r.rubric,
+                        "record_id": r.record_id,
+                        "schema_version": r.schema_version,
+                        "question": r.question,
+                        "label_id": r.label_id,
+                        "citations_total": r.citations_total,
+                        "citations_resolved": r.citations_resolved,
+                        "all_resolved": r.all_resolved,
+                        "expected_citation_source": r.expected_citation_source,
+                        "expected_source_cited": r.expected_source_cited,
+                        "observed_outcome": r.observed_outcome,
+                        "match": r.match,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+
+# ---------------------------------------------------------------------------
+# First-call tool rubric (tool-use-agent only)
+# ---------------------------------------------------------------------------
+
+
+FIRST_CALL_MATCH = "match"
+FIRST_CALL_MISMATCH = "mismatch"
+FIRST_CALL_NONE = "no_observation"
+
+
+@dataclass(frozen=True)
+class FirstCallToolRow:
+    rubric: str
+    record_id: str
+    schema_version: str
+    question: str
+    label_id: str
+    expected_first_tool: str
+    observed_first_tool: str | None
+    observed_outcome: str  # match / mismatch / no_observation
+    match: bool
+
+
+@dataclass
+class FirstCallToolResult:
+    rows: list[FirstCallToolRow] = field(default_factory=list)
+    n_labels: int = 0
+    n_traces: int = 0
+    n_unpaired_traces: int = 0
+    n_unpaired_labels: int = 0
+
+
+def _extract_first_tool(trace: dict[str, Any]) -> str | None:
+    """Return tool_calls[0].tool, or None if no tool calls were made."""
+    calls = trace.get("tool_calls")
+    if not isinstance(calls, list) or not calls:
+        return None
+    first = calls[0]
+    if not isinstance(first, dict):
+        return None
+    tool = first.get("tool")
+    return tool if isinstance(tool, str) else None
+
+
+def score_first_call_tool(envelope_path: Path) -> FirstCallToolResult:
+    """Run the first-call tool rubric over a normalized ingested.jsonl envelope.
+
+    Applies only to (label.expected_first_tool != null) paired with
+    tool-use-agent traces. Empty tool_calls (refusal / dry-run /
+    model-answered-without-tools) classify as ``no_observation`` and are
+    excluded from the accuracy denominator.
+    """
+    labels, traces = _read_envelope(envelope_path)
+    labels_by_q = _index_labels_by_question(labels)
+
+    rows: list[FirstCallToolRow] = []
+    matched_label_ids: set[str] = set()
+    unpaired_traces = 0
+    eligible_traces = 0
+
+    for trace in traces:
+        schema = trace.get("schema_version")
+        if schema != SCHEMA_TOOL_USE_AGENT:
+            continue
+        eligible_traces += 1
+        question = trace.get("question")
+        candidates = [
+            lab
+            for lab in labels_by_q.get(question, [])
+            if schema in lab.get("applies_to", [])
+            and lab.get("expected_first_tool") is not None
+        ]
+        if not candidates:
+            unpaired_traces += 1
+            continue
+
+        observed = _extract_first_tool(trace)
+        for lab in candidates:
+            expected = lab["expected_first_tool"]
+            if observed is None:
+                outcome = FIRST_CALL_NONE
+                match = False
+            elif observed == expected:
+                outcome = FIRST_CALL_MATCH
+                match = True
+            else:
+                outcome = FIRST_CALL_MISMATCH
+                match = False
+            rows.append(
+                FirstCallToolRow(
+                    rubric=RUBRIC_FIRST_CALL_TOOL,
+                    record_id=trace["record_id"],
+                    schema_version=schema,
+                    question=question,
+                    label_id=lab["id"],
+                    expected_first_tool=expected,
+                    observed_first_tool=observed,
+                    observed_outcome=outcome,
+                    match=match,
+                )
+            )
+            matched_label_ids.add(lab["id"])
+
+    eligible_labels = [
+        lab
+        for lab in labels
+        if lab.get("expected_first_tool") is not None
+        and SCHEMA_TOOL_USE_AGENT in lab.get("applies_to", [])
+    ]
+    unpaired_labels = sum(
+        1 for lab in eligible_labels if lab["id"] not in matched_label_ids
+    )
+
+    rows.sort(key=lambda r: (r.schema_version, r.record_id, r.label_id))
+
+    return FirstCallToolResult(
+        rows=rows,
+        n_labels=len(eligible_labels),
+        n_traces=eligible_traces,
+        n_unpaired_traces=unpaired_traces,
+        n_unpaired_labels=unpaired_labels,
+    )
+
+
+def render_first_call_tool_report(result: FirstCallToolResult) -> str:
+    n_match = sum(1 for r in result.rows if r.observed_outcome == FIRST_CALL_MATCH)
+    n_mismatch = sum(
+        1 for r in result.rows if r.observed_outcome == FIRST_CALL_MISMATCH
+    )
+    n_none = sum(1 for r in result.rows if r.observed_outcome == FIRST_CALL_NONE)
+    observable = n_match + n_mismatch
+    lines: list[str] = []
+    lines.append("# First-call tool rubric (tool-use-agent only)")
+    lines.append("")
+    lines.append(
+        f"applicable_labels={result.n_labels}  tua_traces={result.n_traces}  "
+        f"scored_rows={len(result.rows)}  "
+        f"unpaired_traces={result.n_unpaired_traces}  "
+        f"unpaired_labels={result.n_unpaired_labels}"
+    )
+    lines.append("")
+    if not result.rows:
+        lines.append(
+            "(no paired (first-tool-label, tool-use-agent trace) records — "
+            "nothing to score)"
+        )
+        return "\n".join(lines) + "\n"
+    lines.append(
+        "| build | match | mismatch | no_observation | total | accuracy |"
+    )
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+    if observable:
+        pct = 100.0 * n_match / observable
+        acc = f"{n_match}/{observable} ({pct:.1f}%)"
+    else:
+        acc = "n/a"
+    lines.append(
+        f"| {SCHEMA_TOOL_USE_AGENT} | {n_match} | {n_mismatch} | {n_none} "
+        f"| {len(result.rows)} | {acc} |"
+    )
+    failures = [
+        r
+        for r in result.rows
+        if r.observed_outcome in (FIRST_CALL_MISMATCH, FIRST_CALL_NONE)
+    ]
+    if failures:
+        lines.append("")
+        lines.append("Mismatches / missing-first-call rows:")
+        for r in failures:
+            obs = r.observed_first_tool if r.observed_first_tool is not None else "<none>"
+            lines.append(
+                f"- {r.label_id} ({r.record_id}): expected={r.expected_first_tool!r} "
+                f"observed={obs!r}"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _write_first_call_tool_jsonl(
+    out_path: Path, rows: list[FirstCallToolRow]
+) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fp:
+        for r in rows:
+            fp.write(
+                json.dumps(
+                    {
+                        "rubric": r.rubric,
+                        "record_id": r.record_id,
+                        "schema_version": r.schema_version,
+                        "question": r.question,
+                        "label_id": r.label_id,
+                        "expected_first_tool": r.expected_first_tool,
+                        "observed_first_tool": r.observed_first_tool,
+                        "observed_outcome": r.observed_outcome,
+                        "match": r.match,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+
+# ---------------------------------------------------------------------------
+# CLI dispatch
+# ---------------------------------------------------------------------------
+
+
 def cmd_score(args: argparse.Namespace) -> int:
-    if args.rubric != RUBRIC:
-        # Future slices will add more rubrics; for slice 3 only "refusal"
-        # is wired. Reject explicitly rather than silently doing nothing.
+    if args.rubric not in ALL_RUBRICS:
         print(
-            f"SCORE FAILED: unknown rubric {args.rubric!r}; slice 3 supports "
-            f"only {RUBRIC!r}",
+            f"SCORE FAILED: unknown rubric {args.rubric!r}; supported: "
+            f"{', '.join(ALL_RUBRICS)}",
             file=sys.stderr,
         )
         return 2
@@ -372,17 +819,28 @@ def cmd_score(args: argparse.Namespace) -> int:
 
     envelope_path = Path(args.ingested)
     try:
-        result = score_refusal(envelope_path)
+        if args.rubric == RUBRIC_REFUSAL:
+            result = score_refusal(envelope_path)
+            report = render_refusal_report(result)
+            if args.out:
+                _write_scored_jsonl(Path(args.out), result.rows)
+        elif args.rubric == RUBRIC_GROUNDEDNESS:
+            g_result = score_groundedness(envelope_path)
+            report = render_groundedness_report(g_result)
+            if args.out:
+                _write_groundedness_jsonl(Path(args.out), g_result.rows)
+        else:  # RUBRIC_FIRST_CALL_TOOL
+            f_result = score_first_call_tool(envelope_path)
+            report = render_first_call_tool_report(f_result)
+            if args.out:
+                _write_first_call_tool_jsonl(Path(args.out), f_result.rows)
     except ScoreError as exc:
         print(f"SCORE FAILED: {exc}", file=sys.stderr)
         return 2
 
-    if args.out:
-        _write_scored_jsonl(Path(args.out), result.rows)
-
     if args.markdown:
         Path(args.markdown).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.markdown).write_text(render_refusal_report(result), encoding="utf-8")
+        Path(args.markdown).write_text(report, encoding="utf-8")
 
-    print(render_refusal_report(result), end="")
+    print(report, end="")
     return 0
