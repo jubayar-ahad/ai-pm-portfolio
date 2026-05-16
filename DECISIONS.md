@@ -2153,3 +2153,136 @@ list, so its existence does not perturb the index — only this
 DECISIONS entry does. Tool-use-agent catalog is unchanged so its
 fingerprint is unchanged. Both builds and the evals-harness
 cross-build invariants still pass.
+
+## 2026-05-16 — Cursor teardown PRD slice 2: "What's working" drafted
+
+**Decision:** The "What's working" section of
+`teardown-prd/cursor-teardown.md` ships in drafted state, replacing
+the outline slice's four-candidate bullet list with three full
+sub-section drafts plus an inline "cut" paragraph naming the
+dropped candidate. Sections 2–6 remain in outline / intent-paragraph
+state and are picked up in subsequent slices per the slicing plan
+locked in the preceding DECISIONS entry.
+
+**Three sub-areas selected:**
+
+1. **§1.1 Edit-application UX: inline-diff-then-accept** — model
+   never reaches the working tree without a per-edit human gesture,
+   review surface is the default rather than an opt-in, the friction
+   cost is dominated by the cost of one missed wrong-direction edit
+   ten layers into a refactor.
+2. **§1.2 Context as a first-class citizen: the `@` mention system** —
+   explicit user-named context vs. silent auto-inclusion, with the
+   chip rendering in the prompt and persisting in conversation
+   history so the next turn re-shows exactly what context the model
+   saw last turn. Predictability vs. cold-start friction trade
+   resolved toward predictability.
+3. **§1.3 Sequencing autonomy: Background Agent shipped after
+   Composer matured** — the autonomy ramp (inline → Composer →
+   Background Agent) is also a review-surface ramp, and the staging
+   means users arrive at the autonomous mode with a calibrated mental
+   model rather than building one against the most autonomous
+   surface from cold start.
+
+**Cut from the outline's four: pricing-tier shape.** Defensible as a
+product call but lives more on the monetization-positioning axis than
+the PM-design axis; defending it concretely requires specific tier
+prices and quota numbers that drift week-to-week, and the
+no-fabrication posture would force inline placeholders that weaken
+the argument. The teardown is stronger with three concrete
+PM-design calls than with four where one is positioning. Pricing
+surfaces lightly in §4's lagging-business metrics row and in §6's
+explicit exclusion of pricing-page A/B as a validation method, so
+the topic is not orphaned — it is acknowledged in the methodologies
+that touch it without being deep-dove in its own sub-section.
+
+**Canonical sub-section paragraph shape** (locked here as a precedent
+binding §2 "What's broken" and §3 "What to ship next" sub-sections,
+which will mirror this shape):
+
+1. **The PM decision.** Lead with the choice itself in one or two
+   sentences. The reader should be able to summarize the PM call
+   without reading further.
+2. **Observable behavior.** What a reviewer can reproduce on the
+   snapshot date, in concrete UI terms (key bindings, surface names,
+   what renders where). Every observable claim cites either the date
+   of reproduction or a public source URL.
+3. **Why this is the right PM call.** The argument — not feature
+   listing. Names the failure mode the decision protects against,
+   and the comparative alternative the decision is choosing against.
+4. **Tension worth naming.** Every PM decision has a cost; naming the
+   tension is what converts the section from advocacy into PM craft.
+   The cost may be small (cold-start friction), large (windowed
+   competitive disadvantage), or asymmetric; in all cases it is named
+   explicitly and the trade is defended on its merits.
+5. **Inline source citation** in italics at the close of the
+   sub-section, naming source category + accessed date + (where
+   relevant) the reproduction conditions (OS, tier). Sources are
+   inline at the sub-section, not collected in a sidecar — same
+   discipline locked in the outline slice's source-discipline entry.
+
+**Why this shape, not freer-form prose:** the teardown is a
+PM-craft artifact, and a reviewer scanning it for PM signal needs to
+find decision + behavior + argument + tension in a predictable order.
+Freer-form prose would let strong sub-sections shine but would also
+let weaker sub-sections hide their thin spots; the locked shape
+forces each sub-section to either fill all five slots or explain why
+it cannot. §2 and §3 will use the same five-slot shape (with "the
+PM failure" and "the PM proposal" substituting for "the PM decision"
+respectively); §4's metrics, §5's out-of-scope, and §6's validation
+methodology have different natural shapes and are not bound by this
+slot list.
+
+**Source-density discipline** carried from the outline's
+source-discipline entry, restated here so a future iteration cannot
+silently weaken it for §2's drafted sub-sections: every claim about
+Cursor's surface behavior cites either (a) "observable behavior on
+2026-05-16" with reproduction conditions, (b) a docs URL
+(cursor.com/docs) with the accessed date, (c) a changelog reference
+(cursor.com/changelog) with the accessed date, or (d) a public
+Anysphere statement (cited by post title and date). No
+unsourced claims about Cursor's internals, no fabricated version
+numbers, no specific dollar amounts unless quoted with a
+snapshot citation.
+
+**Header convention:** sub-sections within each canonical section use
+`### N.M ...` three-level headers (e.g. `### 1.1 Edit-application UX:
+inline-diff-then-accept`). Top-level section headers stay at `## N.
+...`. This is consistent with the existing outline's `## Scope
+decision` / `## 1. What's working` level choices and gives the
+reader a predictable scan hierarchy. §2–§6 sub-sections will follow
+the same convention as they are drafted.
+
+**Out of scope for this iteration** (deliberate, named so the next
+iteration cannot silently inherit them):
+
+1. **Edits to sections 2–6.** Those sections remain in outline /
+   intent-paragraph state; the §2 "What's broken" draft is the next
+   iteration's deliverable.
+2. **Revisions to the scope decision or the masthead.** The triad
+   scope, the observation date (2026-05-16), and the no-fabrication
+   posture all stand. The drafted §1 sub-sections must fit within
+   the locked scope; if a sub-section would require widening scope,
+   it is cut, not drafted.
+3. **A "Cuts" sidecar file or a separate cut-rationale doc.** The
+   one-paragraph cut explanation lives inline at the end of §1, same
+   discipline as keeping sources inline.
+4. **Pricing-tier deep-dive in §4 or §6.** Pricing is touched lightly
+   in §4's lagging-business metrics row (already in the outline) and
+   explicitly excluded as a validation method in §6 (also already in
+   the outline). Reopening it as a deep-dive in those sections would
+   reintroduce the cut sub-area by side door.
+5. **Any change to the rag-app corpus v1 file list.** Corpus v1 stays
+   locked to (OBJECTIVE.md, DECISIONS.md, templates/INTERVIEW_TRACKER.md,
+   rag-app/README.md). The teardown file itself remains outside the
+   corpus.
+
+**Implication for the rag-app corpus_fingerprint:** this iteration
+touches DECISIONS.md but not the other three corpus-v1 files; per the
+per-iteration drift pattern documented from iteration 16 onward, the
+rag-app corpus_fingerprint will rotate again. The
+teardown-prd/cursor-teardown.md file's drafted §1 is not in the
+corpus, so its drafting does not perturb the index — only this
+DECISIONS entry does. Tool-use-agent catalog is unchanged so its
+fingerprint is unchanged. Both builds and the evals-harness
+cross-build invariants still pass.

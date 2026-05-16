@@ -72,33 +72,167 @@ author would defend in a review. Avoid feature-listing; each
 sub-point is a *PM decision* with the observable behavior that
 indicates the decision was right.
 
-**Candidate sub-areas the draft will narrow to ~3:**
+Three sub-sections follow, narrowed from the outline's four candidate
+sub-areas. The cut — pricing-tier shape — is named at the end of this
+section with a one-paragraph rationale.
 
-- **Edit-application UX.** Cursor's inline-diff-then-accept (vs.
-  "model runs the edit and you discover what changed") materially
-  lowers the trust bar for delegating multi-line edits to a model.
-  The PM tension: review friction vs. autonomy. Cursor's default is
-  visibly conservative, and the draft will argue this is correct for
-  the current model-reliability regime.
-- **Context-as-first-class-citizen.** The `@File`, `@Folder`,
-  `@Codebase`, `@Docs`, `@Web`, `@Git` mention system makes
-  context-construction an explicit user action with visible
-  scope. Compared with implicit-context products that silently pull
-  the open file or "the whole repo," the explicitness pays for itself
-  in fewer surprise model behaviors.
-- **The pricing tier story.** Free tier with a real model menu (not
-  a degraded teaser), Pro at a defensible price point, and the
-  business / enterprise tiers actually selling features developers
-  use. The draft will frame this against Copilot's tier shape.
-- **The Background Agent introduction.** Sequencing — bringing
-  Background Agent in after the interactive Composer surface
-  matured — let the user mental model build before autonomy was
-  expanded.
+### 1.1 Edit-application UX: inline-diff-then-accept
 
-**Evidence sources for this section:** Cursor docs (cursor.com/docs),
-public changelog, pricing page snapshots, observable behavior on
-2026-05-16, and named comparisons with Copilot's equivalent surfaces
-where the contrast is publicly verifiable.
+**The PM decision.** Route every model-initiated edit — Cmd+K inline
+edits and Composer multi-file changes alike — through an in-editor
+diff surface with explicit per-hunk or all-at-once acceptance, rather
+than letting the model write the file and surface the change after the
+fact via `git diff`. The model never reaches the working tree without
+a human gesture.
+
+**Observable behavior** (reproducible on 2026-05-16). Trigger an
+inline edit on a function with Cmd+K: the proposed change renders as
+a red/green diff in place before any byte hits disk; Tab (or the
+Accept button) commits, Esc discards. Composer-driven multi-file edits
+open a per-file diff list with the same accept/reject affordances at
+the file and hunk level. The user is never asked to flip a one-time
+"trust the model with write access" setting; the trust grant is
+per-edit, and the visual review surface is the default, not an
+opt-in.
+
+**Why this is the right PM call.** The current model-reliability
+regime makes delegated edits useful — the model can refactor across a
+function in one shot, rename across files, port a code block to a
+sibling language — but not reliable enough to trust unsupervised on
+the working tree. Some non-trivial fraction of multi-line edits are
+subtly wrong in a way `git diff` would catch in five seconds but a
+mid-refactor user might miss for hours. Inline-diff is the lightest
+review surface that still catches the wrong-direction cases before
+they land. The friction cost — two clicks per accept — is dominated
+by the cost of one accidental wrong-file edit ten layers deep in a
+refactor.
+
+**Tension worth naming:** review friction vs. autonomy. The default
+is visibly conservative; power users who want fewer prompts chain
+edits through Composer (which still diffs, but bundles the review)
+rather than disabling the gate. The PM trade is to keep the gate
+on-by-default and route autonomy seekers to a different surface, not
+to weaken the safety property of the default surface.
+
+*(Sources: observable behavior on 2026-05-16, macOS / Pro tier;
+Cursor docs on inline edit and Composer, cursor.com/docs, accessed
+2026-05-16.)*
+
+### 1.2 Context as a first-class citizen: the `@` mention system
+
+**The PM decision.** Context attached to a chat or edit prompt is
+constructed by the user via an explicit `@`-mention typeahead palette
+rather than silently inferred from the open buffer, the cursor
+position, or the entire workspace. The user names what the model sees;
+the model does not guess.
+
+**Observable behavior** (reproducible on 2026-05-16). Typing `@` in
+chat or in a Cmd+K prompt opens a typeahead listing `@File`,
+`@Folder`, `@Codebase`, `@Docs`, `@Web`, `@Git`, and adjacent context
+primitives. Each accepted mention becomes a visible chip in the
+prompt that the user can hover to inspect (sees what the chip
+resolves to) or click to remove. The chip persists into the
+conversation history, so the next turn renders exactly what context
+the model saw on the previous turn — including which docs source,
+which folder, which git ref.
+
+**Why this is the right PM call.** The alternative — silently
+injecting "the open file" or "the whole repo" by default — makes
+model behavior unpredictable from the user's perspective ("why did
+it suggest changes to a file I didn't ask about?") and unauditable
+after the fact ("what did the model actually see when it gave that
+answer?"). The explicit-mention model pays for itself twice: once in
+fewer surprise behaviors during normal use, and again as the
+substrate for any future "why did the model say that?" reproducibility
+property — a property AI products increasingly need to support as
+users and reviewers start asking the question directly. It also lets
+the model-context window be budgeted by the user rather than blown
+by an over-eager auto-include heuristic.
+
+**Tension worth naming:** cold-start friction vs. predictability. A
+first-time user has to discover that `@` is meaningful — a small but
+real learning curve. The PM trade favors predictability: cold-start
+cost amortizes over a power user's tenure, while surprise behaviors
+don't amortize for anyone. The product helps cold-start by surfacing
+`@` hints in the empty-state of chat, but it does not remove the
+explicitness requirement.
+
+*(Sources: observable behavior on 2026-05-16; Cursor docs on
+`@`-mentions and context, cursor.com/docs, accessed 2026-05-16.)*
+
+### 1.3 Sequencing autonomy: Background Agent shipped after Composer matured
+
+**The PM decision.** Ship the asynchronous, off-screen Background
+Agent (and the related Cursor for Web surface) only after the
+synchronous, in-loop Composer had been in users' hands long enough
+for a mental model of agent failure modes to form — rather than
+launching the autonomous surface first or alongside Composer.
+
+**Observable behavior** (cited from the public changelog and
+Anysphere's public communications, observed 2026-05-16). Composer's
+general availability lands in the changelog timeline earlier than
+Background Agent / Cursor for Web. Anysphere's public posts and
+interviews around the Background Agent launch consistently position it
+as an extension of Composer's autonomy gradient rather than a separate
+product line. The autonomy ramp visible in the product is staged:
+edits-in-front-of-you (Cmd+K inline) → edits-across-a-task-you're-
+watching (Composer) → edits-while-you're-off-screen (Background
+Agent). Each step inherits the diff-gate review surface from §1.1, so
+the autonomy ramp is also a review-surface ramp: the user gives up
+less per-edit attention only after the previous tier of attention has
+established a calibration.
+
+**Why this is the right PM call.** Trust in delegated AI work is
+built incrementally. A user whose first exposure to Cursor's autonomy
+is the Background Agent has no mental model for the surface's failure
+modes — when the agent stops cleanly, when it overruns, when it
+silently drifts off-task — and will either over-trust (walk away
+assuming it finished safely) or under-trust (never run it). A user
+who has spent months with Composer accepting and rejecting multi-file
+edits arrives at Background Agent with a calibrated sense of where
+the model is reliable, where it asks before acting, and where the
+human review pass is non-negotiable. The autonomous mode inherits that
+calibration on day one rather than having to build it from zero.
+
+**Tension worth naming:** shipping order pushed Anysphere into a
+competitive disadvantage on the agent dimension during the window
+between Composer's GA and Background Agent's launch — a competitor
+that led with an autonomy-first agent could claim the "agent-first"
+narrative for that period. The PM trade is to accept the windowed
+disadvantage in exchange for an autonomous surface users can actually
+use when it arrives. The alternative — autonomy-first launches that
+the market later abandons because users won't trust them — has played
+out publicly in adjacent products, and a teardown reader will already
+have examples in mind.
+
+*(Sources: Cursor changelog, cursor.com/changelog, accessed
+2026-05-16; Anysphere public communications around Background Agent
+launch, cited inline by post title and date when referenced in
+later sections.)*
+
+### Cut from the outline's four: the pricing-tier shape
+
+The outline named a fourth candidate sub-area — free tier with a real
+model menu (rather than a degraded teaser), Pro at a defensible
+price, Business tier selling features developers actually use. It is
+a defensible product call but it lives more on the
+monetization-and-positioning side than the PM-design-call side.
+Defending it concretely requires specific tier prices and quota
+numbers; the no-fabrication posture from the masthead would force the
+draft to either pin every figure to a snapshot citation (which drifts
+week-to-week) or replace them with placeholders, neither of which
+strengthens the argument. The teardown is stronger with three
+concrete PM-design calls than with four where one is positioning.
+Pricing surfaces lightly in §4's lagging-business metrics row and in
+§6's explicit exclusion of pricing-page A/B as a validation method.
+
+**Evidence sources for this section:** Cursor docs (cursor.com/docs)
+accessed 2026-05-16, Cursor changelog (cursor.com/changelog) accessed
+2026-05-16, observable product behavior on 2026-05-16 (macOS, Pro
+tier — labeled inline where reproduction matters), and named
+comparisons with Copilot's equivalent surfaces where the contrast is
+publicly verifiable. No internal Cursor information, no fabricated
+specifics.
 
 ---
 
