@@ -51,7 +51,7 @@ avoid speculative scope.
 
 | Concern | Choice | Why |
 | --- | --- | --- |
-| Language | Python 3.11+ | Most readable to a non-engineering interview audience; widely understood; matches the typical AI-PM portfolio reading audience. |
+| Language | Python 3.9+ (matches `tool-use-agent/` and `evals-harness/`) | Most readable to a non-engineering interview audience; widely understood; matches the typical AI-PM portfolio reading audience. The code uses `from __future__ import annotations` so type hints are stringly-typed at runtime — no 3.10/3.11-only syntax is used. Supersedes the earlier "3.11+" pin: see [DECISIONS.md](../DECISIONS.md) for the cross-build alignment rationale. |
 | Generation | Anthropic Claude (`claude-haiku-4-5-20251001` as default, configurable) | Cheap, fast, current, and pluggable. Default favors low spend on a demo. |
 | Retrieval | Stdlib BM25 (Okapi, k1=1.5, b=0.75) over the loaded chunks | Zero model download, zero extra dependencies, runs on any Python. BM25 is the established sparse baseline; at this corpus size (tens of chunks) it is competitive with dense embeddings. Dense retrieval is deferred to a future hybrid (BM25 + reranker) rather than treated as the primary index — see [DECISIONS.md](../DECISIONS.md) for the supersession. |
 | Chunking | Paragraph-aware word windows with paragraph-level overlap (defaults: 400 words, 80 overlap) | Word counts as a stdlib-only stand-in for token counts — keeps the loader dependency-free; the embedding step can re-measure if needed. |

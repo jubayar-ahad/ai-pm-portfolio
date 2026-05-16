@@ -3783,3 +3783,105 @@ the five scaffolds shipped today cover the *front-of-funnel and
 inventory* layer end-to-end, and the *engaged-pipeline-prep* layer
 deserves its own deliberate iteration once the tracker has real
 rows rather than a speculative one now.
+
+## 2026-05-16 — rag-app Python version pinned to 3.9+ (supersedes the 3.11+ claim)
+
+**Decision.** The `rag-app/` build's runtime version requirement is
+**Python 3.9+**, not 3.11+ as previously documented. This supersedes
+the Python-version clause of the iteration-3 "rag-app stack and
+corpus" decision (which was explicitly carried forward unchanged
+through the iteration-5 BM25 supersession's "remains unchanged for
+Python version, generation provider/model, CLI shape, and corpus v1
+selection" preservation clause). All other clauses of the iteration-3
+and iteration-5 stack decisions remain in force; this entry narrows
+only the language-version pin.
+
+`rag-app/README.md`'s Stack-choices row 1 is updated in lockstep to
+"Python 3.9+ (matches `tool-use-agent/` and `evals-harness/`)" with
+a one-clause note that the code uses `from __future__ import
+annotations` so type hints are stringly-typed at runtime, and a
+back-reference to this entry for the supersession rationale. The
+in-build module headers already carry the `from __future__` line in
+every `.py` file in `rag-app/rag_app/`; no code change is required.
+
+**Rationale.** (a) **What the code actually requires.** Every module
+in `rag-app/rag_app/` (`corpus.py`, `retrieve.py`, `generate.py`,
+`verify.py`, `trace.py`, `__main__.py`) starts with `from __future__
+import annotations`, so PEP-604 union syntax and PEP-585 generic
+collections in annotations are evaluated as strings at runtime — they
+do not require 3.10 or 3.11 interpreters to parse. A grep across the
+package finds no `match`/`case` statements (3.10+), no `tomllib` import
+(3.11+), no `Self` type (3.11+), no `ExceptionGroup` / `except*`
+(3.11+), no PEP-695 generic syntax (3.12+). The end-to-end pipeline
+(`python -m rag_app load`, `retrieve`, `ask --dry-run`) was just
+re-verified against the actual sandbox runtime (`Python 3.9.6`) and
+produces the locked rag-app.ask.v1 trace schema unchanged. The
+runtime claim has been provably over-specified since iteration 4
+landed the first code slice. (b) **Why this matters for the
+portfolio narrative.** The Day-10 milestone names "having something
+to point to in interviews and on LinkedIn"; an interviewer who clones
+the repo on a stock macOS (which ships Python 3.9) under the README's
+stated requirement would conclude the build cannot run, when in fact
+it runs end-to-end. This is the same no-fabrication discipline
+applied to documentation that iterations 23 and 37 applied to
+candidate / outreach contents: claims must match observable reality.
+Over-stating a runtime requirement is the same category of error as
+under-stating one — both mislead the reader about what the artifact
+actually is. (c) **Why align with the other two builds rather than
+bump to 3.11.** The iteration-9 (tool-use-agent) and iteration-15
+(evals-harness) entries both locked Python 3.9+ on the grounds of
+matching `rag-app/`'s actual runtime and minimizing toolchain churn
+for any reader cloning the repo. The cross-build alignment property
+those entries depended on was honest as of iteration 4's actual code
+but dishonest against the iteration-3 README's stated requirement.
+Aligning the rag-app README *down* to 3.9+ preserves the cross-build
+property (one minimum Python, three builds) and discharges the
+iteration-6 learning ("The repo Python is actually 3.9, but the
+README's stack table still claims 3.11+. … A future iteration should
+reconcile this — either bump the runtime claim to '3.9+' or pin a
+3.11 invariant the code actually depends on") on its first prong. The
+second prong (introducing a 3.11-only feature deliberately) would
+have cost the cross-build alignment for no PM-narrative gain and is
+explicitly rejected. (d) **Why now and not earlier.** Iteration 6's
+learning flagged the discrepancy but the build was mid-development;
+shipping more slices that depended on a moving target would have made
+the supersession entangled with feature work. With all six slices of
+the rag-app shipped (through iteration 8), all five slices of
+tool-use-agent shipped (through iteration 14), all seven slices of
+evals-harness shipped (through iteration 22), the Cursor teardown
+PRD complete (through iteration 33), the top-level README shipped
+(iteration 36), and the templates kit at five scaffolds (through
+iteration 38), the documentation surface is stable enough that a
+runtime-pin reconcile is a one-line README change plus this entry,
+not a refactor.
+
+**Out of scope for this iteration.** (1) **No code change in any
+`.py` file** — the `from __future__ import annotations` lines are
+already present in every rag-app module, so the supersession is
+purely a documentation-aligns-with-code change, not a code-conforms-
+to-documentation change. (2) **No edit to tool-use-agent or
+evals-harness READMEs or DECISIONS entries** — both correctly state
+Python 3.9+ already (iterations 9 and 15 respectively); the
+asymmetry that needed fixing was the rag-app README, not the others.
+(3) **No introduction of a 3.10+ or 3.11+ feature to "justify" the
+older pin** — explicitly rejected in rationale (c) above. Any future
+iteration that genuinely needs a higher-version feature must write
+its own supersession naming the feature, the slice that needs it,
+and the cross-build coordination plan (either bump all three builds
+or accept that one build now requires a higher minimum). (4) **No
+edit to `requirements.txt` to add a `python_requires` pin** —
+`requirements.txt` ships only `anthropic>=0.40`, not a packaging
+manifest with `python_requires`; adding a `setup.cfg` /
+`pyproject.toml` to enforce the version at install time is a
+packaging iteration of its own (the project is not currently shipped
+as a pip-installable package). (5) **No edit to any other artifact**
+— specifically no edits to the top-level README, the Cursor
+teardown PRD, the five template scaffolds, OBJECTIVE.md, or the
+candidates file; this iteration is purely the one-line rag-app
+README correction plus this DECISIONS entry. (6) **No rag-app
+corpus v1 expansion** — `rag-app/README.md` is in corpus v1 (locked
+at iteration 3), so this iteration's chunk-count drift will come
+from both the README edit and this DECISIONS entry; any expansion of
+the corpus file list to include the other two build READMEs, the
+teardown PRD, or the templates remains a deliberate corpus-v2
+supersession iteration of its own.
