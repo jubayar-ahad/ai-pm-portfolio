@@ -2808,3 +2808,192 @@ contributes to corpus drift. Tool-use-agent catalog is unchanged so
 its fingerprint stays at 626af64cb9bf48bf. Evals-harness cross-build
 invariants (refusal_sentence_byte_equal, trace_helpers_behavior_
 equivalent) still pass.
+
+## 2026-05-16 — Cursor teardown PRD slice 6: "Out of scope" + "How I'd validate" drafted together
+
+**Decision:** §5 ("Out of scope") and §6 ("How I'd validate") of
+`teardown-prd/cursor-teardown.md` both ship in drafted state in a
+single iteration, replacing the outline-slice intent paragraphs with
+substantive prose. This is the "slices 5 + 6 land together" call
+pre-committed by iteration 27's seven-step slicing plan and
+re-affirmed in slice-5's DECISIONS entry. The masthead Status line
+flips from "§§1–4 drafted; §§5–6 in outline state" to "§§1–6
+drafted; final iteration is polish." The remaining work is one
+polish iteration covering masthead consistency, cross-section
+references, a no-fabrication grep audit, source-list reconciliation,
+and a final read-aloud pass.
+
+**Two sections, one iteration — rationale.** §5 and §6 are both
+methodology-shaped (not argument-shaped like §§1–3 and not
+framework-shaped like §4), and each section is short enough on its
+own that splitting them into two iterations would have left each
+iteration under-loaded. Per the iteration-30/31 word-budget
+pattern (drafted sections run 1100–1500 words), §5 at ~830 words and
+§6 at ~880 words individually undershoot a normal slice; combined
+at ~1700 words they sit cleanly inside one slice's budget. The
+seven-step plan from iteration 27 pre-committed this combination
+explicitly, so this iteration honors that plan rather than
+re-litigating it.
+
+**§5 shape: three-slot per-item, paragraph-sized.** Each of the
+seven out-of-scope items follows a (name + one-line definition,
+why excluded with rationale category, where if anywhere it surfaces
+elsewhere) shape, ~85–130 words per paragraph. This is a *third*
+shape variant in the document (§§1–3 use five slots, §4 uses four
+slots, §5 uses three) — the shape thins as the content type moves
+from argument → framework → scope decision. The bold-inline
+**5.N name.** header convention carries from §4 because the items
+are paragraph-sized; promoting them to `###` would over-fragment
+the section, and using only `## 5.` with no sub-headers would lose
+the scan-friendly per-item bookmark a reader uses to jump to a
+specific exclusion. The §5 evidence-sources paragraph at the end
+deliberately notes that no per-item sources are required because
+each entry is a scope decision, not a fact-claim about Cursor — a
+distinction that matters for the polish-iteration grep audit (no
+out-of-scope paragraph needs a citation).
+
+**Seven items, not five.** The scope-decision paragraph at the top
+of the teardown named five out-of-scope categories at outline time.
+The §5 draft adds two more (competitive landscape ranking;
+founder / company analysis) that became visible during the §§1–3
+draft because each kept generating sentences that pulled toward
+content the document deliberately excludes. The §5 opener names the
+five-plus-two split explicitly so a reader who notices the two
+additions in §5 but not in the scope decision sees them documented
+rather than as an apparent inconsistency. The §1 pricing-tier and
+§2 free-tier-quota cuts are explicitly *not* re-listed in §5
+because those are *sub-section-level narrowings*, not *document-
+level exclusions* — a different category of cut with different
+load-bearing rhetoric, and conflating the two would have weakened
+both the §5 list and the §§1–2 cut paragraphs. The slice-5 entry's
+"sub-section-level narrowing" framing transfers here verbatim.
+
+**§6 shape: four-slot per-method, with an explicit non-method.**
+Each of the four validation methods (§6.1–§6.4) follows a (method
+name + how it works, which §3 proposal or §4 metric it ties to,
+success threshold, known limit) shape, ~155–220 words per method.
+§6.5 is a *non-method* (pricing-page A/B testing) with its own
+rationale paragraph, parallel in form to the §1 and §2 cut
+paragraphs — listing the deliberately-not-used method is itself a
+PM-craft signal. The four-slot per-method shape mirrors §4's
+four-slot per-metric shape but with one slot's semantics flexed
+(metric-mislead-caveat ↔ method-known-limit; both are the "ways
+this can lie to you" slot, the load-bearing-slot-flexes-by-section-
+purpose pattern noted in slice-3 and slice-5 entries continues to
+hold). Pre-launch / post-launch ordering across the four methods
+(§6.1 internal replay → §6.2 flag-gated rollout → §6.3 qual
+research → §6.4 offline eval) is named in the section opener so
+the section reads as a workflow rather than a menu.
+
+**Per-proposal validation coverage table (informational, not in
+document):**
+
+| §3 Proposal | §6 method(s) | §4 metric |
+|---|---|---|
+| A — Routing transparency | §6.1 (replay) + §6.2 (rollout) | §4.1.2 |
+| B — Index-freshness indicator | §6.1 + §6.2 + §6.3 (qual) | §4.2.2 |
+| C — Agent stop-criteria UI | §6.1 + §6.4 (offline eval) | §4.2.1 |
+
+Every §3 proposal has at least one §6 method paired to it, and the
+opt-in-mode portion of Proposal C explicitly does *not* rely on
+§6.2 flag analytics (instead routes through §6.4's separate fixture
+sub-set) — discharging the slice-4 / slice-5 per-task-scope contract
+end-to-end through validation, not just through the §4 metric. Any
+polish iteration that touches §6.4 must preserve the separate-
+fixture-sub-set treatment of opt-in mode or rewrite the §3.3 /
+§4.2.1 / §6.4 chain together.
+
+**Cross-build cross-binding: §6.4 ↔ evals-harness/.** §6.4 is the
+single verifiable cross-reference in §§5–6 — it names this repo's
+`evals-harness/` build as a worked example for the offline-eval
+method's record shape (per-record JSONL), `stop_reason` enum
+semantics (ended_clean vs. cap-exhausted), and rubric output
+convention (the slice-20 termination-rubric output). This is the
+load-bearing reason the three GitHub builds and the teardown PRD
+sit in the same repository: a reader reading §6.4 can `cd
+../evals-harness && cat README.md` and see the named conventions
+in working code. If a polish iteration tightens the §6.4 prose, it
+must keep these three named conventions intact, because a polish
+that loosens any of the three would silently break the cross-
+artifact link the §6.4 evidence-sources paragraph claims is
+inspectable.
+
+**§5 + §6 evidence-sources policy.** Per-paragraph inline citations
+are *deliberately absent* from both sections, by section type:
+§5 items are scope decisions (not fact-claims), and §6 methods are
+methodology arguments (not surface-of-Cursor claims). §6.4 is the
+single exception and surfaces its evidence cross-link in the
+section-level evidence-sources paragraph rather than inline.
+The polish-iteration grep audit for "claims without citations"
+should treat §5 and §6 paragraphs as exempt by category — same
+exemption §4 metric paragraphs received under the slice-5 rationale.
+
+**Word-budget discipline carried with a documented flex.** §5 sits
+at ~830 words, §6 at ~880 words; combined ~1710 words, ~10% under
+the §3 / §4 section totals (~1400 each + opener / cuts =
+~1500–1600). The under-shoot is acceptable for two reasons:
+(1) per-paragraph budgets are honored (§5 items at 85–130 words,
+§6 methods at 155–220 words), and (2) §§5–6 are the document's
+shortest sections by design — the section opener "name what is
+deliberately not done" + the methodology section are each meant to
+be scan-readable as a list of decisions, not a debate. A polish
+slice that finds either section thin should not pad prose to hit a
+section budget; the per-paragraph budgets are the load-bearing
+discipline.
+
+**Status-line update.** The masthead Status field now reads "§§1–6
+drafted; the final iteration is a polish / leave-behind framing
+pass per the seven-step slicing plan locked in DECISIONS.md." This
+is the second masthead Status touch (the first was iteration 30
+flipping the §3 from outline to drafted). Polish iterations may
+touch this line again; intervening slices may not, because the slot
+records cumulative draft state.
+
+**Out of scope for this iteration** (deliberate, named so the
+polish slice cannot silently inherit them):
+
+1. **Edits to §§1–4 or to the scope decision.** Every §§1–4 word
+   that the polish iteration would touch is in *polish* scope, not
+   in this iteration. If §6 calls out a §3 proposal or §4 metric
+   in a way that suggests the §3 / §4 text could be sharper, the
+   §6 reference is rewritten to fit the existing §3 / §4 text, not
+   the other way around.
+2. **An eighth out-of-scope item added to §5.** §5 has exactly
+   seven items (five from scope decision + two added at draft
+   time). A future iteration that finds an eighth must either add
+   it to the scope decision first (and rev §5 in lockstep) or
+   document the addition in a polish-slice DECISIONS amendment.
+3. **A fifth validation method or a second non-method.** §6 has
+   exactly four methods plus one non-method. The pricing-page A/B
+   non-method is the only validation method deliberately excluded
+   by name; any other technique not listed (e.g. dogfood-via-
+   internal-bug-bash, support-ticket-mining) is *unlisted*, not
+   *excluded*, and adding it would shift §6's shape from "four
+   methods covering the three §3 proposals" to "open-ended
+   methodology grab-bag" — a different rhetorical job.
+4. **Promotion of any §5 item into a deep-dive elsewhere.** The
+   seven §5 items are scope-bounded paragraphs by design. Lifting
+   §5.2 (provider economics) into a §3.4 proposal, for example,
+   would re-open the no-fabrication-on-unit-costs cut and turn the
+   teardown into a different document.
+5. **Pricing-page validation surface migrating into §4.4.1.** §6.5
+   already names where a pricing experiment signal *would* belong
+   (lagging business-quadrant, §4.4.1 NRR cycle, separate from
+   §3). Migrating that surface into a §4.4 sub-metric in this
+   iteration would re-open §4's six-metric lock from slice-5.
+6. **Any change to the rag-app corpus v1 file list.** Corpus v1
+   stays locked to (OBJECTIVE.md, DECISIONS.md, templates/
+   INTERVIEW_TRACKER.md, rag-app/README.md). The teardown file
+   remains outside the corpus and its drafted §§5–6 do not perturb
+   the rag-app index.
+
+**Implication for the rag-app corpus_fingerprint:** this iteration
+touches DECISIONS.md plus the teardown file's masthead Status line
+and §§5–6 body. Per the per-iteration drift pattern documented
+since iteration 16, the rag-app corpus_fingerprint will rotate
+because DECISIONS.md is in corpus v1; the teardown file is *not*
+in corpus v1 so its 1700-word body change does not perturb the
+index. Tool-use-agent catalog is unchanged so its fingerprint
+stays at 626af64cb9bf48bf. Evals-harness cross-build invariants
+(refusal_sentence_byte_equal, trace_helpers_behavior_equivalent)
+still pass.

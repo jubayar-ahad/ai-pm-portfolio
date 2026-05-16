@@ -1,9 +1,9 @@
 # Cursor — Teardown PRD
 
-**Status:** §§1–4 ("What's working", "What's broken", "What to ship
-next", "Proposed metrics") drafted; §§5–6 remain in outline /
-intent-paragraph state. Per-section prose lands in subsequent
-iterations in the order locked in DECISIONS.md.
+**Status:** §§1–6 ("What's working", "What's broken", "What to ship
+next", "Proposed metrics", "Out of scope", "How I'd validate") drafted.
+The final iteration is a polish / leave-behind framing pass per the
+seven-step slicing plan locked in DECISIONS.md.
 
 **Product under teardown:** Cursor — the AI-native code editor (VS
 Code fork) by Anysphere. https://cursor.com
@@ -790,57 +790,202 @@ data this teardown cannot read.
 
 ## 5. Out of scope
 
-**Section intent:** name what this teardown is deliberately not
-covering, with one-line rationale per item, so a reader cannot fault
-the document for omissions that were intentional. Mirrors the
-DECISIONS.md "explicit out-of-scope" pattern used in the build slices.
+This section names the seven categories the teardown is deliberately
+silent on, each with one paragraph of rationale, so a reader cannot
+fault the document for omissions that were intentional. Five items
+are carried verbatim from the scope decision at the top of this
+document; two more were added once the §§1–4 draft made their absence
+visible. The §1 pricing-tier and §2 free-tier-quota cuts are *not*
+restated here — those are sub-section-level narrowings inside §§1
+and §2, not document-level exclusions.
 
-**The five out-of-scope categories (carried from this outline's
-"Scope decision"), each will get a one-paragraph treatment in the
-draft:** enterprise admin and policy controls; provider economics
-and per-model unit costs; VS Code shell parity and extension
-marketplace; Cursor CLI / cursor-agent as a separate product; Tab
-autocomplete as a deep-dive subject. Plus two added at draft time:
-**competitive landscape ranking** (a teardown is not a market map),
-and **founder / company analysis** (a teardown is product-shaped,
-not company-shaped).
+**5.1 Enterprise admin and policy controls.** Team-level SSO, audit
+logs, IP allowlists, model-access policies, and the admin-dashboard
+surface that exposes them. These are a real product surface and a
+real source of Business-tier purchase rationale, but they sit behind
+a paywall this author cannot access on a paid seat without invented
+credentials, and the public docs cover *scope* but not the actual
+admin UX. A teardown that named specific control shapes would either
+fabricate the surface or restate marketing copy. §4.4.1 (Business-
+tier NRR) carries the lightest possible acknowledgement that
+admin-and-policy is a Business-tier purchase driver; no §3 proposal
+targets this surface.
+
+**5.2 Provider economics and per-model unit costs.** What Anysphere
+pays Anthropic, OpenAI, and Google per inference, how cursor.com/
+pricing relates to that cost, and how Auto-mode routing optimizes
+for cost vs. quality at the unit level. This is the most-requested
+cut among PM-craft readers but it is squarely outside the public
+surface: per-call unit costs are not disclosed by any provider or
+by Anysphere, and any number a teardown puts on paper would be
+invented. The §2.1 Auto-mode opacity treatment names cost as one of
+two router objectives without quoting any number — that is the
+deepest the no-fabrication posture permits.
+
+**5.3 VS Code shell parity and extension marketplace.** Which VS
+Code extensions work, which break on the fork, and what staying
+current with upstream actually costs Anysphere release-over-release.
+This is a meaningful risk to Cursor's roadmap — every VS Code
+release is a fork-rebase cost — but it sits on the engineering /
+platform-strategy side of the ledger, not the user-product side this
+teardown is scoped to. A PM working on AI features would not own
+the fork-rebase work even if the product team funded it. The right
+document for that surface is a separate engineering-strategy memo,
+not §3 of this teardown.
+
+**5.4 Cursor CLI / cursor-agent as a separate product.** The
+terminal-native agent surface Anysphere ships alongside the desktop
+IDE. It overlaps the desktop Composer surface on intent but differs
+substantively on input shape, tool surface, and termination
+semantics — enough that a teardown of both products would dilute the
+desktop-triad scope locked in the scope decision. The CLI deserves
+its own teardown if it justifies one; restating the §§1–3 arguments
+with "and also on the CLI" caveats would mislead a reader into
+thinking the desktop analysis transferred when in places it does
+not.
+
+**5.5 Tab autocomplete as a deep-dive subject.** The single-line
+ghost-text completion that predates the chat / inline-edit /
+Composer triad. It is the original feature most users meet first,
+but the PM craft on it (latency, hit-rate, cancellation UX) is
+materially different from the assistive-decision craft §§1–3
+examine, and the two genres do not share design vocabulary. A future
+teardown could do Tab justice as its own document; folding it into
+this one would have either left it underwritten or pulled the
+document into a two-genre hybrid neither audience would read end-to-
+end.
+
+**5.6 Competitive landscape ranking.** Where Cursor sits relative
+to GitHub Copilot, Windsurf, Cline, Aider, Zed AI, and Continue.
+This category was added at draft time, not at scope-decision time,
+because §§1–3 kept generating natural "compared to X, Cursor's
+approach is …" sentences that would be short and dishonest without
+a market-map document underneath them. A teardown is a product
+analysis; a market map is a separate artifact with its own honesty
+demands (which competitors get a fair representation, what evidence
+each ranking rests on). Conflating the two genres weakens both —
+the right move is to write neither here.
+
+**5.7 Founder / company analysis.** Anysphere as a company — its
+funding history, hiring, founder backgrounds, and product
+philosophy as stated in interviews. Added at draft time because
+§1.3's "sequencing autonomy" sub-section pulls toward founder-
+philosophy explanations the public surface does not support without
+speculation. A teardown is product-shaped, not company-shaped;
+founder-philosophy claims need to be cited from specific public
+statements with dates, and even when cited they substitute for
+analysis of the product surface a reader could themselves observe.
+The teardown's job is to read the product, not the operator.
+
+**Evidence sources for this section:** none required at the
+per-item level — each entry is a scope decision, not a fact-claim
+about Cursor. The two added-at-draft-time items (§5.6, §5.7) are
+named here so a reader who notices their absence in the scope
+decision at the top of the document sees them documented
+explicitly rather than as an apparent oversight.
 
 ---
 
 ## 6. How I'd validate
 
-**Section intent:** the methodology section a PM would attach to a
-proposal of this size — how the recommendations in section 3 would
-be vetted before committing engineering resources to them. The point
-is to show the author thinks about the gap between "an opinion in a
-PRD" and "a shipped feature that worked."
+If §3 is the proposals and §4 the metrics, §6 is the methodology
+that takes a proposal from "PRD opinion" to "shipped feature whose
+effect we believe." Each method below names *what it would
+validate*, *which §3 proposal or §4 metric it ties to*, and the
+threshold that would let an engineering org move forward. Methods
+are ordered roughly pre-launch first, post-launch later, so the
+section reads as a workflow. Pricing-page A/B testing is listed
+last as a deliberate *non-method*, because the load-bearing
+trade-offs in §§2–3 are about user-trust UX and pricing experiments
+would conflate the signal.
 
-**Methods the draft will name and justify (~5):**
+**6.1 Internal replay of §2 failure modes.** Recruit ~10–15
+Anysphere engineers who use Cursor heavily, give them the exact
+prompts that reproduced the §2.1 routing-opacity, §2.2 index-
+staleness, and §2.3 overrun symptoms in this teardown, and observe
+whether each subject hits the failure mode and how long they take
+to recover. This is the pre-investment check: if internal users
+(above-average sophistication, repo familiarity, product mental-
+model) cannot reproduce the symptoms, the proposals don't deserve
+engineering time yet; if they reproduce easily, the proposals shift
+from "PM conjecture" to "PM observation." Success threshold: ≥60%
+of internal subjects hit each symptom within their first three
+relevant interactions. Limit: internal users self-select and over-
+index on power-user repos — this method *validates that the
+symptoms exist*, not *that the proposals fix them*.
 
-- **Replay user sessions** with internal employees in the auto-mode
-  / agent-overrun scenarios from section 2; measure how often the
-  observed failure mode reproduces and whether the proposed fix
-  shortens recovery time.
-- **Lightweight quant from product analytics:** for the routing
-  transparency proposal, deploy the new affordance behind a flag to
-  ~5% of users and read activation, hover-rate, and any drop in
-  "which model is this" support tickets.
-- **Targeted user research:** 10–15 conversations with developers
-  who recently churned off Cursor or who use Cursor heavily on
-  monorepos, scoped to the index-freshness symptom specifically.
-- **Eval-harness for agent stop-criteria:** offline test set of
-  ambiguous-acknowledgment turns scored by humans for
-  stop-correctness, used as a regression bar before shipping any
-  stop-criteria UI change. This is the most directly PM-craft-y
-  method on the list and ties back to this repo's evals-harness
-  build as a worked example.
-- **Pricing-page A/B is explicitly out** as a validation method —
-  the recommendations in section 3 are about user-trust UX, not
-  monetization, and pricing experiments would conflate the signal.
+**6.2 Flag-gated rollout with product analytics.** For each §3
+proposal, ship the affordance behind a percentage-rollout flag to
+~5% of users for two to four weeks before opening to GA. Read the
+§4 metric the proposal is paired with: Proposal A → §4.1.2
+Auto-mode mix in the rolled-out cohort vs. control; Proposal B →
+§4.2.2 index-freshness coverage trend; Proposal C → §4.2.1 stop-
+precision on default-mode runs (the opt-in mode requires the §6.4
+offline eval, not analytics). Thresholds are *comparison-shaped*: a
+routing label that produces a 15%+ drop in "which model is this"
+support tickets in the flagged cohort is ship-ready; a 0% drop and
+unchanged Auto-mode mix is iterate-or-cut territory. Limits: 5%
+rollouts cannot read low-base-rate symptoms, and a flag that paints
+a UI element will see novelty-bump activation that decays over
+weeks — read four-week-out activation, not week-one.
 
-**Evidence sources for this section:** standard PM craft; the
-section is methodology, not fact-claim, so it stands on argument
-quality alone.
+**6.3 Targeted qualitative research on the index-freshness
+symptom.** 10–15 sixty-minute conversations with developers split
+across two recruited cohorts: heavy Cursor users on monorepos
+(≥100k files), where §2.2's indexer staleness is most likely to
+bite, and recent churners who left Cursor in the last quarter for a
+reason that *could plausibly* be index-related (the screener is
+what cuts the latter group from "general churner" to "index-related
+churner"). The interview probes the §2.2 symptom directly: "show
+me a time the assistant misread your repo state." Success
+threshold: Proposal B's freshness chip materially shifts the
+user's reported trust in the assistant's repo-knowledge against a
+pre-interview baseline question. Limit: 10–15 conversations
+generate hypotheses, not statistics — this method is wrong-input
+*defense* for the §6.2 analytics rollout, not a substitute.
+
+**6.4 Offline evaluation harness for agent stop-criteria.** Build
+an offline labeled fixture set of ~200 agent turns, each tagged
+with a ground-truth "stop here" or "keep going" decision derived
+from the user's *actual* subsequent reply ("yes that's enough" vs.
+"keep going"), and score Proposal C's stop-criteria UI against the
+labeled set using a rubric whose shape matches this repo's
+`evals-harness/` termination scorer. The harness exists in the
+repo adjacent to this teardown as a worked example: same per-
+record JSONL shape, same `stop_reason` enum, same separation
+between *ended_clean* and *cap-exhausted* terminations. This is
+the validation path for §4.2.1's default-mode stop-precision; the
+opt-in stop-permissive subset (the per-task scope locked in §3.3 /
+slice-4 DECISIONS) is reported on a separate fixture sub-set, with
+its own threshold, so the proposal's "per-task scope is a feature,
+not a detail" promise is preserved end-to-end through validation.
+Success threshold: ≥90% agreement with ground-truth on the
+default-mode subset before the proposal can ship; the opt-in subset
+number is reported but not a ship-gate. Limit: labeled sets
+calcify around the labeled symptoms — a quarterly novel-symptom
+fixture refresh is the maintenance cost.
+
+**6.5 Pricing-page A/B testing — explicitly NOT a validation
+method here.** A pricing-page experiment can read whether users
+will pay more for the same product, but every proposal in §3 is a
+user-trust UX intervention, not a price-discovery one. Running a
+pricing A/B on top of a flag-gated routing-transparency rollout
+would conflate two signals (willingness to pay with willingness to
+trust) and the lift could come from either or both. §4.4.1 NRR is
+the right home for a lagging business-quadrant read on Business-
+tier purchase rationale; a pricing-experiment signal belongs there,
+in a separate cycle not entangled with §3. Listing the non-method
+explicitly mirrors the §1 and §2 cut paragraphs — the discipline
+of naming what is deliberately *not* done is part of the
+document's PM-craft signal.
+
+**Evidence sources for this section:** §6 is methodology, not
+fact-claim, so it stands on argument quality and on cross-binding
+to §§3–4 rather than on cited surfaces in Cursor's product. The
+single verifiable cross-reference is §6.4: the worked-example
+`evals-harness/` build in this repository, which a reader can
+inspect directly and which intentionally shares the per-record
+JSONL shape and `stop_reason` enum semantics §6.4 names.
 
 ---
 
