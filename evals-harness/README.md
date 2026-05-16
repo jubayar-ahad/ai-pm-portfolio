@@ -21,7 +21,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Groundedness scorer (rag-app) + first-call tool scorer (tool-use-agent) | Shipped |
 | Termination quality scorer (tool-use-agent) | Shipped |
 | Cost scorer (cross-build aggregate stats) | Shipped |
-| Aggregate `report` subcommand | Not started |
+| Aggregate `report` subcommand | Shipped |
 
 The harness deliberately performs **no model calls of its own**. It scores
 trace records that the two LLM builds already emit via their `ask --json`
@@ -339,12 +339,25 @@ Each line below is intended to map to a single future iteration:
    `total_tokens`, `steps_taken`, `max_steps`,
    `tool_latency_ms_sum`); rag-app rows have the three tua-only
    fields set to `null` so the schema stays uniform.
-7. **Aggregate report.** Final slice joins every per-record scored
-   row (refusal + groundedness + first-call + termination + cost)
-   into a single Markdown report (`python -m evals_harness report
-   --scored <path>`) and reports `corpus_fingerprint` diversity as
-   a warning row when more than one fingerprint shows up per build.
-   This is the artifact an interviewer reads.
+7. **Aggregate report.** *Shipped.*
+   `python -m evals_harness report --scored <path…> [--markdown
+   <path>]` reads one or more per-rubric scored JSONL files
+   (refusal, groundedness, first_call_tool, termination, cost),
+   validates every row against the cross-rubric core column set
+   (`rubric`, `record_id`, `schema_version`, `question`, `label_id`,
+   `match`), and renders a single Markdown report with two
+   sections: a quality-rubrics table reporting per-(build, rubric)
+   matched/observable accuracy for the four match-style rubrics,
+   and a cost-rubric table reporting per-build `total_tokens`
+   p50/p95/max (plus a tool-use-agent-only sub-table with
+   `steps_taken` and `tool_latency_ms_sum` percentiles). Cost
+   percentiles are computed via the locked `_cost_stats` helper
+   imported from `score.py` so the aggregate numbers byte-match
+   `score --rubric cost` output on the same underlying data.
+   `corpus_fingerprint` diversity warning is deliberately deferred
+   to a follow-on iteration — it requires threading
+   `corpus_fingerprint` through every per-rubric scored row schema
+   first, which would break the slice 3–5b additive-schema lock.
 
 ## How to run
 
@@ -447,15 +460,23 @@ python3 -m evals_harness score \
 #   a second table with steps_taken and tool_latency_ms_sum
 #   p50/p95/max. Each row reads `observable = N_live / N_paired`
 #   so a reader can tell at a glance how many traces contributed.
-```
 
-The locked CLI shape for the remaining slice is:
-
-```bash
-cd evals-harness
-
-# (slice 7) aggregate report rolling up every per-rubric scored.jsonl.
-python3 -m evals_harness report --scored .cache/scored.jsonl
+# (slice 7, shipped) aggregate report rolling up every per-rubric
+# scored.jsonl into a single Markdown document.
+python3 -m evals_harness report \
+    --scored .cache/scored.jsonl \
+             .cache/scored_groundedness.jsonl \
+             .cache/scored_first_call.jsonl \
+             .cache/scored_termination.jsonl \
+             .cache/scored_cost.jsonl \
+    --markdown .cache/report.md
+# → a single Markdown document with two sections — a quality-
+#   rubrics table (per-build × per-rubric matched/observable
+#   accuracy for the four match-style rubrics) and a cost-rubric
+#   table (per-build total_tokens percentiles plus a tua-only
+#   sub-table for steps_taken and tool_latency_ms_sum). Always
+#   prints to stdout; --markdown additionally writes the same
+#   bytes to a file.
 ```
 
 A note on producing trace files for the harness to consume: the rag-app

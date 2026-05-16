@@ -1772,3 +1772,145 @@ prior slice-3/4/5a rubrics all continue to run
 cleanly against the same envelope. rag-app
 `retrieve` and tool-use-agent `catalog` produce
 their iteration-20 outputs unchanged.
+
+## 2026-05-16 — evals-harness slice 7 (aggregate `report` subcommand)
+
+**Decision:** `python -m evals_harness report
+--scored <path…> [--markdown <path>]` ships now as
+the aggregate roll-up across every per-rubric
+scored JSONL. It reads one or more
+`scored_<rubric>.jsonl` files (in any combination —
+all five rubrics or any subset), validates each row
+against the cross-rubric core column set
+(`rubric`, `record_id`, `schema_version`,
+`question`, `label_id`, `match`) and the rubric
+enum, and renders a single Markdown document with
+two sections: a **quality rubrics table** with
+per-(build, rubric) `matched/observable (pct%)`
+accuracy for the four match-style rubrics
+(refusal, groundedness, first_call_tool,
+termination), and a **cost rubric table** with
+per-build `total_tokens` p50/p95/max plus a
+tool-use-agent-only sub-table for `steps_taken` and
+`tool_latency_ms_sum` percentiles. Always prints to
+stdout; `--markdown` additionally writes the same
+bytes to a file. Unknown rubric, missing core
+column, malformed JSON, or a missing file each
+exits with code 2 and a named
+`REPORT FAILED: file:lineno: …` message.
+
+**Why a single subcommand that takes multiple
+`--scored` files** (rather than one report per
+scorer call or one mega-file from `score --all`):
+each `score --rubric <X>` invocation already writes
+one `scored_<X>.jsonl`, and forcing the user to
+concatenate them before `report` would be friction
+for no payoff. `nargs="+"` on `--scored` lets the
+user point at whichever rubrics they have run; the
+report sections gracefully omit any rubric absent
+from the input. The alternative (a single
+combined-rubrics file written by `score`) would
+have required a `score --all` umbrella command and
+either a bigger one-file output or a side-channel
+manifest — both are heavier than `nargs="+"` and
+neither buys anything.
+
+**Why aggregate cost stats are recomputed in the
+report, not pulled from a pre-aggregated row:** the
+slice-5b cost rubric writes one **per-record** row
+per (label, trace) pair (six numeric columns plus
+the cross-rubric core); the report's per-build
+percentile triple has to be derived from those rows
+the same way `score --rubric cost` derives the
+Markdown table. To guarantee byte-match, the report
+imports the locked `_cost_stats` helper from
+`score.py` rather than reimplementing percentile
+math. Verified end-to-end against a 4-trace
+synthetic envelope: both subcommands produce
+identical `1935 / 2282 / 2320` and `2705 / 3492 /
+3580` triples plus identical `steps_taken
+2 / 3 / 3` and `tool_latency_ms_sum 26 / 34 / 35`
+sub-table entries.
+
+**Why `match`-rubric accuracy is `matched /
+observable` rather than `matched / n_rows`:** the
+denominator excludes `no_observation` rows (dry-run
+traces, missing verification blocks, empty
+`tool_calls`) — same convention slices 3, 4, 5a
+use. Mixing observable and no-observation rows
+into one denominator would let a re-run with more
+dry-runs deflate the accuracy column without any
+real quality regression. The report column header
+explicitly names `observable` so the denominator
+shape is visible at a glance.
+
+**Why the report has two sections (quality + cost)
+rather than one big table:** the cost rubric has no
+correctness `match` column in the PM-relevant sense
+— its `match` field is an observability flag (was
+the trace live and were its token fields readable),
+not a correctness signal. Putting cost in the same
+accuracy table as the four match-rubrics would
+either inflate "100% accuracy" reads (cost.match
+is True whenever observed) or require a per-rubric
+special case in the cell renderer. The two-table
+split keeps the quality table's accuracy column
+defensible and gives the cost table room for its
+own percentile shape (which matches the slice-5b
+Markdown).
+
+**Out of scope for slice 7** (deliberate, named
+here so a follow-on iteration cannot silently
+inherit them as if they were always part of slice 7):
+
+1. **`corpus_fingerprint` diversity warning.**
+   Adding "more than one fingerprint seen per
+   build → warning row" requires threading
+   `corpus_fingerprint` through every per-rubric
+   scored row schema first (it lives on the trace
+   record, not on any current scored row). That is
+   an additive schema bump for **all five** rubric
+   writers, which is a separate slice; doing it
+   here would silently break the additive-schema
+   lock from slices 3–5b. Same DECISIONS pattern
+   as slice 5b's deferral of this exact warning
+   from the cost rubric.
+2. **Per-record drill-down list.** The aggregate
+   report only emits the top-level summary; the
+   per-record `not-grounded` / `mismatch` /
+   `non-clean termination` callouts already live
+   inside each `score --rubric <X>` report and are
+   not duplicated here. A reader who needs them
+   should run the per-rubric `score` command,
+   which is the canonical surface for
+   per-record-failure narration.
+3. **Cross-rubric joint aggregations** (e.g.
+   "groundedness accuracy conditional on cost
+   bucket" or "termination accuracy among queries
+   that resolved every citation"). These require
+   joining per-record rows across **different**
+   scored.jsonl files by `record_id`, which is a
+   bigger data-model step than the slice-7 MVP
+   needs. Listed here so a future iteration that
+   wants them writes a supersession rather than
+   slipping them in additively.
+
+**Validated against five synthetic scored JSONLs**
+(one per rubric, 20 rows total spanning both
+builds): the report correctly emits a Quality
+rubrics table with five (build, rubric)
+combinations and a Cost rubric table with two
+builds and the tua sub-table; manually-verified
+numbers (rag-app refusal 2/3, rag-app groundedness
+2/3, tua refusal 3/3, tua first_call_tool 1/2,
+tua termination 1/2, cost percentiles matching
+slice-5b output) all check out. Error paths
+(missing file, unknown rubric, missing `match`
+key, malformed JSON) all exit code 2 with named
+`REPORT FAILED: …` messages. `--markdown` writes
+byte-for-byte the same content as stdout. Empty
+file produces a clean `(no scored rows — nothing
+to roll up)` document with exit code 0. Prior
+subcommands (`ingest`, `score --rubric refusal`,
+cross-build startup invariants) all continue to
+pass unchanged.

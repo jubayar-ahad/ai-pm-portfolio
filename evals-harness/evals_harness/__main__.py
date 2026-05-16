@@ -1,8 +1,9 @@
 """``python -m evals_harness`` CLI entry point.
 
-Three subcommands land across slices 2–5. Slices 2 and 3 ship ``ingest``
-and ``score``; ``report`` (slice 5) will be added without changing the
-CLI shape.
+Three subcommands across slices 2–7: ``ingest`` (slice 2),
+``score`` (slices 3–5b), and ``report`` (slice 7) — the aggregate
+roll-up that joins per-rubric scored.jsonl files into a single
+Markdown report.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import argparse
 import sys
 
 from .ingest import cmd_ingest
+from .report import cmd_report
 from .score import ALL_RUBRICS, cmd_score
 
 
@@ -104,6 +106,35 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_score.set_defaults(func=cmd_score)
+
+    p_report = sub.add_parser(
+        "report",
+        help=(
+            "Aggregate one or more per-rubric scored.jsonl files into a "
+            "single Markdown report (per-build × per-rubric accuracy + "
+            "per-build cost stats)."
+        ),
+    )
+    p_report.add_argument(
+        "--scored",
+        nargs="+",
+        required=True,
+        help=(
+            "One or more scored JSONL files produced by "
+            "`python -m evals_harness score --out`. "
+            "Each row must carry the cross-rubric core columns "
+            "(rubric, record_id, schema_version, question, label_id, match)."
+        ),
+    )
+    p_report.add_argument(
+        "--markdown",
+        default=None,
+        help=(
+            "Optional path to write the rendered Markdown report. The "
+            "report always prints to stdout regardless."
+        ),
+    )
+    p_report.set_defaults(func=cmd_report)
 
     return parser
 
