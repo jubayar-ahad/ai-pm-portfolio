@@ -19,7 +19,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Generation with Claude | Shipped (`python -m rag_app ask "<question>"`) |
 | End-to-end `ask` demo | Shipped (live with `ANTHROPIC_API_KEY`, otherwise auto dry-run) |
 | Refusal + citation hardening | Shipped (BM25 score threshold + `[source#start-end]` citation verifier) |
-| Evaluation hooks (for `evals-harness/`) | Partial — `ask --json` emits retrieval, prompt, answer, and verification; harness will consume it |
+| Evaluation hooks (for `evals-harness/`) | Shipped (`ask --json` records carry `schema_version`, `record_id`, `corpus_fingerprint`, `generated_at`) |
 
 The `ask` subcommand runs in two modes. With `ANTHROPIC_API_KEY` set it
 calls Claude and prints a cited answer. Without a key (or with explicit
@@ -60,6 +60,7 @@ avoid speculative scope.
 | Refusal threshold | BM25 top-score floor (default `1.5`, `--min-score` to override) | Below the floor, `ask` short-circuits to the canonical refusal sentence with `reason: low_retrieval_score` — no model call, no token spend. Empirically separates in-corpus queries (top score ≥ ~3) from out-of-corpus queries (top score < 0.2). |
 | Citation verification | `verify.py` regex-parses every citation in the live answer and checks (source, start, end) against the retrieved chunk spans | A citation that doesn't match a retrieved span is flagged as `unresolved`, surfaced inline and in the `--json` `verification` block, so the upcoming evals harness can score groundedness mechanically. |
 | Dry-run fallback | `ask` auto-falls back to printing the prompt if `ANTHROPIC_API_KEY` is unset | Makes the demo runnable in any environment without an API key, and gives the evals harness a no-network code path for prompt-construction tests. |
+| Eval trace record | `ask --json` emits a record with `schema_version`, `record_id`, `corpus_fingerprint`, and `generated_at` (see [`trace.py`](rag_app/trace.py)) | `record_id` is a deterministic hash over (question, top_k, model, min_score, corpus_fingerprint, mode), so the same logical query against the same corpus produces the same id across runs. `corpus_fingerprint` is a hash of `chunks.jsonl` bytes, so the harness can detect when the corpus changed mid-eval. `schema_version` (`rag-app.ask.v1`) is a version gate for the harness; additive fields keep the version. |
 
 The Anthropic + BM25 stack means the demo needs exactly one API key
 (`ANTHROPIC_API_KEY`) to run end-to-end. No vector DB to provision, no
@@ -171,10 +172,11 @@ Each line below is intended to map to a single future iteration:
    resolves to a retrieved chunk span. *(Shipped — see `verify.py` and
    the `--min-score` flag on `ask`.)*
 5. **Eval hooks.** `ask --json` emits the full
-   `{question, retrieved, prompt, answer, verification}` trace; once
-   `evals-harness/` exists, this is the surface it scores against. May
-   grow a small stable-id field per record so eval runs are diff-able
-   across days.
+   `{schema_version, record_id, generated_at, corpus_fingerprint,
+   question, retrieved, prompt, answer, verification}` trace. `record_id`
+   is deterministic over the logical query, `corpus_fingerprint` lets
+   the harness detect corpus drift, and `schema_version` is a version
+   gate. *(Shipped — see [`trace.py`](rag_app/trace.py).)*
 6. **Hybrid retrieval (optional quality lift).** Add a dense reranker over
    the BM25 top-N. Treat dense as a quality knob on top of the lexical
    baseline, not as a replacement.
@@ -238,8 +240,11 @@ python -m rag_app ask "What is the Day 20 milestone?"
 Useful flags on `ask`: `--top-k`, `--model`, `--max-tokens`, `--min-score`
 (BM25 floor for refusal, default 1.5), `--dry-run` (force the prompt-only
 path), and `--json` (emit the full
-`{question, retrieved, prompt, answer, verification}` record for the
-evals harness).
+`{schema_version, record_id, generated_at, corpus_fingerprint, question,
+retrieved, prompt, answer, verification}` record for the evals harness).
+The same question + top-k + model + min-score against the same corpus
+produces the same `record_id` on every run, so the harness can diff
+records across days without filename heuristics.
 
 A question whose terms do not overlap the corpus short-circuits to the
 canonical refusal sentence without a model call:

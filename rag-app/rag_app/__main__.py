@@ -31,6 +31,12 @@ from rag_app.retrieve import (
     BM25Index,
     load_chunks,
 )
+from rag_app.trace import (
+    SCHEMA_VERSION,
+    compute_corpus_fingerprint,
+    compute_record_id,
+    now_iso,
+)
 from rag_app.verify import (
     MIN_RETRIEVAL_SCORE,
     REFUSAL_SENTENCE,
@@ -141,10 +147,24 @@ def cmd_ask(args: argparse.Namespace) -> int:
         verification = verify_citations(answer.text, retrieved)
 
     if args.json:
+        corpus_fingerprint = compute_corpus_fingerprint(chunks_path)
+        record_id = compute_record_id(
+            question=args.question,
+            top_k=args.top_k,
+            model=args.model,
+            min_score=args.min_score,
+            corpus_fingerprint=corpus_fingerprint,
+            mode=mode,
+        )
         payload = {
+            "schema_version": SCHEMA_VERSION,
+            "record_id": record_id,
+            "generated_at": now_iso(),
+            "corpus_fingerprint": corpus_fingerprint,
             "mode": mode,
             "question": args.question,
             "top_k": args.top_k,
+            "model": args.model,
             "min_score": args.min_score,
             "top_score": round(top_score, 6),
             "retrieved": [

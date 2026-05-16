@@ -284,3 +284,45 @@ byte-identical strings.
 The `1.5` threshold is the only tunable parameter in this slice and is
 intentionally an ordinary constant (not a config file) until the evals
 harness produces a reason to move it.
+
+## 2026-05-16 — rag-app eval trace schema (`rag-app.ask.v1`)
+
+**Decision:** Every `python -m rag_app ask --json` record carries four
+trace fields, defined in `rag_app/trace.py`:
+
+1. **`schema_version`** — constant string `"rag-app.ask.v1"`. The
+   future `evals-harness/` version-gates on this. Additive fields keep
+   the version; renames, removed fields, or changed semantics of
+   existing fields require a bump (`v2`, etc.).
+2. **`corpus_fingerprint`** — SHA-256 of `chunks.jsonl` bytes,
+   truncated to 16 hex chars. Lets the harness detect corpus drift
+   between two records that otherwise look identical.
+3. **`record_id`** — SHA-256 over a canonical JSON of
+   `{schema, question, top_k, model, min_score, corpus_fingerprint,
+   mode}`, truncated to 16 hex chars. Deterministic given those
+   inputs; `generated_at` is deliberately excluded so two runs of the
+   same logical query on different days share an id.
+4. **`generated_at`** — ISO-8601 UTC with second precision and a `Z`
+   suffix. Lets the harness sort records chronologically without
+   parsing filenames.
+
+All four are populated only on `--json`; the human-readable `ask`
+output is unchanged.
+
+**Rationale:** These are the minimum-viable hooks for an eval harness
+that hasn't been built yet, deliberately constrained to what the
+harness genuinely needs rather than what it might want. `record_id`
+gives the harness a content-addressable key for cross-run grouping
+("did the answer to this exact logical query change between iteration
+5 and iteration 10?"); `corpus_fingerprint` keeps the comparison
+honest by surfacing a corpus change that would otherwise look like an
+answer regression; `schema_version` is the cheapest possible insurance
+against silent breakage when the schema does evolve. Truncating both
+hashes to 16 hex chars (64 bits) trades cryptographic collision
+resistance for skim-friendliness in diffs — well-suited to a corpus of
+tens of records, and trivially expandable to the full digest if a
+later iteration ever needs it. The trace lives in its own module
+(`trace.py`) rather than being inlined in `__main__.py` so the future
+harness can import the same helpers and produce records that are
+byte-identical to ones the CLI emits — no duplicated hashing logic to
+drift.
