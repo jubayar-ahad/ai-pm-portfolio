@@ -4463,4 +4463,161 @@ rotate the rag-app fingerprint by the standard per-iteration drift
 pattern; the new `pyproject.toml` file does not perturb the
 fingerprint.
 
+## 2026-05-16 — evals-harness packaging contract (NEXT_WORK item 1, sub-checkbox 3 of 5)
+
+**Decision.** `evals-harness/pyproject.toml` lands now, inheriting the
+same six-piece packaging contract locked in the rag-app and
+tool-use-agent entries byte-for-byte where the contract is shared,
+and adapting only where this build's surface legitimately differs.
+This is the third of three near-identical pyproject files; the
+contract is now locked once, inherited twice, and finalized here.
+
+**What is inherited unchanged from the prior two entries.**
+
+1. **Build backend.** `requires = ["setuptools>=61.0"]` /
+   `build-backend = "setuptools.build_meta"`, same rationale as
+   the two prior builds: setuptools is the only PEP-517 backend
+   available without an additional install step on stock Python,
+   and `>=61.0` is the floor that enables the `[project]` table
+   from PEP 621.
+
+2. **Python floor.** `requires-python = ">=3.9"`, matching what the
+   package's `from __future__ import annotations` posture actually
+   requires and matching the reconciled floor used by both
+   sibling builds. The `classifiers` list redundantly names
+   3.9 / 3.10 / 3.11 / 3.12 to drive the upcoming GitHub Actions
+   matrix (NEXT_WORK item 4).
+
+3. **Dev-dep extras.** `pytest>=7`, `mypy>=1.0`, `ruff>=0.1` under
+   `[project.optional-dependencies].dev`, same trio for the same
+   reason: NEXT_WORK item 3 (pytest suites) and item 4 (CI matrix)
+   `pip install -e .[dev]` against this exact contract.
+
+4. **License-field deferral.** `license = ...` is deliberately
+   omitted; NEXT_WORK item 2 owns it. Adding it here would do
+   one-third of item 2's per-pyproject sub-checkbox in item 1's
+   commit and silently couple two sub-items' scopes.
+
+**What this build adapts.**
+
+1. **Distribution name = `evals-harness` (hyphenated); package
+   import name = `evals_harness` (underscored).** Same
+   hyphen-vs-underscore convention used by both sibling builds.
+   `[tool.setuptools.packages.find]` uses
+   `include = ["evals_harness*"]` to scope the editable install
+   to the package itself and exclude any future `tests/`
+   (NEXT_WORK item 3) or `.cache/` directories.
+
+2. **Console script: `evals-harness = evals_harness.__main__:main`.**
+   The entry point is `evals_harness/__main__.py`'s
+   `main(argv: list[str] | None = None) -> int`, exactly as already
+   exposed by `python -m evals_harness`. Adding the console script
+   means `pip install -e .` plus `evals-harness ingest --labels ...`
+   (or `evals-harness score --rubric refusal ...`) produces the same
+   end-to-end behavior as `python -m evals_harness`, additive at
+   the install layer with zero code change to the package — same
+   property iteration 47's tool-use-agent entry confirmed.
+
+3. **Runtime dependencies = empty list, `dependencies = []`.** This
+   is the load-bearing divergence from rag-app and tool-use-agent.
+   The evals-harness build is stdlib-only by architectural commitment
+   (the README's "no model calls of its own" property), so there is
+   no `requirements.txt` to mirror and the dual-source-of-truth
+   pattern the two sibling builds use does not apply. An explicit
+   `dependencies = []` line is the canonical declarative encoding
+   of the stdlib-only property — leaving the key absent would
+   technically work but would silently drop the architectural
+   guarantee from the packaging surface.
+
+4. **Description and `keywords` adapted to the build's domain.**
+   `description = "A stdlib-only cross-build evaluations harness for
+   rag-app and tool-use-agent, framed for an AI PM portfolio."`
+   mirrors the rag-app and tool-use-agent description shapes
+   ("framed for an AI PM portfolio" tail) but names this build's
+   distinctive surface (the stdlib-only / cross-build / no-model-calls
+   architectural commitment). `keywords` swaps the rag-app / tool-use
+   sets for `evals / evaluation / rag / tool-use / anthropic / claude /
+   ai-pm-portfolio` — the `ai-pm-portfolio` tag is shared across all
+   three builds so a future PyPI search would surface them together,
+   and `rag` plus `tool-use` are named to surface the harness in
+   searches for either of its consumer builds.
+
+**Why this is the right slice now, not bundled.** NEXT_WORK item 1
+explicitly lists the three pyproject files as three separate
+sub-checkboxes (1/2/3 of 5), and the prior iteration's DECISIONS
+entry explicitly named "no `evals-harness/pyproject.toml`" as one
+of its six out-of-scope items. Landing this in its own iteration
+preserves the precedent value of having the contract locked once
+and inherited twice; it also produces three separate-but-cross-
+referenced commits a future reader can navigate without untangling
+unrelated changes.
+
+**The verification surface.** `python3 -m venv /tmp/eh-venv` followed
+by `pip install -e .` (network-available this iteration; PyPI
+upgrades pip + installs the build cleanly with no runtime deps to
+fetch) produced `evals_harness-0.1.0-0.editable-py3-none-any.whl`
+and a working `evals-harness` console script in the venv's `bin/`.
+`evals-harness --help` printed the expected `argparse` usage line
+with all three subcommands (`ingest`, `score`, `report`).
+`evals-harness ingest --labels evals-harness/queries.jsonl --verbose`
+returned `0 traces, 16 labels, 2 invariant checks passed` with the
+locked refusal-sentence-byte-equal (71 chars) and
+trace-helpers-behavior-equivalent invariants both reporting `ok`,
+proving the console-script entry point routes through to the
+stdlib-only ingest path. A separate `python -m build --wheel` run
+produced a built wheel of **34.5 kB** — substantially larger than
+iteration 47's prediction (~12-15 kB based on linear-with-module-count
+extrapolation), because the `score.py` module alone is 53 kB of
+source and `report.py` is 11 kB. The linear-with-module-count
+heuristic is therefore wrong for this build, but the heuristic
+held for the previous two; the right replacement heuristic is
+linear-with-source-byte-total.
+
+**Why no `requirements.txt` for evals-harness.** Per the iteration-15
+DECISIONS entry, this build was always stdlib-only — no
+`requirements.txt` was ever committed, so the dual-file dual-
+source-of-truth pattern rag-app and tool-use-agent use does not
+apply. `dependencies = []` is the canonical single source for
+this build's runtime contract. Future iterations may raise the
+dev-dep floors (`>=7`, `>=1.0`, `>=0.1`) without a supersession
+entry, per the standard pin-floor-not-ceiling discipline.
+
+**Item 1 status after this slice.** Sub-checkboxes 1/2/3 of 5
+(rag-app/tool-use-agent/evals-harness pyproject.toml files) are
+now ticked. Sub-checkbox 4 ("Verify each builds with
+`python -m build --sdist --wheel` (or `pip install -e .` if `build`
+unavailable) and the existing CLIs still work after install") and
+sub-checkbox 5 ("DECISIONS.md entry locking the packaging
+convention …") remain unticked. The verification work described
+above this paragraph covers `pip install -e .` for all three builds
+across the three iterations; sub-checkbox 4 will close once the
+verification is run as a single deliberate slice across all three
+builds with the `python -m build --sdist --wheel` path (the
+canonical packaging-verification command). Sub-checkbox 5's
+"DECISIONS.md entry" is materially covered by the three entries
+already landed (one per pyproject file) — a single bundled entry
+would have been less navigable than the three separate ones.
+
+**Out of scope for this iteration.** (1) **No edit to
+`evals-harness/.gitignore` other than the additive
+`*.egg-info/ / build/ / dist/` lines** — same minimal-additive
+pattern rag-app and tool-use-agent applied in iterations 46 / 47.
+(2) **No `requirements.txt` created for evals-harness** — the
+build was stdlib-only at iteration 15 and remains so; creating
+one now would invent a fake dual-source contract for a build with
+no runtime deps. (3) **No `LICENSE` file at `evals-harness/`, no
+`license = ...` line in this `pyproject.toml`, no license mention
+in `evals-harness/README.md`** — all three belong to NEXT_WORK
+item 2. (4) **No `tests/` directory and no `pytest` invocation**
+— that is NEXT_WORK item 3, which depends on this slice but is a
+separate item. (5) **No `.github/workflows/ci.yml`, no CI badge in
+any README, no GitHub Actions config of any kind** — that is
+NEXT_WORK item 4. (6) **No rag-app corpus v1 expansion** — the
+iteration-3 corpus list (OBJECTIVE.md, DECISIONS.md,
+templates/INTERVIEW_TRACKER.md, rag-app/README.md) is unchanged;
+`evals-harness/pyproject.toml` is NOT added to the corpus,
+matching the iteration-23 precedent for non-corpus-listed new
+files. This DECISIONS entry itself will rotate the rag-app
+fingerprint by the standard per-iteration drift pattern; the new
+`pyproject.toml` file does not perturb the fingerprint.
 

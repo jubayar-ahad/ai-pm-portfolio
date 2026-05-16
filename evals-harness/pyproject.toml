@@ -1,0 +1,79 @@
+# evals-harness — Packaging contract.
+#
+# Mirrors the rag-app/pyproject.toml and tool-use-agent/pyproject.toml
+# contracts locked in the prior two iterations' DECISIONS entries
+# ("rag-app packaging contract" and "tool-use-agent packaging contract",
+# NEXT_WORK item 1 sub-checkboxes 1 and 2 of 5) byte-for-byte where the
+# contract is shared across the three Python builds — build backend,
+# Python floor, dev-extras trio, classifiers list, license-field
+# deferral — and adapts only where this build's surface legitimately
+# differs.
+#
+# Adapted pieces:
+#   * Distribution name: evals-harness (hyphenated)
+#   * Package import name: evals_harness (underscored)
+#   * Console-script: evals-harness = evals_harness.__main__:main
+#   * Runtime deps: empty — the harness is stdlib-only by design. The
+#     README's "no model calls of its own" property is the load-bearing
+#     architectural commitment that lets evals run in any sandbox or CI
+#     environment without ANTHROPIC_API_KEY. An empty [project] table
+#     `dependencies = []` line is the canonical declarative encoding of
+#     that property. No requirements.txt exists for this build (the
+#     dual-source-of-truth pattern rag-app and tool-use-agent use does
+#     not apply here because there is nothing to mirror).
+#   * description / keywords adapted to the evals-harness surface.
+#
+# The `license` field is deliberately omitted from this slice — NEXT_WORK
+# item 2 owns the LICENSE files at repo root + per-build and explicitly
+# owns the `license = ...` line in each pyproject.toml.
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evals-harness"
+version = "0.1.0"
+description = "A stdlib-only cross-build evaluations harness for rag-app and tool-use-agent, framed for an AI PM portfolio."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Jubayar Ahad" },
+]
+keywords = [
+    "evals",
+    "evaluation",
+    "rag",
+    "tool-use",
+    "anthropic",
+    "claude",
+    "ai-pm-portfolio",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+evals-harness = "evals_harness.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/jubayar-ahad/ai-pm-role-90days"
+Repository = "https://github.com/jubayar-ahad/ai-pm-role-90days"
+
+[tool.setuptools.packages.find]
+include = ["evals_harness*"]
+exclude = ["tests*", ".cache*"]
