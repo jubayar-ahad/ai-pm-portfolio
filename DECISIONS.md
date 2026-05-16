@@ -183,3 +183,46 @@ no key is needed for retrieval at all and the only key remains
 (k1=1.5, b=0.75) are the standard defaults and do not need to live in
 this log; if a future iteration tunes them against the evals harness,
 that tuning result is what would be locked here.
+
+## 2026-05-16 — rag-app generation: prompt contract, citation format, dry-run fallback
+
+**Decision:** The generation slice (`python -m rag_app ask`) builds a
+single-turn prompt with three load-bearing pieces locked here:
+
+1. **System prompt rules, in priority order.** (a) Refuse with the exact
+   string `"I don't have enough information in the provided context to
+   answer this."` if the context is insufficient. (b) Every factual claim
+   in the answer carries a citation `[<source>#<start>-<end>]`. (c) Do
+   not draw on outside knowledge — context wins on conflict. (d) Be
+   concise. The full system prompt text lives in `rag_app/generate.py`
+   (`SYSTEM_PROMPT`); changes to it should land in a new DECISIONS entry.
+2. **Citation format `[<source>#<start>-<end>]`** using the chunker's
+   char span (not chunk-id index). `#` was chosen because it does not
+   collide with the `::` separator inside chunk IDs and is regex-clean
+   (`\[([^#\]]+)#(\d+)-(\d+)\]`), so the upcoming citation-verifier
+   slice can parse it and re-read the cited bytes from disk to confirm
+   the answer is genuinely grounded.
+3. **Dry-run fallback.** `ask` auto-runs in dry-run (prints the assembled
+   prompt instead of calling Claude) when `ANTHROPIC_API_KEY` is unset,
+   and there is an explicit `--dry-run` flag for forcing the same path
+   when a key *is* present. The `anthropic` SDK is imported lazily inside
+   `call_claude`, so a fresh checkout without `pip install` can still
+   run `load`, `retrieve`, and `ask --dry-run` without error.
+
+**Rationale:** Locking the prompt rules in DECISIONS (not just the code)
+makes the next-slice contract explicit: refusal hardening only needs to
+enforce rule 1 mechanically (BM25 top-score threshold → bypass the
+model and emit the canonical refusal string), and the citation verifier
+only needs to enforce rule 2 (regex-parse the answer, look each span up
+in `chunks.jsonl`). The `#` separator in the citation format is the
+smallest reversible choice that keeps citations both human-skimmable
+and machine-parseable. The dry-run fallback is the property that
+makes this build demo-able in any environment — interview machines,
+recruiter screen shares, CI — without requiring the interviewer to
+provision a key first. It also gives the evals harness a no-network
+code path that exercises retrieval and prompt construction, which is
+the right unit to test deterministically. Default model remains
+`claude-haiku-4-5-20251001` from the original stack decision; the
+`--model` flag exists for the moment an interviewer asks "what about
+Sonnet?", which is a useful PM-conversation moment, not a config
+crisis.

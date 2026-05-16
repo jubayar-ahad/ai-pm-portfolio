@@ -1,13 +1,15 @@
 """Command-line entry point for the rag-app demo.
 
-Subcommands land iteratively. As of this iteration: `load` and `retrieve`.
+Subcommands land iteratively. As of this iteration: `load`, `retrieve`, `ask`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from rag_app.corpus import (
@@ -17,6 +19,12 @@ from rag_app.corpus import (
     find_repo_root,
     load_and_chunk,
     write_chunks,
+)
+from rag_app.generate import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_MODEL,
+    build_prompt,
+    call_claude,
 )
 from rag_app.retrieve import (
     DEFAULT_TOP_K,
@@ -99,6 +107,71 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ask(args: argparse.Namespace) -> int:
+    repo_root = find_repo_root(Path(__file__).resolve().parent)
+    chunks_path = _resolve(args.chunks, repo_root)
+    indexed = load_chunks(chunks_path)
+    index = BM25Index(indexed)
+    retrieved = index.query(args.question, top_k=args.top_k)
+    prompt = build_prompt(args.question, retrieved)
+
+    have_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    do_live = not args.dry_run and have_key
+    mode = "live" if do_live else "dry-run"
+
+    answer = call_claude(prompt, model=args.model, max_tokens=args.max_tokens) if do_live else None
+
+    if args.json:
+        payload = {
+            "mode": mode,
+            "question": args.question,
+            "top_k": args.top_k,
+            "retrieved": [
+                {
+                    "rank": r.rank,
+                    "score": round(r.score, 6),
+                    "id": r.id,
+                    "source": r.source,
+                    "span": list(r.span),
+                    "text": r.text,
+                }
+                for r in retrieved
+            ],
+            "prompt": {"system": prompt.system, "user": prompt.user},
+            "answer": asdict(answer) if answer is not None else None,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"Question: {args.question}")
+    print(f"Mode: {mode}")
+    if not do_live and not args.dry_run and not have_key:
+        print("  (no ANTHROPIC_API_KEY in environment — falling back to dry-run)")
+    print(f"Retrieved {len(retrieved)} of {len(indexed)} chunks:")
+    for r in retrieved:
+        print(f"  #{r.rank}  score={r.score:6.3f}  {r.id}  span={r.span}")
+    print()
+
+    if answer is None:
+        print("--- prompt.system ---")
+        print(prompt.system)
+        print("--- prompt.user ---")
+        print(prompt.user)
+        print()
+        print("(dry-run: no model call made)")
+        return 0
+
+    print("--- answer ---")
+    print(answer.text)
+    print()
+    print(
+        f"(model={answer.model}  "
+        f"input_tokens={answer.input_tokens}  "
+        f"output_tokens={answer.output_tokens})"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m rag_app")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -156,6 +229,48 @@ def main(argv: list[str] | None = None) -> int:
         help="Emit a JSON object instead of a human-readable summary.",
     )
     p_retrieve.set_defaults(func=cmd_retrieve)
+
+    p_ask = sub.add_parser(
+        "ask",
+        help="Retrieve top-k chunks and ask Claude to answer with citations",
+    )
+    p_ask.add_argument(
+        "question",
+        help="Natural-language question to answer.",
+    )
+    p_ask.add_argument(
+        "--top-k",
+        type=int,
+        default=DEFAULT_TOP_K,
+        help=f"How many chunks to feed the model (default {DEFAULT_TOP_K}).",
+    )
+    p_ask.add_argument(
+        "--chunks",
+        default=DEFAULT_CHUNKS_PATH,
+        help="Path to chunks.jsonl (relative to repo root unless absolute).",
+    )
+    p_ask.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"Anthropic model id (default {DEFAULT_MODEL}).",
+    )
+    p_ask.add_argument(
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help=f"Max output tokens (default {DEFAULT_MAX_TOKENS}).",
+    )
+    p_ask.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build and print the prompt without calling Claude. Auto-enabled if ANTHROPIC_API_KEY is unset.",
+    )
+    p_ask.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a JSON record (question, retrieved, prompt, answer) for the evals harness.",
+    )
+    p_ask.set_defaults(func=cmd_ask)
 
     args = parser.parse_args(argv)
     return args.func(args)

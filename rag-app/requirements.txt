@@ -1,0 +1,8 @@
+# rag-app runtime dependencies.
+#
+# Only `ask` (the generation slice) needs anthropic — `load` and `retrieve`
+# are stdlib-only and run without this install. The lower bound is the
+# version that supports the Messages API shape used in rag_app/generate.py;
+# the upper bound is open so a future SDK refresh does not silently break
+# `pip install`.
+anthropic>=0.40

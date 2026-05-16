@@ -16,14 +16,16 @@ incrementally — see [Status](#status) for what currently runs.
 | Design doc (this README) | Shipped |
 | Corpus loader and chunker | Shipped (`python -m rag_app load`) |
 | Retrieval CLI (BM25) | Shipped (`python -m rag_app retrieve "<question>"`) |
-| Generation with Claude | Not yet implemented |
-| End-to-end `ask` demo | Not yet implemented |
+| Generation with Claude | Shipped (`python -m rag_app ask "<question>"`) |
+| End-to-end `ask` demo | Shipped (live with `ANTHROPIC_API_KEY`, otherwise auto dry-run) |
 | Refusal + citation hardening | Not yet implemented |
-| Evaluation hooks (for `evals-harness/`) | Not yet implemented |
+| Evaluation hooks (for `evals-harness/`) | Partial — `ask --json` emits the full trace; the harness will consume it |
 
-The repo root README will only link this build as "demo-ready" once the
-end-to-end `ask` slice runs against a real model. Until then it is linked as
-"in progress."
+The `ask` subcommand runs in two modes. With `ANTHROPIC_API_KEY` set it
+calls Claude and prints a cited answer. Without a key (or with explicit
+`--dry-run`) it builds and prints the exact prompt that would be sent,
+which is enough to validate retrieval and prompt construction in a
+sandbox or CI environment.
 
 ## What this demo is, in one sentence
 
@@ -53,7 +55,9 @@ avoid speculative scope.
 | Generation | Anthropic Claude (`claude-haiku-4-5-20251001` as default, configurable) | Cheap, fast, current, and pluggable. Default favors low spend on a demo. |
 | Retrieval | Stdlib BM25 (Okapi, k1=1.5, b=0.75) over the loaded chunks | Zero model download, zero extra dependencies, runs on any Python. BM25 is the established sparse baseline; at this corpus size (tens of chunks) it is competitive with dense embeddings. Dense retrieval is deferred to a future hybrid (BM25 + reranker) rather than treated as the primary index — see [DECISIONS.md](../DECISIONS.md) for the supersession. |
 | Chunking | Paragraph-aware word windows with paragraph-level overlap (defaults: 400 words, 80 overlap) | Word counts as a stdlib-only stand-in for token counts — keeps the loader dependency-free; the embedding step can re-measure if needed. |
-| CLI | Single entry: `python -m rag_app ask "<question>"` | One command keeps the demo legible to a recruiter watching a screen share. |
+| CLI | Three subcommands of one entry point: `python -m rag_app {load,retrieve,ask}` | Keeps the demo legible (one command per slice, no flag soup) while letting an interviewer poke each stage independently. |
+| Citation format | `[<source>#<start>-<end>]` using the chunker's char span | Regex-clean (no collision with the `::` chunk-ID separator), human-readable, and trivially verifiable: a future iteration can parse it back and re-read the cited bytes from disk to confirm groundedness. |
+| Dry-run fallback | `ask` auto-falls back to printing the prompt if `ANTHROPIC_API_KEY` is unset | Makes the demo runnable in any environment without an API key, and gives the evals harness a no-network code path for prompt-construction tests. |
 
 The Anthropic + BM25 stack means the demo needs exactly one API key
 (`ANTHROPIC_API_KEY`) to run end-to-end. No vector DB to provision, no
@@ -74,7 +78,7 @@ top-k chunks
    │
    │  (3) prompt Claude with question + chunks + citation instructions
    ▼
-answer with [source:span] citations
+answer with [source#start-end] citations
 ```
 
 Notes:
@@ -158,13 +162,15 @@ Each line below is intended to map to a single future iteration:
    *(Shipped.)*
 3. **Generation.** `python -m rag_app ask "<question>"` retrieves top-k,
    prompts Claude with strict citation instructions, prints the answer.
-4. **Refusal + citation hardening.** Force the model to abstain on weak
-   context (e.g. BM25 top score below a threshold); verify every citation
-   resolves back to its chunk span.
-5. **Eval hooks.** The existing `--json` flag on `retrieve` already emits a
-   structured `{question, results}` record; extend `ask` similarly so the
-   `evals-harness/` build can consume the full `{question, retrieved,
-   answer, citations}` trace.
+   Dry-runs cleanly without an API key. *(Shipped.)*
+4. **Refusal + citation hardening.** Threshold the BM25 top score so the
+   `ask` path forces an abstention when the context is weak, and parse the
+   answer's `[<source>#<start>-<end>]` citations back to verify each one
+   resolves to a real chunk span on disk.
+5. **Eval hooks.** `ask --json` already emits the full
+   `{question, retrieved, prompt, answer}` trace; once `evals-harness/`
+   exists, this is the surface it scores against. May grow a small
+   stable-id field per record so eval runs are diff-able across days.
 6. **Hybrid retrieval (optional quality lift).** Add a dense reranker over
    the BM25 top-N. Treat dense as a quality knob on top of the lexical
    baseline, not as a replacement.
@@ -205,13 +211,29 @@ python -m rag_app retrieve "What is the Day 20 milestone?"
 Override `--top-k`, point at a different `--chunks` path, or emit a
 structured record with `--json` (useful for the upcoming evals harness).
 
-The end-to-end query interface is not yet wired up; once the generation
-slice lands, the invocation will look like:
+Ask a grounded question. Without a key, the command falls back to a
+dry-run that prints the exact prompt it would send — useful for
+inspecting retrieval and prompt construction in CI or a sandbox.
 
 ```bash
-export ANTHROPIC_API_KEY=...
+pip install -r requirements.txt        # only needed for the live path
+export ANTHROPIC_API_KEY=...            # only needed for the live path
 python -m rag_app ask "What is the Day 20 milestone?"
+# Question: What is the Day 20 milestone?
+# Mode: live
+# Retrieved 5 of N chunks:
+#   #1  score=...  OBJECTIVE.md::0  span=(..., ...)
+#   ...
+#
+# --- answer ---
+# The Day 20 milestone is ... [OBJECTIVE.md#0-...]
+#
+# (model=...  input_tokens=...  output_tokens=...)
 ```
+
+Useful flags on `ask`: `--top-k`, `--model`, `--max-tokens`, `--dry-run`
+(force the prompt-only path), and `--json` (emit the full
+`{question, retrieved, prompt, answer}` record for the evals harness).
 
 ## Design tradeoffs called out for interview discussion
 
