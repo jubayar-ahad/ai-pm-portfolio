@@ -4742,3 +4742,128 @@ expansion** — the iteration-3 corpus list (`OBJECTIVE.md`,
 any committed file. This DECISIONS entry itself rotates the rag-app
 fingerprint by the standard per-iteration drift pattern.
 
+## 2026-05-16 — Packaging convention locked across all three Python builds (NEXT_WORK item 1, sub-checkbox 5 of 5; closes item 1)
+
+**Decision.** This entry is the canonical single-place record of the
+packaging convention shared across `rag-app/pyproject.toml`,
+`tool-use-agent/pyproject.toml`, and `evals-harness/pyproject.toml`.
+The substance has already been recorded across four prior entries
+(iterations 46 / 47 / 48 / 49 — the three per-build contracts plus
+the build-verification matrix), but NEXT_WORK item 1's fifth
+sub-checkbox explicitly asks for a *convention-locking* entry that
+names the contract once so a future reader does not have to
+reconstruct it by reading four entries. That is what this entry is.
+The three `pyproject.toml` files themselves remain unmodified by
+this slice; this is purely a documentation-layer discharge.
+
+**The locked convention, in one place.**
+
+| Field                          | Value                                                                                         | Locked by                                                                                                  |
+|--------------------------------|-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `[build-system].requires`      | `["setuptools>=61.0"]`                                                                        | All three builds; PEP-517 build isolation pulls modern setuptools regardless of system Python's setuptools |
+| `[build-system].build-backend` | `"setuptools.build_meta"`                                                                     | All three builds                                                                                           |
+| `requires-python`              | `">=3.9"`                                                                                     | All three builds; matches the reconciled-iteration-39 floor and the `from __future__ import annotations` posture |
+| Distribution name              | `rag-app` / `tool-use-agent` / `evals-harness` (hyphenated)                                   | Per-build                                                                                                  |
+| Package import name            | `rag_app` / `tool_use_agent` / `evals_harness` (underscored, PEP-8)                           | Per-build                                                                                                  |
+| `[project.scripts]`            | `<dist-name> = <package_name>.__main__:main`                                                  | All three builds; console-script wires the existing `python -m <package>` entry to a flat CLI invocation   |
+| `[project.optional-dependencies].dev` | `["pytest>=7", "mypy>=1.0", "ruff>=0.1"]`                                              | All three builds; named the dev-dep trio that NEXT_WORK items 3 (pytest) and 4 (CI lint / type-check) consume |
+| `dependencies` (runtime)       | `["anthropic>=0.40"]` (rag-app, tool-use-agent) or `[]` (evals-harness)                       | Per-build; rag-app and tool-use-agent mirror `requirements.txt` byte-for-byte, evals-harness is stdlib-only and uses an explicit empty list as the declarative encoding |
+| `version`                      | `"0.1.0"`                                                                                     | All three builds; pre-1.0 because the artifacts are portfolio demos, not stability-promising libraries     |
+| `authors`                      | `[{ name = "Jubayar Ahad" }]` — no email (avoids contact-leak from a public repo)             | All three builds                                                                                           |
+| `classifiers`                  | `Programming Language :: Python :: 3` plus `3.9` / `3.10` / `3.11` / `3.12`, `OS Independent`, `Topic :: Scientific/Engineering :: Artificial Intelligence` | All three builds; the per-minor classifiers drive the NEXT_WORK item 4 CI matrix                          |
+| `[project.urls]`               | `Homepage` and `Repository` both set to `https://github.com/jubayar-ahad/ai-pm-role-90days`   | All three builds; single-repo-monorepo posture, intentionally not split into per-build URLs                |
+| `keywords` and `description`   | Per-build (rag/retrieval-augmented-generation/bm25/…; tool-use/agent/agent-loop/…; evals/evaluation/…) | Per-build; the only intentionally divergent metadata surface                                               |
+| `license` field                | **Deliberately omitted** from this slice                                                      | All three builds; NEXT_WORK item 2 owns the `license = ...` line in each `pyproject.toml` plus the LICENSE files at repo root and per-build |
+| `[tool.setuptools.packages.find]` | `include = ["<package>*"]`, `exclude = ["tests*", ".cache*"]`                              | All three builds; tests/ is pre-allocated for NEXT_WORK item 3 even though no tests directory exists yet   |
+
+**Verification pattern, locked.** The canonical packaging verification
+path is `python -m build --sdist --wheel` (with `build>=1.0` installed
+via `pip install --user build` if absent — 30 seconds on stock
+macOS), followed by `pip install <wheel-path>` into a fresh
+`python3 -m venv`, followed by a `<dist-name> --help` smoke check
+and a key-free functional check that exercises the build's
+stdlib-only / dry-run code path. The four-step shape — *build, install,
+dispatch, smoke* — is the contract any future packaging-related
+slice (e.g., a hypothetical PyPI distribution slice) must honor. The
+non-editable wheel install is the wheel-side surface; the
+`pip install -e .` install verified in iterations 46 / 47 / 48 is the
+editable-side surface; both surfaces are part of the standing
+verification contract.
+
+**Open in-repo-anchoring property, recorded as standing.** The
+iteration-49 finding that six of the seven CLI subcommands across
+the three builds require a repo checkout (because
+`find_repo_root()` anchors to `Path(__file__).resolve().parent` and
+walks up for `OBJECTIVE.md`) is preserved deliberately and is not a
+packaging defect — these are *in-repo dev tools*, not
+PyPI-distributable standalone CLIs. The packaging convention
+honestly represents this shape: the wheels build cleanly, install
+cleanly, and dispatch their CLIs, but actual functional invocation
+requires either an editable install from inside the repo checkout
+or a `--corpus-root` / `--repo-root` override flag (which only
+`rag-app load` has). A future PyPI-distribution slice would need to
+either (a) add `--repo-root` overrides to the six anchored
+commands, or (b) vendor the corpus / pipeline / sibling-build
+sources into each package as `package_data`. Both paths are out of
+scope for NEXT_WORK; recording them here so the design property
+stays visible to whoever picks up packaging work next.
+
+**Hyphen-vs-underscore convention, locked.** Distribution names are
+hyphenated (`rag-app`, `tool-use-agent`, `evals-harness`) because
+that is the PyPA-canonical surface for command-line / install
+identifiers (`pip install rag-app`, `rag-app --help`). Package
+import names are underscored (`rag_app`, `tool_use_agent`,
+`evals_harness`) because that is PEP-8 / PEP-423 canonical for
+Python identifiers (`from rag_app import …`,
+`python -m rag_app`). The two surfaces are connected exactly once
+per build in `[project.scripts]`. No build mixes the two
+conventions (e.g., no `rag_app` distribution name, no `rag-app`
+package import name). This convention applies to any future build
+added to the repo and to any new agent-y tool that ships its own
+CLI under NEXT_WORK item 6.
+
+**Why this convention-locking entry was its own slice.** The five
+sub-checkboxes under NEXT_WORK item 1 each map to one
+single-iteration-sized unit of work: (1-3) write the three
+`pyproject.toml` files; (4) verify all three build and install
+cleanly; (5) write the consolidating convention-locking entry.
+Bundling (5) into (4) — or into (3), the last per-build
+contract — would have done two units of work in one commit and
+made the five-sub-checkbox structure dishonest. The discipline
+matters because items 3, 4, 6, and 7 (each multi-sub-checkbox)
+will use the same per-sub-checkbox-per-commit cadence, and the
+honesty of that cadence depends on not silently rolling the
+discharge step into the last per-build slice. Worth recognizing as
+the canonical multi-build-parallel-slice shape that future
+NEXT_WORK items follow.
+
+**Item 1 status after this slice.** Sub-checkbox 5 of 5 is now
+ticked; the parent item 1 is now ticked in the same commit. Item 1
+of NEXT_WORK is complete: all three builds have `pyproject.toml`
+files following the convention locked above, both editable and
+non-editable installs are verified, the convention is recorded in
+one canonical place, and this entry is one of the seven DECISIONS
+entries the Done-criteria section of NEXT_WORK.md requires (one
+per top-level item plus a final list-complete entry).
+
+**Out of scope for this iteration.** (1) **No code change to any
+`pyproject.toml`** — the three contracts are unmodified by this
+slice; this is purely a consolidating documentation-layer entry.
+(2) **No LICENSE file, no `license = ...` field added to any
+`pyproject.toml`, no `License: …` line in any README** — all four
+belong to NEXT_WORK item 2 and are deliberately deferred. (3) **No
+`tests/` directory created in any build, no `pytest.ini` /
+`conftest.py` added, no test fixture seeded** — NEXT_WORK item 3
+owns the test surface and the coverage floor. (4) **No GitHub
+Actions workflow, no CI status badge in any README** — NEXT_WORK
+item 4. (5) **No edit to any build's README to reference the new
+console-script invocation** — the existing READMEs document the
+`python -m <package>` invocation, which is unchanged by the
+console-script addition (both work); a README pass to add the
+flatter invocation would be a separate documentation slice
+deliberately not done here. (6) **No rag-app corpus v1 expansion**
+— the iteration-3 corpus list (`OBJECTIVE.md`, `DECISIONS.md`,
+`templates/INTERVIEW_TRACKER.md`, `rag-app/README.md`) is
+unchanged; this DECISIONS entry itself rotates the rag-app
+fingerprint by the standard per-iteration drift pattern.
+

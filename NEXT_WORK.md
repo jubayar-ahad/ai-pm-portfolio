@@ -12,7 +12,7 @@ in the same commit.
 
 ---
 
-## 1. Packaging — make all three Python builds `pip install -e .`-able
+## 1. Packaging — make all three Python builds `pip install -e .`-able [x]
 
 Ordered first because tests + CI depend on clean packaging.
 
@@ -20,7 +20,7 @@ Ordered first because tests + CI depend on clean packaging.
 - [x] `tool-use-agent/pyproject.toml` (same shape)
 - [x] `evals-harness/pyproject.toml` (same shape)
 - [x] Verify each builds with `python -m build --sdist --wheel` (or `pip install -e .` if `build` unavailable) and the existing CLIs still work after install
-- [ ] DECISIONS.md entry locking the packaging convention (build backend choice, Python version floor, dev-dep names)
+- [x] DECISIONS.md entry locking the packaging convention (build backend choice, Python version floor, dev-dep names)
 
 ## 2. LICENSE — MIT, at repo root + per-build
 
