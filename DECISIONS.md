@@ -4028,3 +4028,163 @@ check (`ls templates/*.md | wc -l` matching the README's stated
 count) is cheap to run manually, and automating it would commit the
 repo to a maintenance surface that costs more than the drift it
 prevents.
+
+## 2026-05-16 — INTERVIEW_TRACKER.md reconciled with the five-scaffold kit (kit-position section + trailing `_<` self-check)
+
+**Decision.** `templates/INTERVIEW_TRACKER.md` gains two surgical
+additions that close two pre-existing documentation asymmetries in the
+five-scaffold kit. Neither addition changes the tracker's row schema,
+controlled vocabulary, stage strings, bucket shorthand, or Day-30
+rollup format — those remain byte-identical to the iteration-2 contract
+the four other scaffolds reference as the canonical convention. This
+entry is a documentation reconcile in the same category as iteration
+39's rag-app Python-version reconcile and iteration 40's top-level
+README reconcile: a claim-level cleanup paired with a DECISIONS
+supersession entry, not a contract change.
+
+**The two asymmetries discharged.**
+
+(a) **Inbound-only cross-referencing.** Four of the five scaffolds —
+`TARGET_COMPANIES.md` (its rollup section), `OUTREACH.md` (its "Where
+this fits" paragraph and outreach-log integration line),
+`COVER_LETTER.md` (its trailing self-check pointer), and `RESUME.md`
+(its Selected AI/PM portfolio section naming the tool-use-agent's
+pipeline tools) — all reference `INTERVIEW_TRACKER.md` as either
+authoritative downstream or as the canonical convention reference. The
+tracker itself referenced **none** of them. Adding a short "Where this
+tracker fits in the five-scaffold kit" section after the masthead
+(before "How to use this file") closes this asymmetry by naming the
+three relationships honestly: upstream is `TARGET_COMPANIES.md` via
+`promoted-to-tracker`, adjacent are the three message/document
+scaffolds that move rows through stages, and downstream-demo is the
+`tool-use-agent/` build whose `list_pipeline_rows`, `count_by_stage`,
+and `count_by_bucket` tools read this file directly.
+
+(b) **Trailing self-check reminder missing.** The "fastest grep is
+`_<`" trailing reminder convention was established in iteration 34's
+`RESUME.md` and adopted by iterations 35, 37, and 38 for
+`COVER_LETTER.md`, `OUTREACH.md`, and `TARGET_COMPANIES.md`
+respectively. All four explicitly name "same convention as
+`../templates/INTERVIEW_TRACKER.md`" in their reminder paragraph —
+i.e., they claim alignment with the tracker on a convention the
+tracker itself does not visibly enforce. The iteration-38 learning
+"Placeholder-grammar invariant extended from 4 to 5 scaffolds: one
+regex `_<.*>_` now validates ... INTERVIEW_TRACKER" was true at the
+character-level (the placeholder rows in INTERVIEW_TRACKER do use
+`_<...>_`), but the *self-check reminder* that names the convention
+was never backfilled into the tracker when iterations 34–38 added it
+to the other four. Backfilling it now closes the asymmetry without
+altering the placeholder grammar itself.
+
+**Rationale.**
+
+(a) **Why now, not earlier.** The same conditional-deferral pattern
+iterations 37–40 used: a documentation reconcile is cheapest to do
+once the artifact relationships are stable. Iterations 2 → 38 each
+shipped one scaffold and (correctly) did not edit the tracker as a
+side-effect; iteration 40 reconciled the top-level README; this
+iteration reconciles the tracker. The kit is now self-consistent on
+both placeholder grammar and bidirectional cross-references. Doing
+this any earlier — say, alongside iteration 38 — would have violated
+the single-artifact-per-iteration discipline and bundled two
+unrelated reconciles into one slice. Doing it later would leave the
+asymmetry compounding for any future iteration that audits
+cross-references.
+
+(b) **Why a kit-position section and not a one-line link.** A single
+"see also" line at the top of the tracker would close the link-graph
+asymmetry but not the *narrative* asymmetry. The kit-position section
+makes three claims a reader needs to make sense of the tracker in
+isolation: (1) where rows come from (upstream); (2) which scaffolds
+operate on rows in this table (adjacent); (3) why the tracker file
+exists in the same repo as a code build that *queries* it (the
+demo-data property). Bundling these in one section makes the
+tracker's "downstream-most" position explicit. The same restraint
+that kept the iteration-2 file at ~76 lines applies — the new
+section is ~17 lines, the trailing reminder is ~8 lines, and the
+file remains scan-readable.
+
+(c) **Why the "demo data" framing is the load-bearing claim.** The
+tracker → tool-use-agent loop already exists in code: the build's
+`tools_pipeline.py` hard-codes `TRACKER_RELATIVE_PATH =
+"templates/INTERVIEW_TRACKER.md"` and the README of the build names
+the file explicitly. But a recruiter cloning the repo and reading
+the tracker template in isolation would not discover this from the
+template itself — they would have to read the tool-use-agent README
+to find the connection. Naming the connection in the tracker closes
+a real *discoverability* gap that materially changes the interview
+narrative: once the user populates the tracker against the actual
+search, the populated rows become live demo material for the
+tool-use-agent build, which is interview-narrative gold for a Day-30
+demo. This is the cross-artifact narrative payoff iteration 32's
+§6.4 evals-harness binding predicted, applied one layer over to the
+tracker ↔ tool-use-agent layer.
+
+(d) **Why the "doubles as demo data" framing rather than "use this
+build to query the tracker."** The latter would frame the tracker as
+the build's documentation, which would invert the dependency: the
+tracker exists for the user to track their interview pipeline, and
+the build happens to consume it as a sample data source. The
+"doubles as" framing preserves the tracker's primary purpose (job
+search instrument) while exposing the secondary purpose (demo
+artifact) — same posture iteration 3's "the repo's own markdown is
+the corpus v1" decision uses for the rag-app build, scaled up to
+the cross-artifact layer.
+
+(e) **Why backfill the trailing `_<` reminder verbatim from the
+RESUME.md / OUTREACH.md / COVER_LETTER.md / TARGET_COMPANIES.md
+pattern.** The reminder's value is its consistency across the kit:
+a user who has internalized "scan for `_<`" from one scaffold
+should not encounter a different self-check wording on another.
+The wording is adapted only to the tracker's content type ("row
+masquerading as data" rather than "message not ready to send" or
+"resume not ready to send" or "row still a placeholder, not a real
+target") — the same per-content-type adaptation iteration 38's
+TARGET_COMPANIES reminder used relative to the others. The
+`_<` -appears-in-prose-too false-positive class is identical across
+all five scaffolds (the prose mentioning the convention also matches
+the grep) and was accepted as the right tradeoff in iteration 37
+when the OUTREACH reminder added the same prose mention — no new
+false-positive class is introduced.
+
+**Out of scope for this iteration.** (1) **No change to the tracker's
+row schema, controlled vocabulary, stage strings, bucket shorthand,
+or rollup format** — the iteration-2 contract is preserved
+byte-identically. The 12-column active table, the 6-column
+closed/off-ramp table, the four-bullet rollup, and the 6-column
+outreach log all remain unchanged. (2) **No edit to any other
+artifact** — specifically no edits to the four other template
+scaffolds (whose reminders already point at INTERVIEW_TRACKER.md as
+canonical and do not need to be re-pointed), no edits to the three
+builds (the tool-use-agent's `TRACKER_RELATIVE_PATH` constant and
+`tools_pipeline.py` are unchanged; the README already names the
+file), no edits to the Cursor teardown PRD or candidates file, no
+edits to the top-level README (which already correctly describes
+the five-scaffold kit per iteration 40), and no edits to OBJECTIVE.md.
+(3) **No automated `_<` grep lint script across the five scaffolds**
+— the threshold remains "first real misuse" or "sixth scaffold,"
+whichever comes first (iterations 34, 35, 37, 38 all explicitly
+declined the lint command at three, four, and five scaffolds, and
+backfilling the reminder into the fifth does not change that
+calculus; if anything, the now-five-aligned reminder is *more*
+discoverable to the user as a manual check). (4) **No rag-app
+corpus v1 expansion** — the iteration-3 corpus v1 list is
+unchanged (OBJECTIVE.md, DECISIONS.md, templates/INTERVIEW_TRACKER.md,
+rag-app/README.md). INTERVIEW_TRACKER.md *is* in the corpus, so the
+two surgical additions to its body will rotate the rag-app
+fingerprint by the usual per-iteration drift pattern; the corpus
+*list* is unchanged. (5) **No new scaffold and no post-engagement
+scaffold** — the conditional-volume deferral on the follow-up DM
+scaffold (iterations 35/37/38) remains binding; interview-prep and
+negotiation scaffolds (iteration 38) remain out-of-scope at the
+post-engagement layer until real engagements exist. (6) **No
+restructure of the kit-position section into a separate
+`KIT_OVERVIEW.md` index file at `templates/`** — the top-level
+`README.md`'s Day-30 prose section (reconciled in iteration 40)
+already names the funnel ordering; a separate `templates/README.md`
+would duplicate that and introduce a third index that drifts
+independently from the top-level README and from each scaffold's
+trailing reminder. Pointing in-template (one section per scaffold
+naming its position) is the right per-scaffold load-bearing
+discipline, mirroring the same single-source-of-truth pattern
+COVER_LETTER's "quote RESUME by reference" uses one layer down.

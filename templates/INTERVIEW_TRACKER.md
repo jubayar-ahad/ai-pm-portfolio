@@ -5,6 +5,25 @@ Replace every placeholder row with a real one before relying on the rollup.
 Nothing in this file is auto-populated — the agent does not invent companies,
 contacts, or pipeline state. See `../DECISIONS.md` for the no-fabrication rule.
 
+## Where this tracker fits in the five-scaffold kit
+
+This tracker is the downstream-most populatable surface in `../templates/`.
+Rows arrive from `TARGET_COMPANIES.md` via its `promoted-to-tracker` status
+(a delete-from-`TARGET_COMPANIES.md` move, so each row has exactly one
+home). The active surfaces that move rows through the stages below are
+`OUTREACH.md` (cold DM / referral / dormant re-engagement),
+`COVER_LETTER.md` (formal applications), and `RESUME.md` (leave-behind for
+engaged loops). All five scaffolds share the `_<placeholder>_` italic-marker
+grammar, so one regex (`_<.*>_`) validates all five.
+
+This file also doubles as demo data for the `../tool-use-agent/` build.
+Its `list_pipeline_rows`, `count_by_stage`, and `count_by_bucket` tools —
+three of the six-tool catalog — read this file directly, so once the
+tracker is populated against the actual search, asking the agent "how many
+B2 loops am I in?" or "list panel-stage rows" produces grounded answers
+from the rows below: interview-ready live demo material rather than a
+fabricated demo set.
+
 ## How to use this file
 
 1. One row per role you have meaningfully engaged with (applied, recruiter
@@ -73,3 +92,13 @@ active pipeline table above and delete the log row.
 | Date sent | Company | Person | Channel | Message hook | Response? |
 |-----------|---------|--------|---------|--------------|-----------|
 | YYYY-MM-DD | _<placeholder>_ |  |  |  |  |
+
+---
+
+_Before treating any row as ready (or the rollup as honest): re-read for any
+remaining italic placeholders. The fastest grep is `_<` — if it appears
+anywhere in the file, the tracker still has placeholder rows masquerading as
+data. Same convention as `../templates/RESUME.md`,
+`../templates/COVER_LETTER.md`, `../templates/OUTREACH.md`, and
+`../templates/TARGET_COMPANIES.md`, so one regex (`_<.*>_`) validates all
+five scaffolds._
