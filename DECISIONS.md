@@ -76,3 +76,19 @@ to from the repo README today.
 
 **Rationale:** Half-finished scaffolds across three builds leave nothing to
 point at in an interview. One shipped artifact does.
+
+## 2026-05-16 — Tracker vocabulary: stage strings and bucket shorthand
+
+**Decision:** `templates/INTERVIEW_TRACKER.md` uses a fixed stage vocabulary
+(`sourced` → `applied` → `recruiter-screen` → `hiring-manager` → `panel` →
+`final` → `offer-verbal` → `offer-written` → `accepted`, plus terminal
+`rejected` / `withdrew` / `ghosted-30d`) and a `B1` / `B2` / `B3` bucket
+shorthand mapping to the scope section of OBJECTIVE.md. Future artifacts
+(resume scaffold, cover-letter scaffold, any rollup tooling) reuse these
+exact strings.
+
+**Rationale:** A controlled vocabulary lets a future iteration add a rollup
+or status command without re-parsing free text, and keeps the user's mental
+model consistent across artifacts. Encoding the Bucket 2 priority in the
+shorthand (rather than a free-text "AI scope" column) makes the
+objective-aligned filter trivial.
