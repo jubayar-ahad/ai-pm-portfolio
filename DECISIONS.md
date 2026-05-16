@@ -408,3 +408,63 @@ five (not six like `rag-app/`) because there is no separate
 the retrieval surface, and they are exercised directly by the
 `tool` subcommand from slice 1, so slice 2 can land the LLM loop
 without an intermediate step.
+
+## 2026-05-16 — tool-use-agent slice 1: catalog shape, dispatcher, repo-meta exclusions
+
+**Decision:** The tool-use-agent v1 catalog is implemented as a single
+frozen `dict[str, Tool]` built once at import time by `build_catalog()`
+in `tool_use_agent/catalog.py`. Each `Tool` is a frozen dataclass of
+`{name, description, input_schema, impl}` where `impl` is a Python
+callable with signature `(repo_root: Path, **kwargs) -> Any`. Tool
+dispatch goes through `call_tool(name, repo_root, **kwargs)`, which
+also normalizes return values for JSON serialization (dataclasses
+become dicts, lists/dicts recurse). The Anthropic-tools-compatible
+view (`{name, description, input_schema}` only — `impl` stripped) is
+produced by `catalog_as_anthropic_tools()` so slice 2 can pass it
+directly to `client.messages.create(tools=...)` with no further
+shaping. Repo-meta directories excluded from `list_repo_files` /
+`grep_repo` enumeration are: `.git`, `.gnhf`, `.cache`,
+`__pycache__`, `.venv`, `node_modules`, `.DS_Store`. The grep tool
+restricts itself to a small text-suffix allowlist
+(`.md/.py/.txt/.json/.yml/.yaml/.toml/.cfg/.ini/.jsonl/.gitignore`)
+plus a 1 MB per-file cap. Path arguments to `read_repo_file` /
+`grep_repo` / `list_repo_files` resolve through `_resolve_inside_repo`,
+which `Path.resolve()`s against the repo root and refuses any result
+that escapes — refusal returns `None` (or an `ERROR: ...` string from
+`read_repo_file`) so the agent receives a structured tool_result
+rather than an exception.
+
+**Rationale:** A single frozen catalog with one shared dispatcher is
+the minimum surface area that lets slice 2's agent loop, the
+`catalog` printer, and the per-tool argparse subparsers all discover
+tools through the same registry — adding or removing a tool means
+editing one list inside `build_catalog()` and nothing else. Splitting
+the `Tool` shape into `description` (one line, ships to the LLM) and
+`input_schema` (full JSON Schema, ships to the LLM) keeps the prompt
+surface tight while preserving everything the model needs to call the
+tool correctly. The exclusion list bundles three categories of
+non-source content: VCS metadata (`.git`), orchestrator state
+(`.gnhf` — the gnhf run log already includes the full chat history
+and tool results, so leaving it in would make every grep hit
+massively redundant), and build artifacts (`__pycache__`, `.venv`,
+`node_modules`, `.cache`). The text-suffix allowlist and 1 MB cap are
+defensive but cheap: an agent that points `grep_repo` at a binary
+asset or a huge log file should not stall the demo. Returning
+`ERROR: ...` strings (not raising) from `read_repo_file` is the same
+pattern slice 4's refusal handling will rely on — every recoverable
+error becomes a tool_result the model can read and react to,
+matching the behavior the Anthropic tool-use API expects.
+
+**Tracker parser specifics:** `list_pipeline_rows` parses the
+`## Active pipeline` section of `templates/INTERVIEW_TRACKER.md` by
+slicing out lines between that heading and the next `## ` heading,
+then walking the markdown-table rows. Placeholder rows are detected
+by the regex `^_<.*>_$` matching the Company cell, plus empty
+Company cells; both are excluded. Unknown stage/bucket filter values
+return an empty list (not an error). `count_by_stage` and
+`count_by_bucket` always return histograms keyed by the full locked
+vocabulary from the iteration-2 stage/bucket decision, so an empty
+tracker still produces a stable-shaped output and the LLM's
+downstream summarization does not have to guess at missing keys.
+This is the property that lets future eval traces compare the same
+tool call across iterations without per-run schema reconciliation.

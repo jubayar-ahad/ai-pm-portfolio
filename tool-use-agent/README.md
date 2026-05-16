@@ -14,7 +14,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Slice | State |
 | --- | --- |
 | Design doc (this README) | Shipped |
-| Tool catalog (pure-Python, no LLM) | Not yet |
+| Tool catalog (pure-Python, no LLM) | Shipped |
 | Single-step agent loop (one tool call, then answer) | Not yet |
 | Multi-step agent loop (chained tool calls, bounded) | Not yet |
 | Refusal + bounded-step termination | Not yet |
@@ -207,12 +207,15 @@ productize a system shaped like this one.
 
 Each line below is intended to map to a single future iteration:
 
-1. **Tool catalog implementation.** Implement the six v1 tools as pure
-   Python functions with explicit JSON schemas. Ship a
-   `python -m tool_use_agent tool <name> [args]` direct-invocation
-   subcommand so each tool is independently testable without an API
-   key. Ship a `python -m tool_use_agent catalog` subcommand that
-   prints the JSON schemas for review.
+1. **Tool catalog implementation.** *(Shipped.)* Six v1 tools landed
+   as pure-Python stdlib-only functions with explicit JSON schemas in
+   `tool_use_agent/catalog.py`. `python -m tool_use_agent tool <name>
+   [flags]` invokes any tool directly (argparse flags are materialized
+   from the schema, so enum/required/default constraints are enforced
+   at the CLI boundary the same way they will be by the Anthropic SDK
+   in slice 2). `python -m tool_use_agent catalog` prints the catalog
+   in `{name, description, input_schema}` shape ready to pass to
+   `client.messages.create(tools=…)`.
 2. **Single-step agent loop.** `python -m tool_use_agent ask
    "<question>"` calls Claude once with `tools=[…]`, executes whichever
    tool the model requests, returns the tool result to the model, and
@@ -237,30 +240,42 @@ Each line below is intended to map to a single future iteration:
 
 ## How to run
 
-Not yet runnable — only the design doc has shipped. The implementation
-plan above is the contract for the next five iterations. Once slice 1
-lands, this section will show concrete examples (in the same flag-
-resilient style as `rag-app/README.md`'s how-to-run).
-
-The intended invocations, locked here so the next iteration has a clear
-target:
+Slice 1 has landed: the six tools and the `catalog` / `tool`
+subcommands are runnable without an API key. The `ask` subcommand
+arrives in slice 2.
 
 ```bash
 cd tool-use-agent
 
-# Direct tool invocation (no API key needed):
-python -m tool_use_agent tool count_by_stage
-python -m tool_use_agent tool list_pipeline_rows --bucket B2
-
 # Inspect the catalog the model will see (no API key needed):
 python -m tool_use_agent catalog
 
-# Run the agent (live, needs ANTHROPIC_API_KEY):
-python -m tool_use_agent ask "How many Bucket 2 loops are still in recruiter-screen?"
+# Direct tool invocation (no API key needed):
+python -m tool_use_agent tool count_by_stage
+python -m tool_use_agent tool count_by_bucket
+python -m tool_use_agent tool list_pipeline_rows --bucket B2
+python -m tool_use_agent tool list_repo_files --directory rag-app --pattern "*.py"
+python -m tool_use_agent tool read_repo_file --path OBJECTIVE.md --start-line 1 --end-line 5
+python -m tool_use_agent tool grep_repo --query "BM25" --max-matches 3
 
-# Dry-run (no API key needed): prints catalog + first-turn prompt.
-python -m tool_use_agent ask "..." --dry-run
+# Emit a JSON result instead of the human-readable view:
+python -m tool_use_agent tool grep_repo --query "no-fabrication" --json
 ```
+
+Notes:
+- All invocations resolve the repo root by walking up from the package
+  path until `OBJECTIVE.md` is found, so the commands above work from
+  any cwd inside the repo.
+- `list_pipeline_rows`, `count_by_stage`, and `count_by_bucket`
+  currently return empty / zero histograms because the tracker
+  contains only placeholder rows. They start returning real data the
+  moment the user fills in real rows, with no code change required.
+- Future slices, intended invocations locked here:
+  - `python -m tool_use_agent ask "How many Bucket 2 loops are still
+    in recruiter-screen?"` (live agent loop, needs
+    `ANTHROPIC_API_KEY`)
+  - `python -m tool_use_agent ask "..." --dry-run` (no key — prints
+    catalog + first-turn prompt)
 
 ## Design tradeoffs called out for interview discussion
 
