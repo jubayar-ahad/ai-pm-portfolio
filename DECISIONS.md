@@ -3207,3 +3207,91 @@ iterations on the three builds and two on the user-gated pick
 gates is intended to read as a portfolio-of-decisions in its
 own right — the audit trail an interviewer asking "how did you
 get here" can scan in roughly the time it takes to read §§1–6.
+
+## 2026-05-16 — Resume scaffold shape and the deferred cover-letter scaffold
+
+**Decision:** `templates/RESUME.md` ships as a populatable one-page PM
+resume scaffold with a locked section order
+(`Header → Summary → Experience → Selected AI/PM portfolio →
+Skills → Education → optional Writing/Talks → optional
+Certifications`) and the same `_<placeholder>_` italic-marker
+convention `templates/INTERVIEW_TRACKER.md` uses, so a single regex
+(`_<.*>_`) can find unfilled slots across both files. ATS-friendly
+rules are baked into the "How to use" section: no tables in
+experience, no columns, no images, H2 for section headers and H3 for
+role / build sub-headers. The **Selected AI/PM portfolio** section
+is pre-stubbed with this repo's three Day-10 builds (rag-app,
+tool-use-agent, evals-harness) and the Day-20 Cursor teardown PRD
+as named portfolio slots the user can claim once they have actually
+demoed each end-to-end. The cover-letter scaffold is explicitly
+deferred to the next iteration; this entry locks the resume
+contract only.
+
+**Rationale.** (a) **Why a scaffold and not a filled draft.** The
+no-fabrication guardrail (OBJECTIVE.md + the 2026-05-16 "No
+fabricated employment history" DECISIONS entry) means every concrete
+specifier — companies, dates, metrics, project titles — has to come
+from the user. The agent's job is to lock the shape so the user does
+not have to invent it, and to bake in the PM-craft conventions
+(action-verb + metric bullets, three-to-five-role band, one-page
+budget, ATS hygiene) that a generic resume template would not carry.
+(b) **Why this section order.** Summary first because the recruiter
+six-second scan reads top-down and the Bucket-2 targeting line is
+the single highest-leverage real estate; Experience second because
+that is what every ATS parser expects in slot two; **Selected AI/PM
+portfolio** third — promoted ahead of Skills and Education — because
+this 90-day plan's whole leave-behind story sits in that section and
+burying it after Skills would undersell the three builds and the
+teardown PRD. Skills and Education trail as conventional, with
+Writing/Talks and Certifications as opt-in sections gated on the
+"only include if you have at least two truthful items" rule that
+prevents thin or performative sections. (c) **Why share the
+placeholder grammar with the tracker.** A single regex (`_<.*>_`)
+catches stale placeholders in both files — the resume scaffold's
+trailing reminder (`fastest grep is _<`) makes this explicit. If a
+future iteration adds the cover-letter scaffold, it inherits the
+same marker and the cross-file validator stays one line. (d) **Why
+the AI/PM portfolio section is pre-stubbed with this repo's four
+artifacts.** The whole point of the Day-10 and Day-20 work is to
+have something to point at in interviews. Naming the three builds
+and the teardown by their actual repo paths in the scaffold means
+the user does not have to remember which artifact lives where, and
+the scaffold's "delete only what you cannot demo" rule keeps the
+honesty bar visible — a placeholder portfolio bullet is worse than
+no portfolio bullet because it advertises an artifact the
+interviewer can ask about and the user cannot defend. (e) **Why
+defer the cover-letter scaffold to a separate iteration.** The
+two artifacts share the no-fabrication guardrail and the
+placeholder grammar, but they have different shape constraints:
+resumes are one-page structured documents with a fixed section
+order; cover letters are 250–400-word prose pieces parameterized
+by the target company / role / connection. Shipping both in one
+iteration would have either inflated this iteration's surface or
+under-served the cover letter. The one-complete-artifact-per-
+iteration rule prefers a fully-defended resume scaffold now plus
+a fully-defended cover-letter scaffold next iteration over both
+landing at half quality together. The cover-letter scaffold should
+reuse the `_<placeholder>_` convention and reference back to the
+resume's Summary and Selected AI/PM portfolio sections as the
+single source of truth for company-agnostic claims, so the user
+does not have to keep two drafts of "what I shipped at <Company>"
+in sync.
+
+**Out of scope for this iteration.** (1) No cover-letter scaffold
+(deferred to the next iteration, as noted above). (2) No
+LinkedIn-profile scaffold — the resume's Header section already
+points at the LinkedIn URL, and the AI/PM portfolio bullets are the
+LinkedIn About-section content in raw form; a separate scaffold
+would duplicate the placeholders without adding surface. (3) No
+filled-in example resume — every slot is a placeholder, and an
+example would invite the user to copy phrasing rather than write
+their own. (4) No automated placeholder-validator script — the
+trailing-reminder grep guidance is enough at this artifact count;
+a `python -m templates lint` command can be added in a future
+iteration if a third scaffold lands. (5) No edit to corpus v1 — the
+new `templates/RESUME.md` file is NOT in the rag-app corpus list
+(corpus v1 is locked to four specific files), so the resume scaffold
+does not perturb the rag-app index directly; only this DECISIONS
+entry does, by the standard per-iteration drift pattern. (6) No
+edit to the three builds or the Cursor teardown PRD — this
+iteration is purely a templates/ addition.
