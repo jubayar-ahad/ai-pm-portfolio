@@ -16,7 +16,7 @@ incrementally — see [Status](#status) for what currently runs.
 | --- | --- |
 | Design doc (this README) | Shipped |
 | Labeled query set scaffold (`queries.jsonl`) | Shipped |
-| Trace ingester + startup invariant checks | Not started |
+| Trace ingester + startup invariant checks | Shipped |
 | Refusal-bucket scorer (cross-build) | Not started |
 | Groundedness + termination + cost scorers, aggregate report | Not started |
 
@@ -256,15 +256,21 @@ Each line below is intended to map to a single future iteration:
    `notes` (with optional values explicitly null). The schema
    is locked in DECISIONS so subsequent slices can rely on the
    key set without re-litigation.
-2. **Trace ingester + startup invariant checks.** `python -m
-   evals_harness ingest --traces <path…> --labels <path>` reads every
-   JSONL line, validates against the known-version list
-   (`rag-app.ask.v1`, `tool-use-agent.ask.v1`), asserts the two
-   startup invariants (cross-build `REFUSAL_SENTENCE` byte-equality,
-   helper-behavior equivalence on a known fixture), and emits a
-   normalized `ingested.jsonl` plus a one-line counts summary
-   (`N traces, M labels, K invariant checks passed`). Fails fast on
-   any mismatch.
+2. **Trace ingester + startup invariant checks.** *Shipped.*
+   `python -m evals_harness ingest --labels <path> [--traces <path…>]
+   [--out <path>] [--verbose]` runs the two startup invariants
+   (cross-build `REFUSAL_SENTENCE` byte-equality, trace-helper
+   algorithm equivalence on a known fixture), reads every JSONL line,
+   validates labels against the locked 9-key schema + enum
+   vocabularies, validates traces against the known-version list
+   (`rag-app.ask.v1`, `tool-use-agent.ask.v1`) plus a required
+   cross-cuttable field set (`record_id`, `corpus_fingerprint`,
+   `question`), optionally emits a normalized `ingested.jsonl`
+   wrapping each input line in a `{"kind": "label"|"trace", ...}`
+   envelope, and prints a one-line counts summary
+   (`N traces, M labels, K invariant checks passed`). Fails fast
+   with exit code 2 on any invariant or schema violation. Zero
+   traces is allowed so labels can be iterated before traces exist.
 3. **Refusal-bucket scorer (cross-build).** `python -m
    evals_harness score --rubric refusal …` joins ingested traces with
    labels by `record_id`/question, computes a refusal confusion matrix
@@ -289,49 +295,58 @@ Each line below is intended to map to a single future iteration:
 
 ## How to run
 
-No subcommand has shipped yet — slice 1 only delivered the labeled
-query file. `queries.jsonl` is plain JSONL: 16 records, one query
-per line, every record carries the same nine keys (see DECISIONS
-for the per-field contract). It is human-readable and can be
-inspected directly:
+The `ingest` subcommand is the first one wired up. It runs from inside
+`evals-harness/`, validates labels and optional trace files, and
+asserts the two cross-build startup invariants.
 
 ```bash
 cd evals-harness
-wc -l queries.jsonl          # → 16
-head -n 1 queries.jsonl      # → first labeled record (in_corpus, expects answer)
-python3 -c "import json; print(set(json.loads(next(open('queries.jsonl'))).keys()))"
-# → {'id','question','shape','expected_outcome','applies_to',
-#    'expected_citation_source','expected_first_tool',
-#    'corpus_fingerprint_at_label','notes'}
+
+# Labels-only — validates the queries.jsonl schema and runs the
+# two startup invariants. No traces required.
+python3 -m evals_harness ingest --labels queries.jsonl --verbose
+# → N traces, M labels, K invariant checks passed
+#     ok: refusal_sentence_byte_equal (...)
+#     ok: trace_helpers_behavior_equivalent (...)
+
+# With traces — point at one or more JSONL files of ask --json
+# records. Each rag-app or tool-use-agent ask --json invocation
+# produces a multi-line pretty-printed JSON object; compact each
+# to a single line (one record per line) and append to a JSONL
+# file the harness can read.
+python3 -m evals_harness ingest \
+    --labels queries.jsonl \
+    --traces /path/to/rag_traces.jsonl /path/to/tua_traces.jsonl \
+    --out .cache/ingested.jsonl
 ```
 
-The locked CLI shape for the next iterations is:
+Failure paths exit with code 2 and a named error:
+
+- Unknown `schema_version` on a trace record → `INGEST FAILED: …`
+- Label key-set mismatch (missing or extra key) → `INGEST FAILED: …`
+- `corpus_fingerprint_at_label` keys ≠ `applies_to` → `INGEST FAILED: …`
+- Cross-build `REFUSAL_SENTENCE` drift → `INVARIANT FAILED: …`
+- Trace-helper algorithm drift in either build → `INVARIANT FAILED: …`
+
+The locked CLI shape for the remaining slices is:
 
 ```bash
 cd evals-harness
 
-# (slice 2) read traces + labels, run startup invariants, emit
-# ingested.jsonl. No model calls, no API key.
-python -m evals_harness ingest \
-    --traces ../rag-app/.cache/traces.jsonl \
-              ../tool-use-agent/.cache/traces.jsonl \
-    --labels queries.jsonl \
-    --out .cache/ingested.jsonl
-
 # (slice 3) score the refusal rubric across both builds.
-python -m evals_harness score \
+python3 -m evals_harness score \
     --rubric refusal \
     --ingested .cache/ingested.jsonl \
     --out .cache/scored.jsonl
 
 # (slice 4) score per-build rubrics.
-python -m evals_harness score --rubric groundedness \
+python3 -m evals_harness score --rubric groundedness \
     --ingested .cache/ingested.jsonl --out .cache/scored.jsonl  # appends
-python -m evals_harness score --rubric first_call_tool \
+python3 -m evals_harness score --rubric first_call_tool \
     --ingested .cache/ingested.jsonl --out .cache/scored.jsonl  # appends
 
 # (slice 5) roll up to a Markdown report.
-python -m evals_harness report --scored .cache/scored.jsonl
+python3 -m evals_harness report --scored .cache/scored.jsonl
 ```
 
 A note on producing trace files for the harness to consume: the rag-app

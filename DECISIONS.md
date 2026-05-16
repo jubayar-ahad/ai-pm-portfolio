@@ -1098,3 +1098,154 @@ equality vs. record_id resolution); slice 1 does not commit
 to that decision because the cross-build pairing requires
 two different `record_id` schemas and is properly the
 ingester's concern.
+
+## 2026-05-16 — evals-harness slice 2: ingester contract + startup invariants
+
+Slice 2 ships `python -m evals_harness ingest` plus the two
+cross-build startup invariants the README pre-committed to.
+Four contract pieces locked here so the slice-3 refusal
+scorer (and every subsequent rubric) can rely on them.
+
+**1. Ingester I/O contract.**
+
+- `--labels <path>` (required, exactly one JSONL file) loads
+  records from the slice-1 schema. Validation rejects any
+  record whose key set is not exactly the locked 9-key set,
+  whose `shape` is not in
+  `{in_corpus, out_of_corpus, tracker_rollup, adversarial_in_corpus}`,
+  whose `expected_outcome` is not in `{answer, refuse}`,
+  whose `applies_to` is empty / contains an unknown schema,
+  or whose `corpus_fingerprint_at_label` key set does not
+  equal `applies_to`. Each failure raises `IngestError`
+  pointing at `<path>:<lineno>` and exits with code 2.
+- `--traces <path...>` (zero or more JSONL files) loads ask
+  --json records. Each record must carry a `schema_version`
+  in `{rag-app.ask.v1, tool-use-agent.ask.v1}` and the three
+  cross-cuttable fields `{record_id, corpus_fingerprint,
+  question}`. Per-build fields (`verification` on rag-app,
+  `refusal_reason` / `tool_calls` on tool-use-agent) are
+  *not* required at ingest because each future scorer routes
+  by `schema_version` and validates its own per-build
+  surface. Unknown schemas raise rather than being treated
+  as the closest known version.
+- `--out <path>` (optional) emits a normalized
+  `ingested.jsonl` wrapping each input line in a
+  `{"kind": "label"|"trace", ...envelope, "record": <orig>}`
+  envelope. The slice-3 scorer reads this rather than
+  re-validating, so re-running scoring without re-ingesting
+  is well-defined.
+- Zero traces is explicitly allowed (`--traces` defaults to
+  `[]`) so a user can iterate on labels before any traces
+  exist. The invariants still run and the counts summary
+  still prints, which keeps the harness usable from day one.
+
+**2. Startup invariants.**
+
+Two checks run before any record is validated, so a schema
+bug cannot mask a cross-build drift:
+
+- **`REFUSAL_SENTENCE` byte-equality.** Imports
+  `rag_app.verify.REFUSAL_SENTENCE` and
+  `tool_use_agent.verify.REFUSAL_SENTENCE`, asserts string
+  equality. Drift raises `InvariantError` naming both
+  string repr()s. This is the single line that protects the
+  slice-3 refusal-bucket scorer from splitting one logical
+  bucket into two when one build's canonical refusal text
+  silently changes.
+- **Trace-helper algorithm equivalence.** For each build,
+  the harness computes the *expected* digest independently
+  in `evals_harness/invariants.py` (SHA-256 of canonical
+  JSON bytes / raw bytes, truncated to 16 hex chars) over
+  a fixture, then asserts each build's
+  `compute_corpus_fingerprint` and `compute_record_id`
+  reproduce it. Signatures differ across the two builds
+  (rag-app takes a chunks file path; tool-use takes a
+  catalog list) so this asserts *algorithm* equivalence,
+  not signature equivalence, matching the iteration-15
+  rationale. A drift in hash algorithm, truncation length,
+  or canonical-JSON ordering in either build raises with
+  the build name and the diverged digests.
+
+Both invariants run in milliseconds, never hit the network,
+and never load corpus data. The output of `ingest --verbose`
+prints one `ok: <name> (<detail>)` line per passed check.
+
+**3. Sibling-build import policy.**
+
+The harness imports
+`{rag_app,tool_use_agent}.{verify,trace}` by adding
+`<repo>/rag-app/` and `<repo>/tool-use-agent/` to
+`sys.path` at module load time (`evals_harness/_repo.py`).
+This is the *harness's* responsibility, not the builds'.
+The iteration-14 lock that each build remains
+self-contained (no cross-imports between rag-app and
+tool-use-agent) is unchanged — the harness is the third
+party that imports both. Repo root is auto-discovered by
+walking up from `_repo.py` until `OBJECTIVE.md` is found,
+mirroring the rag-app loader's pattern so `cd evals-harness
+&& python3 -m evals_harness` works without
+`PYTHONPATH` munging.
+
+**4. Normalized `ingested.jsonl` envelope.**
+
+Each output line is one of:
+
+```jsonl
+{"kind":"label","id":"q-NNN","applies_to":[...],"record":{...orig label...}}
+{"kind":"trace","schema_version":"rag-app.ask.v1","record_id":"...","trace":{...orig trace...}}
+```
+
+The envelope pulls the routing fields to the top level so
+the slice-3 scorer can route on `kind` and
+`schema_version` without parsing each `record` body, while
+preserving the original record verbatim under `record` so
+no information is lost between ingest and scoring. The
+ordering inside the file is `labels first, then traces, in
+input order` — deterministic given the inputs, which is
+the property the README's deterministic-output guarantee
+already promised.
+
+**Rationale (why this shape, not some other):**
+
+- **Invariants before validation, not after.** If we
+  validated record schemas first, a schema bug in
+  `queries.jsonl` would short-circuit the invariant
+  checks, and a silent cross-build drift could persist
+  through several iterations of label edits before being
+  caught. Putting the invariants first means the
+  one-line summary "2 invariant checks passed" is the
+  first signal a developer sees on every run, so drift is
+  caught the iteration it lands.
+- **Fail-fast with exit code 2, not a warning.** The
+  rag-app and tool-use-agent CLIs both use exit code 2
+  for unrecoverable errors; matching that here means a CI
+  caller can treat any non-zero exit as "stop the
+  pipeline" without parsing stderr. A warnings-only mode
+  is not in v1: a drifted refusal sentence or unknown
+  schema is a category of bug worth blocking on, not a
+  category of bug worth proceeding past.
+- **Pairing key deferred to slice 3, not locked here.**
+  Slice 1's DECISIONS entry forward-linked this slice's
+  decision on the label↔trace pairing key. Slice 2's
+  ingester does *not* commit to it because pairing is
+  the refusal scorer's job: it knows whether to join by
+  question-string equality (cross-build) or by an
+  `(applies_to, question)` tuple (per-build). Slice 2
+  preserves both `question` and `record_id` in the
+  envelope so slice 3 has full optionality.
+- **Importing each build's `verify`/`trace` modules is
+  the only way to assert byte/algorithm equivalence.**
+  Re-implementing the constants and helpers inside the
+  harness would let the harness drift while the builds
+  stay aligned, which is the opposite of the property
+  the invariants exist to assert. The sys.path nudge in
+  `_repo.py` is the cheap way to keep the harness
+  stdlib-only (no `pip install -e .`) while still
+  importing the real source of truth from each build.
+
+**Out of scope for slice 2** (explicit, so slice 3 cannot
+silently inherit them): scoring of any kind, refusal
+bucketing, fingerprint-mismatch warnings (those land in
+the report slice), per-record validation of per-build
+fields like `verification.citations` or `tool_calls`,
+and any kind of LLM call. The harness remains stdlib-only.
