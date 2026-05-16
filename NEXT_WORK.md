@@ -26,7 +26,7 @@ Ordered first because tests + CI depend on clean packaging.
 
 - [x] `/LICENSE` at repo root (MIT, copyright "Jubayar Ahad <year>")
 - [x] `/rag-app/LICENSE` (MIT, identical body, identical copyright line)
-- [ ] `/tool-use-agent/LICENSE`
+- [x] `/tool-use-agent/LICENSE`
 - [ ] `/evals-harness/LICENSE`
 - [ ] Reference the license in each `pyproject.toml`'s `license` field and in each build's README
 
