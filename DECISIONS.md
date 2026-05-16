@@ -961,3 +961,140 @@ agent already emits and does not re-time anything), and fine-
 tuning loops (eval scoring describes behavior; it does not
 change weights or prompts). Each of these would be a separate
 build, not a slice of this one.
+
+## 2026-05-16 — evals-harness slice 1: `queries.jsonl` schema and labeled set
+
+Slice 1 of the evals-harness build ships
+`evals-harness/queries.jsonl` — a single, hand-authored,
+uniform-shape JSONL file containing 16 labeled queries. The
+schema is locked here so subsequent slices (ingester, per-rubric
+scorers, report) can rely on the fields without re-litigating
+shape or vocabulary.
+
+**Record shape (every line, all keys present, optional values
+nullable):**
+
+- `id` (string, required) — stable identifier `q-NNN`. Used by
+  the harness for cross-run identity and for naming records in
+  the report.
+- `question` (string, required) — the prompt fed to both
+  builds' `ask` subcommand.
+- `shape` (enum, required) — one of `in_corpus`,
+  `out_of_corpus`, `tracker_rollup`, `adversarial_in_corpus`.
+  Mirrors the four-shape spread named in the evals-harness
+  README slice-1 roadmap and gives the report a stable
+  grouping axis.
+- `expected_outcome` (enum, required) — `answer` | `refuse`.
+  This is what the refusal-bucket scorer (slice 3) joins
+  against the trace.
+- `applies_to` (array of schema_version strings, required) —
+  subset of `{"rag-app.ask.v1", "tool-use-agent.ask.v1"}`. A
+  query that exercises tool-side rollups lists only
+  `tool-use-agent.ask.v1`; a query that exercises retrieval
+  groundedness can list both. The harness's per-build router
+  intersects this list with each trace's `schema_version`.
+- `expected_citation_source` (string | null, optional) —
+  set only when `applies_to` includes `rag-app.ask.v1` and a
+  specific in-corpus file should appear in at least one
+  citation of an answered response. Consumed by the
+  groundedness scorer.
+- `expected_first_tool` (string | null, optional) — set only
+  when `applies_to` includes `tool-use-agent.ask.v1` and the
+  first tool call has an obvious right answer. Consumed by
+  the first-call-tool scorer.
+- `corpus_fingerprint_at_label` (object, required, possibly
+  empty) — map keyed by each `applies_to` schema string, with
+  the 16-hex-char fingerprint that was current when the label
+  was authored. Surfaces stale labels as per-record warnings
+  rather than silent miscount when the corpus or catalog
+  evolves under the labeled file.
+- `notes` (string | null, optional) — author-only rationale
+  for the expected outcome; never read by any scorer.
+
+**Slice-1 counts** (this iteration ships exactly these): 6
+`in_corpus`, 4 `out_of_corpus`, 3 `tracker_rollup`, 3
+`adversarial_in_corpus`. 9 records with `expected_outcome:
+answer`, 7 with `expected_outcome: refuse`. The mix is
+deliberately weighted toward `answer` so the groundedness
+rubric has a non-trivial denominator while still giving the
+refusal scorer enough negative examples to detect a build
+that over-refuses.
+
+**Rationale (why each property is locked here):**
+
+- **Uniform record shape with explicit nulls** beats
+  "optional fields may be omitted." With nullable keys
+  always present, the ingester's per-record validation is a
+  single key-set equality check and an interviewer reading
+  the file can see at a glance which expectations a query
+  carries and which it deliberately doesn't. The cost
+  (slightly bigger lines) is paid back the first time a
+  reviewer needs to scan the file by eye.
+- **`shape` is a label, not a derived field.** The harness
+  could infer shape from `expected_outcome` and the presence
+  of `expected_first_tool`, but doing so would couple the
+  classification to the per-build expectation fields, which
+  is exactly the coupling the four-shape framing exists to
+  break. Tagging shape at authoring time also gives the
+  report a stable grouping axis even if the per-build
+  expectation policy evolves.
+- **`applies_to` is required and explicit, not derived.**
+  A `tracker_rollup` query is meaningless to score against
+  rag-app; a corpus-citation query is meaningless to score
+  against tool-use-agent. Encoding this as an explicit list
+  (rather than inferring "if the expected_first_tool is set,
+  it's a tool-use query") means the harness can refuse to
+  score a trace whose schema is not in `applies_to`, which is
+  a cleaner failure mode than producing a meaningless score.
+- **`corpus_fingerprint_at_label` keys by schema_version**
+  because each build has its own analog of "corpus": rag-app
+  hashes its chunks file, tool-use-agent hashes its catalog.
+  The harness checks each trace's fingerprint against the
+  matching key — mismatch is a warning, not a hard fail, so
+  label drift is visible in the report without breaking the
+  run. Concrete fingerprint values are not quoted in this
+  entry because DECISIONS.md is itself part of the rag-app
+  corpus: writing the rag-app fingerprint here would mutate
+  the corpus and immediately invalidate the quoted value
+  (self-reference). The current values live in
+  `evals-harness/queries.jsonl`, which is *not* part of any
+  build's corpus or catalog, so it can hold the literal
+  hashes without recursion.
+- **JSONL not JSON-array** so the ingester can stream
+  records and so a future `evals_harness seed` subcommand can
+  append candidate labels without rewriting the whole file.
+  Matches the JSONL shape both builds already use for their
+  trace records and `chunks.jsonl` — one fewer format to
+  introduce.
+- **Adversarial-in-corpus queries are required to have
+  `expected_outcome: refuse`** but are recorded as a separate
+  shape from plain `out_of_corpus` because they share corpus
+  tokens with the real answer set. The refusal-bucket scorer
+  treats both as the same expected outcome, but the report
+  groups them separately so a PM can read "the rag-app
+  refused 4/4 out-of-corpus but only 1/3 adversarial" — that
+  distinction is the calibration signal the iteration-7
+  notes named when MIN_RETRIEVAL_SCORE was first locked.
+- **In-corpus / answerable queries cite the source file by
+  path string** (e.g. `"OBJECTIVE.md"`), not by `record_id`
+  of a specific chunk. The chunker may re-pack the corpus on
+  any iteration that edits a corpus file, which would
+  invalidate any chunk-id-level expectation; the source path
+  is stable across re-chunking. The groundedness scorer
+  reads `verification.citations[*].source` and checks for
+  string membership.
+- **`notes` is for the author, not the harness.** Lock it as
+  never-read so the harness has no incentive to start parsing
+  prose. The same property holds today for the rag-app's
+  trace records (the `prompt` field is preserved but no
+  scorer keys on its contents).
+
+**Forward link to slice 2:** the ingester (slice 2) loads
+this file by streaming `json.loads` per line, validates the
+key set and enum values against this lock, and pairs each
+labeled record with traces by `question`. The slice-2
+DECISIONS entry will lock the pairing key (question-string
+equality vs. record_id resolution); slice 1 does not commit
+to that decision because the cross-build pairing requires
+two different `record_id` schemas and is properly the
+ingester's concern.

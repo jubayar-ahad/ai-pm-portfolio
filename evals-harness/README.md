@@ -15,7 +15,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Slice | State |
 | --- | --- |
 | Design doc (this README) | Shipped |
-| Labeled query set scaffold | Not started |
+| Labeled query set scaffold (`queries.jsonl`) | Shipped |
 | Trace ingester + startup invariant checks | Not started |
 | Refusal-bucket scorer (cross-build) | Not started |
 | Groundedness + termination + cost scorers, aggregate report | Not started |
@@ -245,12 +245,17 @@ productize a system shaped like this one.
 
 Each line below is intended to map to a single future iteration:
 
-1. **Labeled query set scaffold.** Ship
-   `evals-harness/queries.jsonl` with ~10–20 hand-authored labeled
-   queries spanning four shapes: in-corpus / answerable, out-of-
-   corpus / refuse-expected, tracker-rollup (for the tool-use side),
-   adversarial-looking-in-corpus (e.g. shares stopwords but is not
-   answerable). Schema locked in DECISIONS the iteration it ships.
+1. **Labeled query set scaffold.** *Shipped.*
+   `evals-harness/queries.jsonl` carries 16 hand-authored labeled
+   queries spanning the four shapes: 6 `in_corpus`, 4
+   `out_of_corpus`, 3 `tracker_rollup` (tool-use-only), 3
+   `adversarial_in_corpus`. The record shape is uniform — every
+   line carries `id`, `question`, `shape`, `expected_outcome`,
+   `applies_to`, `expected_citation_source`,
+   `expected_first_tool`, `corpus_fingerprint_at_label`, and
+   `notes` (with optional values explicitly null). The schema
+   is locked in DECISIONS so subsequent slices can rely on the
+   key set without re-litigation.
 2. **Trace ingester + startup invariant checks.** `python -m
    evals_harness ingest --traces <path…> --labels <path>` reads every
    JSONL line, validates against the known-version list
@@ -284,8 +289,23 @@ Each line below is intended to map to a single future iteration:
 
 ## How to run
 
-The build is not yet runnable — only the design doc has shipped. The
-locked CLI shape for the next iterations is:
+No subcommand has shipped yet — slice 1 only delivered the labeled
+query file. `queries.jsonl` is plain JSONL: 16 records, one query
+per line, every record carries the same nine keys (see DECISIONS
+for the per-field contract). It is human-readable and can be
+inspected directly:
+
+```bash
+cd evals-harness
+wc -l queries.jsonl          # → 16
+head -n 1 queries.jsonl      # → first labeled record (in_corpus, expects answer)
+python3 -c "import json; print(set(json.loads(next(open('queries.jsonl'))).keys()))"
+# → {'id','question','shape','expected_outcome','applies_to',
+#    'expected_citation_source','expected_first_tool',
+#    'corpus_fingerprint_at_label','notes'}
+```
+
+The locked CLI shape for the next iterations is:
 
 ```bash
 cd evals-harness
