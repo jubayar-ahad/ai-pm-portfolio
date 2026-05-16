@@ -2423,3 +2423,183 @@ teardown file do (and only the DECISIONS entry, because the teardown
 file is not in corpus v1). Tool-use-agent catalog is unchanged so its
 fingerprint stays at 626af64cb9bf48bf. Both builds and the
 evals-harness cross-build invariants still pass.
+
+## 2026-05-16 — Cursor teardown PRD slice 4: "What to ship next" drafted
+
+**Decision:** The "What to ship next" section of
+`teardown-prd/cursor-teardown.md` ships in drafted state, replacing
+the outline slice's three-bullet "Initial shape" list with three full
+sub-section drafts (Proposal A / B / C, one per §2 sub-area). The
+drafts follow the canonical five-slot shape locked in the slice-2
+entry, with slot 1 substituted to "the PM proposal" and slot 3
+substituted to "what could go wrong" — both substitutions
+pre-committed by the slice-3 entry's "slot 1 substituting to 'the PM
+proposal' there per the slice-2 entry's pre-commitment" clause and by
+iteration 29's learning note that "the same substitution pattern
+will need a third variant for §3 (slot 3 becomes 'what could go
+wrong')." Sections 4–6 remain in outline / intent-paragraph state and
+are picked up in subsequent slices per the seven-step plan from
+iteration 27.
+
+**Three proposals, one-to-one with §2's broken sub-areas:**
+
+1. **§3.1 Proposal A — Routing transparency for Auto mode**
+   (paired with §2.1 Auto-mode router opacity). A per-message
+   "served by <model> via Auto" caption plus an opt-in per-thread
+   routing summary, plus an opt-in setting that pins the router to
+   a specific model from inside Auto. Routing logic itself is not
+   changed; only post-hoc transparency is added. Costs typographic
+   real estate; pays for itself in user-learning and support-issue
+   triage.
+2. **§3.2 Proposal B — Index-freshness indicator** (paired with
+   §2.2 Indexer staleness signals). A persistent footer chip
+   showing "indexed Ns ago, M pending" with hover-to-list,
+   one-click resync, and an inherited staleness marker on the
+   `@Codebase` mention chip. Borrows the pattern from JetBrains
+   and VS Code's footer index affordances. The freshness signal
+   claims footer real estate that the cut-from-§1/§2 free-tier
+   quota meter would otherwise compete for, named explicitly so a
+   later iteration cannot reopen quota via the side door.
+3. **§3.3 Proposal C — Agent stop-criteria UI** (paired with §2.3
+   Agent stop conditions and overrun). An explicit pre-run "I'll
+   stop when X" plan the user confirms, plus a pause-and-amend
+   interrupt-by-default during execution. The default direction is
+   **stop-aggressive** (mid-execution user messages pause the agent
+   by default), with stop-permissive available as a per-task
+   opt-in scoped to the current task only. The stop-aggressive
+   recommendation discharges the slice-3 entry's pre-commitment
+   ("the default-direction call — stop-aggressive vs.
+   stop-permissive — is named here and recommended in §3,
+   defending stop-aggressive on overrun-damage asymmetry").
+
+**No fourth-candidate cut paragraph in §3.** Unlike §§1 and 2, §3's
+proposal count is bound one-to-one to §2's three narrowed sub-areas
+rather than to an independent outline-candidate list — there is no
+fourth candidate to drop with a parallel cut paragraph. This is named
+explicitly in the §3 opening transition paragraph so a reader scanning
+for the cut paragraph at parallel depth across the three drafted
+sections sees the structural difference and its reason. The
+free-tier quota cut from §2 surfaces inside Proposal B's tension
+paragraph as documented in the slice-3 entry, fulfilling the "Free-
+tier quota surfaces lightly in §3's Proposal B context" pre-
+commitment.
+
+**Slot substitution from slice 2's shape:** the canonical first slot
+is "the PM decision" in §1, "the PM failure" in §2, and "the PM
+proposal" in §3 — three substitutions corresponding to the three
+section purposes (decisions worth defending, failures worth fixing,
+proposals worth shipping). Slot 3 — "why this is the right PM call"
+in §1, "why this is a fixable UX gap, not a strategy mistake" in §2 —
+substitutes to "what could go wrong" in §3. The §3 substitution is
+the load-bearing slot for a proposal section (parallel to the
+load-bearing-slot observation iteration 28 and 29 made for §§1 and 2):
+without it, each proposal reads as advocacy and the section as a
+whole collapses into a wishlist. The "what could go wrong" framing
+forces each proposal to argue not just "ship this" but "ship this
+*and* here is how you'd contain the realistic downside." Slots 2
+(observable behavior / proposed shape), 4 (tension worth naming),
+and 5 (inline source citation) carry forward unchanged. The five-slot
+list and its rationale remain binding through the end of the drafted
+sections; if §4 ("Proposed metrics") needs a different shape, the
+slice-5 entry will name and justify the deviation.
+
+**Stop-aggressive defense, restated:** the §3.3 sub-section names the
+default direction as stop-aggressive and defends the call on
+asymmetric damage: a wrong-direction agent edit costs the user the
+time-to-recover (Cancel + inspect + revert) plus the time-to-rebuild
+trust in the agent, while a confirmation prompt costs one click.
+Friction amortizes; a single bad overrun can end the day. The
+locked stop-permissive opt-in is *scoped to the current task only*
+(no persistent setting) — without that scope, users would forget
+they had enabled the toggle and re-import the original overrun risk
+one session later. This per-task scope is a contract for slice 5's
+metrics: any "agent stop-precision" metric that defines success has
+to read the per-task scope as a feature of the proposal, not as a
+detail to abstract over.
+
+**Source-density discipline** restated unchanged from slices 2 and 3:
+every claim in §3 about Cursor's surface grounds in §2's already-
+sourced documented behavior or in PM-craft argumentation. Each
+proposal's source paragraph names the IDE-pattern precedents (Copilot
+Chat / Cody / Claude for §3.1, JetBrains / VS Code for §3.2,
+Anysphere public statements for §3.3) and labels them as observable
+on the named products' 2026-05-16 surfaces. The §3-level evidence-
+sources paragraph adds the no-internal-information guardrail
+verbatim from the outline. No internal Cursor information, no
+fabricated metrics, no roadmap claims beyond what Anysphere has
+stated publicly. A proposal that requires asserting Cursor's
+internals to defend ("Cursor's index already supports incremental
+refresh") would need a citation or be rewritten as conjecture.
+
+**Header convention** carries from slices 2 and 3 unchanged: `### N.M
+…` three-level headers for sub-sections, `## N. …` for top-level
+canonical sections. §3 has no cut paragraph (per the no-fourth-
+candidate note above), so the symmetric `### Cut from the outline's
+four: …` header that §§1 and 2 carry is deliberately absent in §3 —
+not an oversight but a structural reflection that §3's three
+proposals derive from §2's three failures, not from a four-down-to-
+three narrowing.
+
+**Word-budget discipline** carried from iteration 28's learning note
+and iteration 29's confirmation: §1 sub-sections ran 357 / 362 / 425
+words; §2 sub-sections ran 409 / 417 / 464 words; §3 sub-sections
+land in roughly the same band (Proposals A / B / C each at ~430–500
+words). The §3 sub-sections trend toward the upper end of the §2
+range because the five-slot shape's slot 3 ("what could go wrong" +
+two mitigations) carries more argument than §2's slot 3 ("why this
+is a fixable UX gap" + the design-vs-strategy split). The asymmetric
+slot-budget pattern iteration 29 named ("the load-bearing slot
+varies by section purpose") repeats here: slot 3 is the heaviest in
+§3 just as it was in §2, and the section-level total accommodates
+the slot variance without breaking the rough-equal-scan-cost
+property across the three sub-sections.
+
+**Out of scope for this iteration** (deliberate, named so the next
+iteration cannot silently inherit them):
+
+1. **Edits to sections 4–6.** Those sections remain in outline /
+   intent-paragraph state; the §4 "Proposed metrics" draft is the
+   next iteration's deliverable, with the metric framework's
+   four-quadrant shape (leading × adoption, leading × quality,
+   lagging × adoption, lagging × business) already pre-committed
+   in the §4 outline intent paragraph.
+2. **Revisions to §§1–2 or to the masthead / scope decision.** The
+   drafted §§1–2 sub-sections, the §1 and §2 cut paragraphs, and
+   the scope decision stand. If a §3 proposal appears to require
+   restating a §1 decision or §2 failure, the §3 proposal is
+   revised, not the upstream section.
+3. **A fourth proposal added to §3 mid-draft.** §3 has exactly
+   three proposals, one per §2 sub-area; silently adding a fourth
+   (e.g. a free-tier quota meter, or a pricing-tier rework) would
+   reopen by side door the cuts §1 and §2 closed and defeat the
+   one-to-one §2-to-§3 binding the slice-3 entry locked.
+4. **Promotion of the cut sub-areas (pricing-tier from §1,
+   free-tier quota from §2) into deep-dive proposals.** Free-tier
+   quota surfaces inside Proposal B's tension paragraph and in §4's
+   metrics row as already named; pricing-tier surfaces in §4's
+   lagging-business row and in §6's explicit exclusion of pricing
+   A/B as a validation method. Neither is a deep-dive in §3.
+5. **A new opt-in setting introduced in §3 that requires a
+   user-account-shape change.** Per-task and session-scoped toggles
+   are in scope; any setting that would require new account-level
+   state (a new tier of paid plan, a per-organization policy
+   surface) is out of scope because it crosses into the
+   enterprise-admin scope explicitly excluded in the outline's
+   scope-decision section.
+6. **Any change to the rag-app corpus v1 file list.** Corpus v1
+   stays locked to (OBJECTIVE.md, DECISIONS.md,
+   templates/INTERVIEW_TRACKER.md, rag-app/README.md). The teardown
+   file itself remains outside the corpus and its drafted §3 does
+   not perturb the rag-app index.
+
+**Implication for the rag-app corpus_fingerprint:** this iteration
+touches DECISIONS.md but not the other three corpus-v1 files; per the
+per-iteration drift pattern documented from iteration 16 onward, the
+rag-app corpus_fingerprint will rotate. The
+teardown-prd/cursor-teardown.md file's drafted §3 is not in the
+corpus, so its drafting does not perturb the index — only this
+DECISIONS entry and the small status-line update at the top of the
+teardown file do (and only the DECISIONS entry, because the teardown
+file is not in corpus v1). Tool-use-agent catalog is unchanged so its
+fingerprint stays at 626af64cb9bf48bf. Both builds and the
+evals-harness cross-build invariants still pass.

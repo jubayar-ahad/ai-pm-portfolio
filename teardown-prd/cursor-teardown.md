@@ -1,8 +1,9 @@
 # Cursor — Teardown PRD
 
-**Status:** §1 "What's working" and §2 "What's broken" drafted; §§3–6
-remain in outline / intent-paragraph state. Per-section prose lands
-in subsequent iterations in the order locked in DECISIONS.md.
+**Status:** §§1–3 ("What's working", "What's broken", "What to ship
+next") drafted; §§4–6 remain in outline / intent-paragraph state.
+Per-section prose lands in subsequent iterations in the order locked
+in DECISIONS.md.
 
 **Product under teardown:** Cursor — the AI-native code editor (VS
 Code fork) by Anysphere. https://cursor.com
@@ -437,32 +438,184 @@ write a one-page recommendation: problem statement, user / business
 impact, proposed shape, scope boundaries, what could go wrong, and
 how to know whether it worked.
 
-**Initial shape (subject to draft-iteration refinement):**
+Three proposals follow, one per §2 sub-area (Proposal A → §2.1,
+B → §2.2, C → §2.3). Each follows the same five-slot shape as §§1–2,
+with slot 1 substituted to "the PM proposal" and slot 3 substituted
+to "what could go wrong." No parallel cut paragraph: the proposal
+count is bound one-to-one to §2's narrowed three, not drawn from an
+independent outline list, so there is no fourth candidate to drop.
 
-- **Proposal A — Routing transparency for Auto mode.** A
-  per-message "served by Sonnet 4.5 via Auto" affordance + a
-  per-thread routing summary, opt-in advanced settings to lock
-  the router to a specific model. Costs little; pays for itself in
-  user-learning and in support-issue triage.
-- **Proposal B — Index-freshness indicator.** A persistent UI
-  element showing "indexed N seconds ago, M files pending"
-  with a one-click re-index. Borrows the pattern from IDE search
-  panes; trades a small amount of chrome for a large reduction in
-  "the model doesn't see my changes" frustration.
-- **Proposal C — Agent stop-criteria UI.** Replace the implicit
-  stop-on-acknowledgment behavior with an explicit "I'll stop
-  when X" plan the user confirms before the agent runs, plus a
-  prominent pause-and-amend control during execution. The harder
-  product call here is the default: stop-aggressive or
-  stop-permissive. The draft will recommend stop-aggressive and
-  argue why.
+### 3.1 Proposal A — Routing transparency for Auto mode
 
-**Evidence sources for this section:** the proposals are PM
-recommendations, not claims of fact, so the source posture is "the
-draft makes the case; the reader is free to disagree." No external
-citations required, but the proposals must not assume internal
-information (e.g. "Cursor's index already supports incremental
-refresh" — would have to be sourced or rewritten as conjecture).
+**The PM proposal.** Surface the underlying model identity, fallback
+events, and routing rationale to the user after each Auto-mode turn —
+without changing how Auto routes. The minimal change is a compact
+per-message label ("served by Sonnet 4.5 via Auto"), accompanied by
+an opt-in per-thread routing summary in a collapsed panel. Power
+users gain an opt-in advanced setting that pins the router to a
+specific model from inside Auto. Auto remains the default; the
+routing logic itself is untouched; only post-hoc transparency is
+added.
+
+**Proposed shape** (the user-facing behavior the proposal implies).
+On each response, a single-line caption renders below the assistant
+turn: model name, version, and the routing reason in three to six
+words ("auto picked Sonnet for code edit"). A "show routing for this
+thread" toggle in the thread header expands a collapsed panel listing
+the chronological model-per-turn series, with hover-tooltips on
+fallback events ("fell back from Sonnet to GPT-5: provider latency
+> 4s"). A new Settings → Model entry adds an "Auto with model pinned"
+radio that disables routing for the current session without forcing
+the user out of the Auto mental model. None of the underlying routing
+decisions or fallback triggers change.
+
+**What could go wrong.** The reveal-after-the-fact label re-surfaces
+the exact "which model is this?" decision Auto was supposed to hide.
+A subset of users will read each label, internalize the model menu,
+and pin manually — fine outcome on its own, but it loses the "users
+don't have to think about it" property Auto promised. Mitigation:
+typographic restraint (caption-grade text, not chrome) and a setting
+to suppress the label for users who explicitly do not want it. A
+second risk: the routing-summary panel becomes a debug surface the
+support team relies on, locking routing-reason strings into a
+user-facing contract that constrains future routing changes.
+Mitigation: ship the reason strings as user-readable English from day
+one, treated as part of the public surface.
+
+**Tension worth naming:** revelation cost vs. user-learning compound
+interest. Each per-message label costs visual real estate and
+reintroduces the very decision Auto deflected. The trade favors
+revelation because the alternative is users learning routing through
+forum posts, trial-and-error, and support tickets — a compounding
+cost the product carries every week the label is absent. Clutter
+cost is bounded by typography; user-learning cost compounds.
+
+*(Sources: PM proposal, not a fact-claim about Cursor internals.
+Grounds in §2.1's documented opacity surface — observable on
+2026-05-16, macOS / Pro tier — and in IDE-pattern precedent:
+Copilot Chat, Cody, and Claude's chat surfaces all label per-turn
+model identity in their current UIs, observable on those products'
+2026-05-16 releases.)*
+
+### 3.2 Proposal B — Index-freshness indicator
+
+**The PM proposal.** Add a persistent index-freshness indicator to
+the workspace footer: last-index timestamp, count of pending files,
+and a one-click "resync now" affordance. The indicator is always
+visible, lives at footer scale (small but readable), and persists
+across sessions. The underlying indexer is not changed; the
+user-facing signal during the staleness window is added.
+
+**Proposed shape** (the user-facing behavior the proposal implies).
+A small footer chip near the language-mode indicator reads "indexed
+2s ago" in steady state, "indexing 3 files…" during refresh, and
+"indexed 4m ago — 6 pending" when the indexer is behind. Hover
+reveals a tooltip listing the pending files (truncated to a count for
+large lists) and a "resync now" button; click-through opens the
+existing Settings → Indexing pane. On reindex, the chip transitions
+back to "indexed Ns ago" without modal interruption. The `@Codebase`
+mention chip from §1.2 inherits the same freshness state: when the
+indexer is behind by more than a configurable threshold (default 30
+seconds), the chip carries a small staleness marker so the user sees
+the trust state of the chip *before* sending the prompt — not after
+acting on a stale answer.
+
+**What could go wrong.** The freshness chip compounds the "always-on
+UI" budget already crowded by the diff gutter, the Composer drawer,
+and the model menu. Power users may add it to their hide-this-element
+list, defeating the purpose. Mitigation: ship it on by default but
+session-dismissable (not permanently), so each new session restores
+the signal. A second risk: the freshness threshold is hard to set
+defensibly — too tight and the chip spends the day red, too loose and
+users miss real staleness. Mitigation: ship a default (30s) calibrated
+against indexer behavior on the test repos Anysphere already
+exercises, and expose the threshold as a setting so heavy users tune
+it.
+
+**Tension worth naming:** chrome cost vs. trust-by-default. A
+persistent indicator costs always-on attention; without it, silent
+staleness directly undercuts the §1.2 `@`-mention chip's
+predictability contract. The trade favors the indicator because the
+alternative — users discovering staleness by being wrong about their
+own working tree — is the single fastest path to losing the trust the
+chip system was built to earn. Footer real estate competes with the
+quota meter the §1 and §2 cuts named as the natural home for
+free-tier quota surprises; the proposal claims that real estate first
+because index freshness is a craft signal and quota is a positioning
+signal, and the craft signal should win when both want the same
+pixels.
+
+*(Sources: PM proposal, not a fact-claim about Cursor internals.
+Grounds in §2.2's documented staleness surface — observable on
+2026-05-16, macOS / Pro tier, repo size > 5k files — and in
+IDE-pattern precedent: JetBrains and VS Code both expose index
+state as a footer-or-sidebar first-class affordance, observable on
+their 2026-05-16 stable releases.)*
+
+### 3.3 Proposal C — Agent stop-criteria UI
+
+**The PM proposal.** Replace the implicit "continue on user
+acknowledgment" behavior of Composer and Background Agent with an
+explicit pre-run plan the user confirms — "I'll stop when X, Y, Z are
+done, or if I encounter Q" — plus a prominent pause-and-amend control
+during execution. The default direction on the stop dimension is
+**stop-aggressive**: any user message arriving mid-execution pauses
+the agent and surfaces a "continue / amend / cancel" affordance, with
+stop-permissive available as a per-task opt-in for users who knowingly
+want the agent to push through ambiguity.
+
+**Proposed shape** (the user-facing behavior the proposal implies).
+Before Composer starts a multi-step task, the agent emits a short
+plan summary ("I'll do A, then B, then C, and stop if D"). The user
+clicks "start" to proceed or edits the plan inline before starting.
+During execution, every user message is treated as an interrupt by
+default. The agent pauses, displays the current step's status, and
+prompts the user with "continue from here / amend the plan / cancel."
+A per-task toggle ("auto-continue on acknowledgment, this task only")
+opts the user into the old stop-permissive behavior for tasks where
+they knowingly want it. Background Agent inherits the same plan +
+interrupt flow, with the pause surfaced as a notification when the
+user is offscreen rather than as an inline prompt.
+
+**What could go wrong.** Stop-aggressive means more confirmation
+prompts on routine multi-step tasks, which power users will read as
+nagging. A non-trivial fraction will reach for the per-task
+auto-continue toggle and then forget they enabled it, re-creating the
+original overrun risk one session later. Mitigation: scope the toggle
+to the current task only (no persistent setting), so the user
+re-makes the trust decision per run. A second risk: the pre-run plan
+grows into a planning dialog the user has to negotiate before any
+work happens, increasing time-to-first-edit. Mitigation: keep the
+plan short (3–5 steps), let the user start without amending, and
+treat the plan as a checkpoint rather than a contract — the agent
+can revise the plan mid-execution by pausing and proposing the
+revision through the same interrupt surface.
+
+**Tension worth naming:** stop-aggressive friction vs. overrun-damage
+asymmetry. Stop-aggressive costs the user attention on tasks where
+the agent would have proceeded safely — a per-task tax. The trade
+favors stop-aggressive because the damage profiles are asymmetric:
+a wrong-direction agent edit ten steps deep costs Cancel + inspect +
+revert + the rebuilt trust the agent needs to be useful in the next
+session, while a confirmation prompt costs one click. Friction
+amortizes; a single bad overrun in a refactor-heavy session can end
+the day, and users remember the overrun far longer than the prompts.
+
+*(Sources: PM proposal, not a fact-claim about Cursor internals.
+Grounds in §2.3's documented stop-condition surface — observable on
+2026-05-16, macOS / Pro tier — and in public Anysphere statements on
+agent autonomy posture, cited by post title and date in the source
+list at document end.)*
+
+**Evidence sources for this section:** PM recommendations rather than
+fact-claims, so the source posture is "the draft makes the case;
+the reader is free to disagree." Each proposal grounds in §2's
+documented Cursor surface (which is itself sourced) plus PM-craft
+argument and IDE-pattern precedent observable on competing products'
+2026-05-16 surfaces. No internal Cursor information is assumed (e.g.
+"Cursor's index already supports incremental refresh" would need a
+source or be rewritten as conjecture), no fabricated metrics, no
+roadmap claims beyond what Anysphere has stated publicly.
 
 ---
 
