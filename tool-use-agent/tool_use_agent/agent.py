@@ -1,18 +1,26 @@
-"""Single-step agent loop for the tool-use-agent.
+"""Bounded multi-step agent loop for the tool-use-agent.
 
-Slice 2: one Claude turn with ``tools=[…]``, execute whichever tool the
-model requests, return the result, then get the model's final answer.
-No multi-step chaining yet — that lands in slice 3 by lifting the
-``SINGLE_STEP_MAX_STEPS`` cap into a bounded loop.
+Slice 3: run the model with ``tools=[…]`` in a bounded loop, executing
+whichever tool(s) the model requests each turn, until the model returns
+``end_turn`` without a new ``tool_use`` block or ``max_steps`` is reached.
 
-The dry-run path returns the assembled prompt and the catalog the model
-would see, without importing the SDK. This is the same property the
-``rag-app/`` build holds: the CLI is verifiable without an API key.
+Each "step" is one round of (model call → tool execution). ``max_steps``
+caps the number of tool-execution rounds and is the only knob a caller
+needs for cost-bounding. A model turn that emits no ``tool_use`` blocks
+terminates the loop with ``stop_reason=end_turn`` and the model's text
+as ``final_text``. Reaching the cap exits with
+``stop_reason=max_steps_exhausted`` and a deterministic cap note as
+``final_text`` — slice 4 will swap that for the canonical refusal
+sentence.
+
+The dry-run path returns the assembled first-turn prompt and the
+configured ``max_steps`` cap, without importing the SDK. This is the
+same property the ``rag-app/`` build holds: the CLI is verifiable
+without an API key.
 
 Cross-build refusal alignment: ``REFUSAL_SENTENCE`` is defined with the
 same literal string as ``rag-app/rag_app/verify.py`` so the future
 evals harness can bucket refusals from both builds without fuzzy match.
-Slice 4 will centralize and enforce the refusal path mechanically.
 """
 
 from __future__ import annotations
@@ -29,10 +37,7 @@ from tool_use_agent.catalog import (
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 1024
-
-# Slice 2 caps at one tool-call cycle; slice 3 will lift this to a real
-# bounded loop with `max_steps=6` per the README stack table.
-SINGLE_STEP_MAX_STEPS = 1
+DEFAULT_MAX_STEPS = 6
 
 REFUSAL_SENTENCE = (
     "I don't have enough information in the provided context to answer this."
@@ -44,7 +49,8 @@ You are a careful question-answering assistant for the AI PM 90-day project repo
 You have access to a small set of read-only tools that let you enumerate, read,
 and search files in this repo, and inspect the interview-pipeline tracker. To
 answer a question, decide which tool to call (if any), call it, and ground
-your answer in the tool result.
+your answer in the tool result. You may chain tool calls across turns; each
+turn you should either request the next tool or emit your final answer.
 
 Rules, in order of priority:
 
@@ -66,12 +72,18 @@ Rules, in order of priority:
 
 @dataclass(frozen=True)
 class ToolCallTrace:
-    """One executed tool call inside the agent loop, JSON-friendly."""
+    """One executed tool call inside the agent loop, JSON-friendly.
+
+    ``step`` is the 1-indexed bounded-loop round in which this call was
+    issued. Multiple tool calls can share the same ``step`` when the
+    model emits parallel ``tool_use`` blocks in a single turn.
+    """
 
     tool: str
     input: dict[str, Any]
     output: Any
     is_error: bool = False
+    step: int = 1
 
 
 @dataclass
@@ -82,6 +94,8 @@ class AgentResult:
     question: str
     system_prompt: str
     user_message: str
+    max_steps: int = DEFAULT_MAX_STEPS
+    steps_taken: int = 0
     tool_calls: list[ToolCallTrace] = field(default_factory=list)
     final_text: str = ""
     stop_reason: str | None = None
@@ -95,27 +109,34 @@ def build_user_message(question: str) -> str:
     return f"Question: {question}"
 
 
-def build_dry_run_result(question: str) -> AgentResult:
+def build_dry_run_result(
+    question: str, max_steps: int = DEFAULT_MAX_STEPS
+) -> AgentResult:
     """Assemble the prompt the live path would send, no SDK import."""
     return AgentResult(
         mode="dry-run",
         question=question,
         system_prompt=SYSTEM_PROMPT,
         user_message=build_user_message(question),
+        max_steps=max_steps,
     )
 
 
-def run_single_step(
+def run_agent(
     question: str,
     repo_root: Path,
     model: str = DEFAULT_MODEL,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    max_steps: int = DEFAULT_MAX_STEPS,
 ) -> AgentResult:
-    """Single-step agent loop: one tool-call cycle, then a final answer.
+    """Bounded multi-step agent loop.
 
     The Anthropic SDK is imported lazily so a fresh checkout without
     ``pip install`` still runs ``catalog``, ``tool``, and ``ask --dry-run``.
     """
+    if max_steps < 1:
+        raise ValueError(f"max_steps must be >= 1 (got {max_steps})")
+
     try:
         from anthropic import Anthropic
     except ImportError as exc:  # pragma: no cover - install-time error
@@ -134,108 +155,92 @@ def run_single_step(
         question=question,
         system_prompt=SYSTEM_PROMPT,
         user_message=user_message,
+        max_steps=max_steps,
     )
 
     messages: list[dict[str, Any]] = [
         {"role": "user", "content": user_message},
     ]
+    last_text_parts: list[str] = []
 
-    # Turn 1: send the question. The model may answer directly or emit one
-    # or more tool_use blocks asking us to run something.
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=SYSTEM_PROMPT,
-        tools=tools,
-        messages=messages,
-    )
-    result.model = response.model
-    result.input_tokens += response.usage.input_tokens
-    result.output_tokens += response.usage.output_tokens
-    result.stop_reason = response.stop_reason
+    for step_num in range(1, max_steps + 1):
+        response = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=SYSTEM_PROMPT,
+            tools=tools,
+            messages=messages,
+        )
+        if result.model is None:
+            result.model = response.model
+        result.input_tokens += response.usage.input_tokens
+        result.output_tokens += response.usage.output_tokens
+        result.stop_reason = response.stop_reason
 
-    text_parts: list[str] = []
-    tool_use_blocks: list[Any] = []
-    for block in response.content:
-        block_type = getattr(block, "type", None)
-        if block_type == "text":
-            text_parts.append(block.text)
-        elif block_type == "tool_use":
-            tool_use_blocks.append(block)
+        text_parts: list[str] = []
+        tool_use_blocks: list[Any] = []
+        for block in response.content:
+            block_type = getattr(block, "type", None)
+            if block_type == "text":
+                text_parts.append(block.text)
+            elif block_type == "tool_use":
+                tool_use_blocks.append(block)
+        last_text_parts = text_parts
 
-    if not tool_use_blocks:
-        result.final_text = "".join(text_parts).strip()
-        return result
+        if not tool_use_blocks:
+            # Model decided it has enough — emit final answer. Steps taken
+            # is the count of tool rounds actually executed (0 if the model
+            # answered directly on turn 1).
+            result.final_text = "".join(text_parts).strip()
+            result.steps_taken = step_num - 1
+            return result
 
-    # Execute every tool the model requested in turn 1.
-    tool_result_blocks: list[dict[str, Any]] = []
-    for tu in tool_use_blocks:
-        tool_name = tu.name
-        tool_input = dict(tu.input)
-        is_error = False
-        try:
-            output = call_tool(tool_name, repo_root, **tool_input)
-        except (KeyError, TypeError, ValueError) as err:
-            # Recoverable errors (unknown tool name, bad kwargs, bad value)
-            # become structured tool_result.is_error=True content so the
-            # model can react. Slice 4 will add policy on top of this.
-            output = f"ERROR: {type(err).__name__}: {err}"
-            is_error = True
-        result.tool_calls.append(
-            ToolCallTrace(
-                tool=tool_name,
-                input=tool_input,
-                output=output,
-                is_error=is_error,
+        # Execute every tool the model requested in this turn. Errors
+        # are surfaced as tool_result.is_error=true so the model can
+        # recover on a subsequent step; slice 4 will add policy on top.
+        tool_result_blocks: list[dict[str, Any]] = []
+        for tu in tool_use_blocks:
+            tool_name = tu.name
+            tool_input = dict(tu.input)
+            is_error = False
+            try:
+                output = call_tool(tool_name, repo_root, **tool_input)
+            except (KeyError, TypeError, ValueError) as err:
+                output = f"ERROR: {type(err).__name__}: {err}"
+                is_error = True
+            result.tool_calls.append(
+                ToolCallTrace(
+                    tool=tool_name,
+                    input=tool_input,
+                    output=output,
+                    is_error=is_error,
+                    step=step_num,
+                )
             )
-        )
-        tool_result_blocks.append(
-            {
-                "type": "tool_result",
-                "tool_use_id": tu.id,
-                "content": json.dumps(output, ensure_ascii=False, default=str),
-                "is_error": is_error,
-            }
-        )
+            tool_result_blocks.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tu.id,
+                    "content": json.dumps(output, ensure_ascii=False, default=str),
+                    "is_error": is_error,
+                }
+            )
 
-    # Turn 2: echo the assistant's content back, send tool results, get the
-    # final answer. Any further tool_use blocks here are deferred to slice 3.
-    messages.append({"role": "assistant", "content": response.content})
-    messages.append({"role": "user", "content": tool_result_blocks})
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_result_blocks})
+        result.steps_taken = step_num
 
-    response2 = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=SYSTEM_PROMPT,
-        tools=tools,
-        messages=messages,
+    # Loop exhausted before the model returned end_turn. Surface the cap
+    # explicitly; slice 4 will replace this deterministic note with the
+    # canonical REFUSAL_SENTENCE so the evals harness can bucket the
+    # max_steps_exhausted path together with other refusals.
+    result.stop_reason = "max_steps_exhausted"
+    cap_note = (
+        f"(reached max_steps={max_steps} without a grounded answer; "
+        f"canonical refusal lands in slice 4.)"
     )
-    result.input_tokens += response2.usage.input_tokens
-    result.output_tokens += response2.usage.output_tokens
-    result.stop_reason = response2.stop_reason
-
-    text_parts2: list[str] = []
-    deferred_tool_uses: list[Any] = []
-    for block in response2.content:
-        block_type = getattr(block, "type", None)
-        if block_type == "text":
-            text_parts2.append(block.text)
-        elif block_type == "tool_use":
-            deferred_tool_uses.append(block)
-
-    final_text = "".join(text_parts2).strip()
-    if deferred_tool_uses:
-        # Surface the slice-2 cap rather than silently dropping the request.
-        result.stop_reason = "single_step_cap_reached"
-        deferred_names = ", ".join(t.name for t in deferred_tool_uses)
-        cap_note = (
-            f"(stopped after one tool-call cycle; model wanted to call: "
-            f"{deferred_names}. Multi-step chaining lands in slice 3.)"
-        )
-        result.final_text = (
-            f"{final_text}\n\n{cap_note}" if final_text else cap_note
-        )
-    else:
-        result.final_text = final_text
-
+    closing_text = "".join(last_text_parts).strip()
+    result.final_text = (
+        f"{closing_text}\n\n{cap_note}" if closing_text else cap_note
+    )
     return result

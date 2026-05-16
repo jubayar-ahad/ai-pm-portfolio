@@ -1,10 +1,9 @@
 """Command-line entry point for the tool-use-agent demo.
 
 As of this iteration: `catalog` (print JSON schemas), `tool` (invoke any
-registered tool directly, no API key needed), and `ask` (single-step
-agent loop; auto-falls back to a key-free dry-run that prints the
-assembled prompt and the tool catalog). Multi-step chaining lands in
-slice 3.
+registered tool directly, no API key needed), and `ask` (bounded
+multi-step agent loop with `--max-steps` knob; auto-falls back to a
+key-free dry-run that prints the assembled prompt and the tool catalog).
 """
 
 from __future__ import annotations
@@ -18,11 +17,12 @@ from pathlib import Path
 from typing import Any
 
 from tool_use_agent.agent import (
+    DEFAULT_MAX_STEPS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     AgentResult,
     build_dry_run_result,
-    run_single_step,
+    run_agent,
 )
 from tool_use_agent.catalog import (
     CATALOG,
@@ -143,7 +143,7 @@ def _agent_result_to_payload(result: AgentResult) -> dict[str, Any]:
 
     Slice 5 will add the trace-record fields (schema_version, record_id,
     corpus_fingerprint, generated_at) to this payload by reusing the
-    rag-app trace helpers — the shape here is the slice-2 baseline.
+    rag-app trace helpers — the shape here is the slice-3 baseline.
     """
     return {
         "mode": result.mode,
@@ -152,6 +152,8 @@ def _agent_result_to_payload(result: AgentResult) -> dict[str, Any]:
             "system": result.system_prompt,
             "user": result.user_message,
         },
+        "max_steps": result.max_steps,
+        "steps_taken": result.steps_taken,
         "tool_calls": [dataclasses.asdict(call) for call in result.tool_calls],
         "stop_reason": result.stop_reason,
         "model": result.model,
@@ -165,6 +167,7 @@ def _print_agent_result_human(result: AgentResult) -> None:
     print(f"Question: {result.question}")
     print(f"Mode: {result.mode}")
     if result.mode == "dry-run":
+        print(f"Max steps: {result.max_steps}")
         print("--- prompt.system ---")
         print(result.system_prompt)
         print("--- prompt.user ---")
@@ -178,20 +181,24 @@ def _print_agent_result_human(result: AgentResult) -> None:
         return
 
     if result.tool_calls:
-        print(f"--- tool trace ({len(result.tool_calls)} call(s)) ---")
-        for i, call in enumerate(result.tool_calls, start=1):
+        print(
+            f"--- tool trace ({len(result.tool_calls)} call(s) over "
+            f"{result.steps_taken}/{result.max_steps} step(s)) ---"
+        )
+        for call in result.tool_calls:
             tag = " [ERROR]" if call.is_error else ""
-            print(f"  step {i}: {call.tool}({call.input}){tag}")
+            print(f"  step {call.step}: {call.tool}({call.input}){tag}")
             preview = _preview_output(call.output)
             print(f"    -> {preview}")
     else:
-        print("(no tool calls)")
+        print(f"(no tool calls; steps_taken={result.steps_taken})")
     print()
     print("--- answer ---")
     print(result.final_text or "(empty)")
     print()
     print(
         f"(model={result.model}  stop_reason={result.stop_reason}  "
+        f"steps={result.steps_taken}/{result.max_steps}  "
         f"input_tokens={result.input_tokens}  "
         f"output_tokens={result.output_tokens})"
     )
@@ -215,14 +222,22 @@ def cmd_ask(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(__file__).resolve().parent)
     have_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
+    if args.max_steps < 1:
+        print(
+            f"error: --max-steps must be >= 1 (got {args.max_steps})",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.dry_run or not have_key:
-        result = build_dry_run_result(args.question)
+        result = build_dry_run_result(args.question, max_steps=args.max_steps)
     else:
-        result = run_single_step(
+        result = run_agent(
             args.question,
             repo_root=repo_root,
             model=args.model,
             max_tokens=args.max_tokens,
+            max_steps=args.max_steps,
         )
 
     if args.json:
@@ -242,8 +257,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m tool_use_agent",
         description=(
-            "Tool-use agent demo (slice 2: catalog + direct tool calls + "
-            "single-step ask)."
+            "Tool-use agent demo: catalog + direct tool calls + "
+            "bounded multi-step ask."
         ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -272,8 +287,9 @@ def build_parser() -> argparse.ArgumentParser:
     ask = subparsers.add_parser(
         "ask",
         help=(
-            "Run the single-step agent loop on a question. Auto-falls back "
-            "to a key-free dry-run if ANTHROPIC_API_KEY is unset."
+            "Run the bounded multi-step agent loop on a question. "
+            "Auto-falls back to a key-free dry-run if ANTHROPIC_API_KEY "
+            "is unset."
         ),
     )
     ask.add_argument("question", help="Natural-language question.")
@@ -287,6 +303,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_TOKENS,
         help=f"Max output tokens per turn (default {DEFAULT_MAX_TOKENS}).",
+    )
+    ask.add_argument(
+        "--max-steps",
+        type=int,
+        default=DEFAULT_MAX_STEPS,
+        help=(
+            f"Max tool-execution rounds before the loop exits with "
+            f"stop_reason=max_steps_exhausted (default {DEFAULT_MAX_STEPS})."
+        ),
     )
     ask.add_argument(
         "--dry-run",

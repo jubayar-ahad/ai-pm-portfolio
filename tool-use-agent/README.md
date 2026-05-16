@@ -16,18 +16,20 @@ incrementally — see [Status](#status) for what currently runs.
 | Design doc (this README) | Shipped |
 | Tool catalog (pure-Python, no LLM) | Shipped |
 | Single-step agent loop (one tool call, then answer) | Shipped |
-| Multi-step agent loop (chained tool calls, bounded) | Not yet |
+| Multi-step agent loop (chained tool calls, bounded) | Shipped |
 | Refusal + bounded-step termination | Not yet |
 | Eval-trace records (`tool-use-agent.ask.v1`) | Not yet |
 
 The `ask` subcommand runs in two modes, matching the `rag-app/` build.
 With `ANTHROPIC_API_KEY` set it calls Claude with `tools=[…]`, runs whichever
-tool the model requests, returns the result, and prints Claude's final
-answer plus a one-line trace per tool call. Without a key (or with explicit
-`--dry-run`) it prints the assembled first-turn prompt and the tool
-catalog the model would see — enough to validate the tool schema and prompt
-construction in a sandbox or CI environment. Multi-step chaining lands in
-slice 3.
+tool(s) the model requests, returns the results, loops up to
+`--max-steps` (default 6) until the model returns an `end_turn` without a
+new tool call, and prints Claude's final answer plus a per-step trace.
+Without a key (or with explicit `--dry-run`) it prints the assembled
+first-turn prompt and the tool catalog the model would see — enough to
+validate the tool schema and prompt construction in a sandbox or CI
+environment. Refusal canonicalization for the `max_steps_exhausted` path
+lands in slice 4.
 
 ## What this demo is, in one sentence
 
@@ -219,28 +221,28 @@ Each line below is intended to map to a single future iteration:
    in slice 2). `python -m tool_use_agent catalog` prints the catalog
    in `{name, description, input_schema}` shape ready to pass to
    `client.messages.create(tools=…)`.
-2. **Single-step agent loop.** *(Shipped.)* `python -m tool_use_agent ask
-   "<question>"` calls Claude once with `tools=[…]`, executes whichever
-   tool(s) the model requests in that turn, returns the tool results to
-   the model, and prints the final answer plus a one-line trace per
-   tool call. Implementation in `tool_use_agent/agent.py`. The
-   single-step cap is enforced explicitly: if the model asks for a
-   second tool-call cycle after seeing the first batch of results, the
-   CLI surfaces `stop_reason=single_step_cap_reached` rather than
-   silently dropping the request. Recoverable dispatch errors
-   (unknown tool name, bad kwargs, bad value) become
-   `tool_result.is_error=true` content so slice 4 can react. Dry-run
-   path (`--dry-run` or no `ANTHROPIC_API_KEY`) prints the assembled
-   prompt and the catalog the model would see, without importing the
-   SDK. `--json` emits a structured record with `mode`, `prompt`,
-   `tool_calls[]`, `stop_reason`, `model`, token usage, and
-   `final_text` — slice 5 will add the
-   `schema_version`/`record_id`/`corpus_fingerprint`/`generated_at`
-   trace fields to this same shape via reused `rag-app/rag_app/trace.py`
-   helpers.
-3. **Multi-step agent loop.** Lift the single-step cap and run the loop
-   until `end_turn` or `max_steps` (default 6). Render a human-readable
-   tool trace inline (`step 1: read_repo_file(...) → 240 chars`).
+2. **Single-step agent loop.** *(Shipped, superseded by slice 3.)* The
+   initial `ask` subcommand ran a single tool-call cycle and surfaced
+   `stop_reason=single_step_cap_reached` if the model wanted a second
+   call. Slice 3 generalizes this into a bounded multi-step loop, so
+   `--max-steps 1` is now the closest equivalent (it exits with
+   `stop_reason=max_steps_exhausted` instead of the slice-2 cap
+   string). Implementation in `tool_use_agent/agent.py`; dry-run and
+   `--json` shape inherited unchanged.
+3. **Multi-step agent loop.** *(Shipped.)* `run_agent` in
+   `tool_use_agent/agent.py` runs the model in a bounded loop with
+   `--max-steps` (default 6) tool-execution rounds. Each step is one
+   round of (model call → tool execution). The loop terminates when
+   (a) the model emits no `tool_use` blocks — `stop_reason=end_turn`
+   with `steps_taken < max_steps` — or (b) the cap is reached —
+   `stop_reason=max_steps_exhausted`. Parallel `tool_use` blocks in
+   one turn share a step number (`ToolCallTrace.step`), so the trace
+   distinguishes "two tools in one round" from "two tools in two
+   rounds." Recoverable dispatch errors still surface as
+   `tool_result.is_error=true`. Slice 4 will replace the
+   `max_steps_exhausted` cap note with the canonical
+   `REFUSAL_SENTENCE` so refusals bucket the same as
+   `rag-app/`'s.
 4. **Refusal + bounded-step termination.** Canonical refusal sentence
    defined once and emitted whenever the loop terminates without a
    grounded answer (no useful tool result, or `max_steps` exhausted,
@@ -257,9 +259,9 @@ Each line below is intended to map to a single future iteration:
 
 ## How to run
 
-Slices 1 and 2 have landed: the six tools, the `catalog`/`tool`
-subcommands, and the single-step `ask` subcommand are all runnable.
-Live `ask` needs `ANTHROPIC_API_KEY` and `pip install -r
+Slices 1–3 have landed: the six tools, the `catalog`/`tool`
+subcommands, and the bounded multi-step `ask` subcommand are all
+runnable. Live `ask` needs `ANTHROPIC_API_KEY` and `pip install -r
 requirements.txt`; everything else is stdlib-only.
 
 ```bash
@@ -279,17 +281,24 @@ python -m tool_use_agent tool grep_repo --query "BM25" --max-matches 3
 # Emit a JSON tool result instead of the human-readable view:
 python -m tool_use_agent tool grep_repo --query "no-fabrication" --json
 
-# Single-step agent loop. With ANTHROPIC_API_KEY set this calls Claude
-# with tools=[…], runs whichever tool the model picks, and prints the
-# final answer plus a one-line trace per tool call:
-python -m tool_use_agent ask "How many Bucket 2 loops are still in recruiter-screen?"
+# Bounded multi-step agent loop. With ANTHROPIC_API_KEY set this calls
+# Claude with tools=[…] in a loop, executes whichever tool(s) the
+# model picks per turn, and prints the final answer plus a per-step
+# trace. The default cap is 6 tool-execution rounds; raise or lower
+# with --max-steps:
+python -m tool_use_agent ask "<question>"
+python -m tool_use_agent ask "<question>" --max-steps 3
 
 # Dry-run (auto-enabled when ANTHROPIC_API_KEY is unset, also forceable
 # with --dry-run): prints the assembled prompt + the tool catalog the
-# model would see, without importing the SDK:
+# model would see, without importing the SDK. --max-steps is surfaced
+# in the dry-run output so you can verify the cap that would apply:
 python -m tool_use_agent ask "<question>" --dry-run
 
-# Structured JSON output for downstream tooling:
+# Structured JSON output for downstream tooling. Each ToolCallTrace
+# carries a `step` field (1-indexed bounded-loop round); the payload
+# also reports `max_steps`, `steps_taken`, and `stop_reason`
+# (`end_turn` or `max_steps_exhausted`):
 python -m tool_use_agent ask "<question>" --json
 ```
 
@@ -301,11 +310,10 @@ Notes:
   currently return empty / zero histograms because the tracker
   contains only placeholder rows. They start returning real data the
   moment the user fills in real rows, with no code change required.
-- Slice 2 is deliberately capped at one tool-call cycle. If the model
-  requests a second tool call after seeing the first batch of
-  results, `ask` surfaces `stop_reason=single_step_cap_reached` rather
-  than dropping the request silently. The bounded multi-step loop
-  lives in slice 3.
+- When the loop exits with `stop_reason=max_steps_exhausted`,
+  `final_text` is a deterministic cap note rather than the canonical
+  `REFUSAL_SENTENCE`. Slice 4 will reconcile this so the eval harness
+  can bucket the cap-exhaustion path with other refusals.
 
 ## Design tradeoffs called out for interview discussion
 

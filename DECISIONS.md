@@ -544,3 +544,80 @@ refusal handling will treat these as one bucket. Defining
 cross-importing across top-level directories) keeps each build
 runnable on its own; the alignment guarantee is a string-equality
 test the evals harness can assert at startup.
+
+## 2026-05-16 — tool-use-agent slice 3: bounded multi-step loop, max_steps semantics, cap surface
+
+Slice 3 lifts the slice-2 single-step cap and ships the bounded
+multi-step agent loop in `tool_use_agent/agent.py::run_agent`. The
+following contract is locked so slice 4 (refusal canonicalization)
+and slice 5 (eval-trace records) can layer on without re-litigating
+loop semantics:
+
+1. **`max_steps` semantics: cost-bound, not call-count.** `max_steps`
+   (default 6, configurable via `--max-steps`) caps the number of
+   *tool-execution rounds*, where one round = one model call whose
+   response contained at least one `tool_use` block + the local
+   execution of every `tool_use` in that response. A model turn that
+   emits *no* `tool_use` blocks terminates the loop immediately and
+   does not consume a step. With `max_steps=6` the worst case is up
+   to 6 model calls that each request tools, plus their local
+   executions; there is no implicit "final summarization" call after
+   the cap. This is the cost-bound semantics the `calls-per-answered-
+   query` AI-PM-lens metric measures.
+
+2. **Termination conditions and `stop_reason` discriminator.** The
+   loop ends in exactly one of two states: `stop_reason=end_turn`
+   when the model emits no `tool_use` blocks in some turn (the
+   final answer is the accumulated `text` blocks from that turn,
+   `steps_taken < max_steps` is possible), or
+   `stop_reason=max_steps_exhausted` when the cap is reached
+   (`steps_taken == max_steps`, `final_text` is a deterministic cap
+   note for now). Slice 4 will replace the cap note with
+   `REFUSAL_SENTENCE` so the evals harness can bucket the
+   `max_steps_exhausted` path with other refusals via a single
+   equality check; slice 3 deliberately keeps the cap note distinct
+   so an interviewer running the demo today sees the planned
+   boundary instead of a refusal pretending to be a model decision.
+
+3. **Per-step trace granularity.** `ToolCallTrace` gains a
+   1-indexed `step: int` field denoting the bounded-loop round in
+   which the call was issued. Parallel `tool_use` blocks in one
+   model turn share a `step` value, so the trace distinguishes
+   "two tools in one round" (1 step) from "two tools in two rounds"
+   (2 steps). This is the granularity slice 5's trace records will
+   serialize, and the `--max-steps` cap is checked against
+   `steps_taken` (not `len(tool_calls)`).
+
+4. **AgentResult shape additions.** `AgentResult` gains two new
+   fields surfaced in both the human-readable view and the
+   `--json` payload: `max_steps: int` (the configured cap, default
+   6) and `steps_taken: int` (the rounds actually executed). Token
+   usage continues to accumulate across all turns. The slice-2 JSON
+   schema is otherwise unchanged — same `mode`/`question`/`prompt`/
+   `tool_calls[]`/`stop_reason`/`model`/`input_tokens`/
+   `output_tokens`/`final_text` keys — so this is an additive-fields
+   change and does not require a `tool-use-agent.ask.v1` schema
+   version bump when slice 5 lands.
+
+**Rationale.** Making `max_steps` mean "tool-execution rounds" (not
+"model calls") is the framing that survives both demo and
+production: a PM saying "the agent loops at most six times" matches
+the user-visible cost they would budget. Distinguishing
+`end_turn` from `max_steps_exhausted` at the `stop_reason` level
+gives the eval harness a clean discriminator without needing to
+parse `final_text`, which matters because the harness's per-question
+correctness rubric and its per-question termination-quality rubric
+are different metrics and would otherwise have to share a signal.
+Surfacing `steps_taken` alongside `max_steps` is the smallest
+disclosure that lets a viewer reason about "did the cap matter for
+this answer?" — a cap that was never hit is a free-disposal upper
+bound; a cap that was hit is the cost the agent paid. Adding
+`step` to `ToolCallTrace` rather than relying on positional
+enumeration matters because parallel `tool_use` blocks would
+otherwise inflate the apparent step count by 2x in a multi-tool
+turn, which would make any "% of queries answered in ≤2 steps"
+eval metric quietly wrong. The deterministic cap-note final-text
+(deferring `REFUSAL_SENTENCE` to slice 4) keeps each slice's
+contract minimal: slice 3 owns "what does the loop do," slice 4
+owns "what string represents a refusal," and the diff between them
+is a one-line swap, not a re-architecture.
