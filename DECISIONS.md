@@ -1249,3 +1249,161 @@ bucketing, fingerprint-mismatch warnings (those land in
 the report slice), per-record validation of per-build
 fields like `verification.citations` or `tool_calls`,
 and any kind of LLM call. The harness remains stdlib-only.
+
+## 2026-05-16 — evals-harness slice 3: refusal-bucket scorer
+
+Slice 3 ships `python -m evals_harness score --rubric
+refusal` — the smallest cross-build comparison the harness
+can produce, and the one that directly exercises the
+canonical-refusal-string invariant locked in the prior
+builds' slice 4. Five contract pieces locked here so
+slices 4 and 5 can build on them without re-litigation.
+
+**1. Input: normalized envelope only.**
+
+The scorer takes `--ingested <path>` (the
+`ingested.jsonl` produced by `ingest --out`). It does not
+re-accept `--labels` and `--traces` directly; the slice-2
+DECISIONS entry already named the envelope as the
+canonical scorer input, and supporting two input paths
+would silently bifurcate the validation surface (label
+schema checks live in `ingest`, not `score`). A user who
+hasn't run `ingest --out` first gets a clear "file not
+found" rather than a different validation error.
+
+**2. Startup invariants re-run before scoring.**
+
+`cmd_score` calls `run_startup_invariants()` before
+opening the envelope. Slice 2 already ran them at ingest
+time, but a `REFUSAL_SENTENCE` drift introduced between
+the ingest and score commands (e.g. an editor save in
+either build's `verify.py` between the two CLI calls)
+would silently split one refusal bucket into two. Running
+the invariants again is cheap (milliseconds) and is the
+single line that protects this rubric from drift.
+
+**3. Pairing key: (question, schema_version ∈ applies_to).**
+
+The label↔trace pairing slice 2 deferred lands here:
+the natural cross-build identity is the question string,
+because labels carry one question that may apply to one
+or both builds via `applies_to`. The scorer joins by
+exact `trace.question == label.question` AND
+`trace.schema_version ∈ label.applies_to`. A trace whose
+question never appears in any label counts as
+`unpaired_trace`; a label whose question never appears in
+any trace counts as `unpaired_label`. Counts appear in
+the report header as diagnostic signal; neither path
+raises.
+
+`record_id` was the alternative pairing key. Rejected:
+each build computes `record_id` from a per-build logical
+tuple that includes that build's own corpus_fingerprint,
+so two builds running the same labeled question produce
+two different `record_id`s. Joining by question lets the
+same label compare both builds' behavior in one row of
+the confusion matrix, which is the property that
+motivated the harness in the first place.
+
+**4. Build-specific observed-outcome classifiers.**
+
+The README claims `final_text == REFUSAL_SENTENCE` as
+the cross-build refusal detector. In practice the two
+builds expose the signal slightly differently:
+
+- **rag-app.** Observed = `refuse` iff
+  `mode == "refused-low-score"` (threshold-bypass; no
+  model call) OR `mode == "live"` AND
+  `answer.text.strip() == REFUSAL_SENTENCE`. Observed =
+  `answer` iff `mode == "live"` AND
+  `answer.text.strip() != REFUSAL_SENTENCE`. Observed =
+  `no_observation` for every other mode (notably
+  `dry-run`, where `answer` is None).
+- **tool-use-agent.** Observed = `refuse` iff
+  `mode == "live"` AND
+  `final_text.strip() == REFUSAL_SENTENCE`. The
+  classifier additionally cross-checks
+  `refusal_reason is not None`; a divergence between the
+  text-equality and the reason-set signals raises
+  `ScoreError` because it would indicate a build bug the
+  slice-2 invariants did not anticipate. Observed =
+  `no_observation` for `dry-run` (where `final_text` is
+  empty).
+
+The two detectors are not symmetrical because the trace
+shapes are not symmetrical: rag-app carries refusal as a
+`{text, reason}` block while tool-use-agent carries it
+as `final_text` plus an enum `refusal_reason`. The
+strict-strip byte-equality with `REFUSAL_SENTENCE`
+imported from each build's own `verify.py` is the
+property that lets the same scorer treat all five
+canonical-refusal paths (rag-app threshold-bypass, rag-app
+model-refused, tua model-refused, tua max_steps_exhausted,
+tua repeated_tool_error) as one logical bucket.
+
+**5. Output shapes.**
+
+- **Per-record JSONL** (`--out <path>`, optional). Each
+  line is one (record_id, rubric) row with keys
+  `{rubric, record_id, schema_version, question,
+  label_id, expected_outcome, observed_outcome, mode,
+  match}`. Rows are sorted by
+  `(schema_version, record_id, label_id)` so the file
+  diffs cleanly across re-runs.
+- **Markdown table** (always to stdout, optionally
+  duplicated to `--markdown <path>`). One row per
+  `(build, expected_outcome)` cell plus an
+  `**overall**` row per build with
+  `correct/observable (pct%)` accuracy. The header line
+  carries `labels=N  traces=N  scored_rows=N
+  unpaired_traces=N  unpaired_labels=N` so the diagnostic
+  counts cannot get lost when the table is pasted into a
+  recruiter email.
+
+`no_observation` rows (currently: dry-run traces) are
+counted in the matrix but excluded from the
+`correct/observable` accuracy denominator. This is the
+single decision that keeps the accuracy column
+reproducible regardless of how many dry-run records
+happen to appear in the input — dry-runs are a
+diagnostic artifact, not a behavioral signal.
+
+**Rationale (why this shape, not some other):**
+
+- **One row per (label, trace) pair, not one row per
+  label.** A single labeled question can have multiple
+  traces in the envelope (e.g. one rag-app live run plus
+  one rag-app dry-run plus one tool-use-agent live run);
+  each trace is its own behavioral observation and earns
+  its own row. Collapsing to one-per-label would force
+  the scorer to vote across runs, which would (a) hide
+  variance and (b) be ambiguous when traces disagree.
+- **Disagreement is an error, not a warning.** The
+  text-equality vs. refusal_reason cross-check on
+  tool-use-agent could have been a soft warning, but a
+  divergence means one of the two signals is lying about
+  what happened — there is no safe interpretation. The
+  strict raise forces the bug to surface in the iteration
+  that introduced it, with the offending `record_id` in
+  the error message.
+- **Cross-build alignment uses each build's own
+  REFUSAL_SENTENCE, not a harness copy.** The classifier
+  imports `REFUSAL_SENTENCE` directly from
+  `rag_app.verify` and `tool_use_agent.verify`. If the
+  harness owned a copy, a drift could land that left both
+  builds aligned with each other and out of sync with the
+  harness — silently miscounting every refusal. Importing
+  the actual constants is the only way to make the
+  startup-invariants assertion load-bearing rather than
+  ceremonial.
+
+**Out of scope for slice 3** (explicit, so slice 4 and 5
+cannot silently inherit them): groundedness scoring
+(citations resolved/unresolved — slice 4 reads the
+`verification` block), first-call tool accuracy (slice 4
+reads `tool_calls[0]`), termination-quality buckets and
+token/cost percentiles (slice 5), `corpus_fingerprint`
+diversity warnings (slice 5), and report aggregation
+across rubrics (slice 5 reads the scored JSONL). The
+harness remains stdlib-only, performs no LLM calls, and
+holds no state across runs.

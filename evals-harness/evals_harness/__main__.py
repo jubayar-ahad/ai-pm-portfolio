@@ -1,8 +1,8 @@
 """``python -m evals_harness`` CLI entry point.
 
-Three subcommands will land across slices 2–5. Slice 2 ships ``ingest``;
-``score`` and ``report`` will be added by future iterations without
-changing the CLI shape.
+Three subcommands land across slices 2–5. Slices 2 and 3 ship ``ingest``
+and ``score``; ``report`` (slice 5) will be added without changing the
+CLI shape.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import argparse
 import sys
 
 from .ingest import cmd_ingest
+from .score import RUBRIC as REFUSAL_RUBRIC, cmd_score
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -55,6 +56,49 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print one line per passed invariant check.",
     )
     p_ingest.set_defaults(func=cmd_ingest)
+
+    p_score = sub.add_parser(
+        "score",
+        help=(
+            "Score a normalized ingested.jsonl against a labeled set. "
+            "Slice 3 wires only --rubric refusal."
+        ),
+    )
+    p_score.add_argument(
+        "--rubric",
+        required=True,
+        choices=[REFUSAL_RUBRIC],
+        help=(
+            "Which rubric to score. Slice 3 supports 'refusal' only; "
+            "subsequent slices add 'groundedness', 'first_call_tool', "
+            "and 'termination'."
+        ),
+    )
+    p_score.add_argument(
+        "--ingested",
+        required=True,
+        help=(
+            "Path to a normalized ingested.jsonl produced by "
+            "`python -m evals_harness ingest --out`."
+        ),
+    )
+    p_score.add_argument(
+        "--out",
+        default=None,
+        help=(
+            "Optional path for per-record scored JSONL. Each line is one "
+            "(record_id, rubric) row with expected/observed outcomes."
+        ),
+    )
+    p_score.add_argument(
+        "--markdown",
+        default=None,
+        help=(
+            "Optional path to write the rendered Markdown report. The "
+            "report always prints to stdout regardless."
+        ),
+    )
+    p_score.set_defaults(func=cmd_score)
 
     return parser
 

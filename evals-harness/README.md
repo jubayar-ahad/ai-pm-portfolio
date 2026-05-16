@@ -17,7 +17,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Design doc (this README) | Shipped |
 | Labeled query set scaffold (`queries.jsonl`) | Shipped |
 | Trace ingester + startup invariant checks | Shipped |
-| Refusal-bucket scorer (cross-build) | Not started |
+| Refusal-bucket scorer (cross-build) | Shipped |
 | Groundedness + termination + cost scorers, aggregate report | Not started |
 
 The harness deliberately performs **no model calls of its own**. It scores
@@ -271,14 +271,22 @@ Each line below is intended to map to a single future iteration:
    (`N traces, M labels, K invariant checks passed`). Fails fast
    with exit code 2 on any invariant or schema violation. Zero
    traces is allowed so labels can be iterated before traces exist.
-3. **Refusal-bucket scorer (cross-build).** `python -m
-   evals_harness score --rubric refusal …` joins ingested traces with
-   labels by `record_id`/question, computes a refusal confusion matrix
-   per build (`expected=refuse, observed=refuse|answer` × build), and
-   emits a per-record scored JSONL plus a small Markdown table. This
-   is the smallest cross-build comparison the harness can produce and
-   the one that directly exercises the canonical-refusal-string
-   invariant locked in the prior builds' slice 4.
+3. **Refusal-bucket scorer (cross-build).** *Shipped.*
+   `python -m evals_harness score --rubric refusal --ingested
+   <path> [--out <path>] [--markdown <path>]` re-runs the slice-2
+   startup invariants, reads the normalized envelope, joins each
+   trace to a label by question-string equality plus
+   `schema_version ∈ applies_to`, classifies each trace as
+   `refuse` / `answer` / `no_observation` using build-specific
+   detectors (rag-app: `mode == "refused-low-score"` OR
+   `answer.text == REFUSAL_SENTENCE`; tool-use-agent:
+   `final_text == REFUSAL_SENTENCE`, cross-checked against
+   `refusal_reason`), and emits a per-record scored JSONL plus a
+   per-build confusion-matrix Markdown table. Dry-run traces
+   classify as `no_observation` and are reported separately so they
+   never inflate or deflate the accuracy column. Unpaired traces
+   and unpaired labels are surfaced as diagnostic counts in the
+   table header.
 4. **Groundedness + first-call tool scorers.** Per-build rubrics that
    are not cross-cuttable: groundedness reads the rag-app trace's
    `verification` block; first-call tool accuracy reads
@@ -328,16 +336,30 @@ Failure paths exit with code 2 and a named error:
 - Cross-build `REFUSAL_SENTENCE` drift → `INVARIANT FAILED: …`
 - Trace-helper algorithm drift in either build → `INVARIANT FAILED: …`
 
-The locked CLI shape for the remaining slices is:
+The `score` subcommand (slice 3) runs the refusal rubric across both
+builds. It re-runs the slice-2 startup invariants before scoring, so a
+drift introduced between `ingest` and `score` is still caught.
 
 ```bash
 cd evals-harness
 
-# (slice 3) score the refusal rubric across both builds.
+# (slice 3, shipped) score the refusal rubric across both builds.
 python3 -m evals_harness score \
     --rubric refusal \
     --ingested .cache/ingested.jsonl \
     --out .cache/scored.jsonl
+# → prints a per-build confusion matrix as a Markdown table:
+#   | build | expected | observed=refuse | observed=answer
+#     | observed=no_observation | total | accuracy |
+#   one row per (build, expected_outcome) plus an `**overall**`
+#   row per build, plus a counts header showing labels/traces/
+#   unpaired_traces/unpaired_labels.
+```
+
+The locked CLI shape for the remaining slices is:
+
+```bash
+cd evals-harness
 
 # (slice 4) score per-build rubrics.
 python3 -m evals_harness score --rubric groundedness \
