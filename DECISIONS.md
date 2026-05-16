@@ -4188,3 +4188,146 @@ trailing reminder. Pointing in-template (one section per scaffold
 naming its position) is the right per-scaffold load-bearing
 discipline, mirroring the same single-source-of-truth pattern
 COVER_LETTER's "quote RESUME by reference" uses one layer down.
+
+## 2026-05-16 — rag-app packaging contract (NEXT_WORK item 1, sub-checkbox 1 of 5)
+
+**Decision.** `rag-app/pyproject.toml` lands now, locking the packaging
+contract that the next two sub-checkboxes (tool-use-agent and
+evals-harness pyproject files) will re-apply byte-for-byte where the
+contract is shared and adapt only where each build's surface legitimately
+differs (its package name, its console script name, its runtime
+dependency list). The contract has six load-bearing pieces:
+
+1. **Build backend: setuptools (`setuptools>=61.0`) with
+   `setuptools.build_meta`.** Setuptools is the only PEP-517 backend
+   available without an additional install step on stock Python, and
+   `>=61.0` is the floor that enables the `[project]` table from PEP 621
+   (so all metadata lives in `pyproject.toml`, not a legacy `setup.cfg`
+   or `setup.py`). Hatchling, flit, and poetry-core were considered and
+   rejected: each is a per-build dev-dep, and locking a non-default
+   backend across three builds with no offsetting feature need would
+   make `pip install -e .` on a fresh checkout require a tooling install
+   the contributor did not opt into. The build verified end-to-end in
+   an isolated venv (`python3 -m venv /tmp/rag-app-venv` →
+   `pip install -e . --no-deps` → editable wheel
+   `rag_app-0.1.0-0.editable-py3-none-any.whl`, ~9.6 kB; the `rag-app`
+   console script and `rag_app load` ran the actual CLI).
+
+2. **Python floor: `requires-python = ">=3.9"`.** Matches the
+   iteration-39 reconcile that pinned the rag-app README to "3.9+" and
+   matches what the code's `from __future__ import annotations` posture
+   actually requires (no PEP-604 unions, no walrus-in-comprehension, no
+   3.10+ syntax in the package). The `classifiers` list redundantly
+   names 3.9 / 3.10 / 3.11 / 3.12 to drive the upcoming GitHub Actions
+   matrix (NEXT_WORK item 4) without re-litigating the supported
+   versions in workflow yaml. Pinning the floor *here* in addition to
+   the README is the single-source-of-truth move: `pip install -e .`
+   will reject a 3.8 install with a clear error, where the README's
+   claim has no enforcement surface.
+
+3. **Runtime dependencies = exactly `anthropic>=0.40`, byte-equivalent
+   to `requirements.txt`.** Migration was deliberately a copy, not a
+   widening or narrowing — the iteration-3 lock on `anthropic` (with
+   `>=0.40` set when the Messages API shape was confirmed in
+   `rag_app/generate.py`) carries forward unchanged. `requirements.txt`
+   stays in the tree pointing at the same pin so a contributor who
+   prefers `pip install -r requirements.txt` over `pip install -e .`
+   still gets the same resolver behavior; the two files describe the
+   same install for the same use case, not two separate contracts.
+   The dual-file pattern is intentional and will repeat in
+   tool-use-agent (item 1, sub-checkbox 2); evals-harness has no
+   `requirements.txt` today and is stdlib-only, so its pyproject's
+   `dependencies = []` will be the canonical single source.
+
+4. **Dev-dep extras: `pytest>=7`, `mypy>=1.0`, `ruff>=0.1` under
+   `[project.optional-dependencies].dev`.** Locked here so NEXT_WORK
+   item 3 (pytest suites) and item 4 (CI matrix) can each `pip install
+   -e .[dev]` without re-deciding the test/lint stack. The three tools
+   are deliberately the lowest-friction trio: pytest is the de-facto
+   Python test framework already named in NEXT_WORK item 3; ruff is
+   the only linter that runs in a fraction of a second and combines
+   lint + format in one binary, so it can be `ruff check` blocking in
+   CI without slowing the matrix; mypy is named here because the
+   package already uses `from __future__ import annotations` and
+   typed dataclasses, so a non-strict run (`python -m mypy
+   <package>`) is a free-ish gate the codebase already pays for in
+   annotation discipline. The floors (`>=7`, `>=1.0`, `>=0.1`) are
+   minimums known to work with the package's syntax, not pins —
+   future iterations may raise them without a supersession entry,
+   per the standard pin-floor-not-ceiling discipline.
+
+5. **Console script: `rag-app = rag_app.__main__:main`** under
+   `[project.scripts]`. The CLI entry point is `rag_app/__main__.py`'s
+   `main(argv: list[str] | None = None) -> int`, exactly as already
+   exposed by `python -m rag_app`. Adding the console script means
+   `pip install -e .` plus `rag-app load` produces the same end-to-end
+   behavior as the existing `python -m rag_app load`, with no code
+   change to the package — the change is *additive at the install
+   layer*. The hyphenated executable name (`rag-app`) matches the
+   distribution name on PyPI conventions; the dotted module reference
+   (`rag_app.__main__:main`) matches the underscore-package-name
+   convention. The same dotted reference is the entry point the
+   verification step relied on (`rag-app --help` printed the
+   `argparse` usage line, confirming the script function-pointer
+   resolved correctly into the installed package).
+
+6. **The `license` field is deliberately omitted from this slice.**
+   NEXT_WORK item 2 ("LICENSE — MIT, at repo root + per-build")
+   explicitly owns the `license = ...` line in each `pyproject.toml`
+   in its second-to-last sub-checkbox. Adding it here would do half
+   of item 2's work in item 1's commit and silently couple two
+   sub-items' scopes; leaving it out preserves the one-sub-checkbox-
+   per-commit discipline. The same posture applies to a per-build
+   `LICENSE` file at `rag-app/LICENSE` — that belongs to item 2
+   sub-checkbox 2, not this slice. Future readers should expect item
+   2 to add three lines (`license = { text = "MIT" }`) to the three
+   pyproject files plus three `LICENSE` files plus three
+   `mention-the-license` README edits, all in three commits.
+
+**Why this is the right slice now, not later.** NEXT_WORK was added at
+commit `dc6dfab` after the templates kit and Cursor teardown
+stabilized, explicitly ordering packaging first ("ordered first
+because tests + CI depend on clean packaging"). Sub-checkboxes 3
+(pytest suites) and 4 (CI matrix) cannot land without a real
+installable surface to point at; the smallest meaningful slice that
+unblocks them is *one* `pyproject.toml`. Doing all three pyproject
+files in one slice would over-bundle and miss the precedent value of
+having the *contract* locked here once and inherited twice. Doing
+zero (e.g., starting with a LICENSE) would re-order against the
+explicit "ordered first" instruction.
+
+**The verification surface.** `python3 -m venv /tmp/rag-app-venv`
+followed by `pip install -e . --no-deps` produced
+`rag_app-0.1.0-0.editable-py3-none-any.whl` and a working `rag-app`
+console script in the venv's `bin/`. `from rag_app.__main__ import
+main` imported cleanly with `<function main at 0x...>` as the
+repr. `rag-app --help` returned the same `argparse` usage line as
+`python -m rag_app --help`. `rag-app load` ran end-to-end against
+the actual corpus v1 files, producing the expected
+{OBJECTIVE / DECISIONS / INTERVIEW_TRACKER / rag-app/README} chunk
+output. `--no-deps` was used because the venv intentionally does not
+have network access to PyPI in this iteration — proving the *package*
+installs cleanly is the slice's goal; proving `anthropic` installs is
+a property of PyPI, not this contract.
+
+**Out of scope for this iteration.** (1) **No edit to `requirements.txt`**
+— the file stays at its iteration-3 contents (`anthropic>=0.40`); the
+pyproject's `dependencies` list duplicates it deliberately, not
+superseding it. (2) **No `tool-use-agent/pyproject.toml` or
+`evals-harness/pyproject.toml`** — those are the next two sub-checkboxes
+under item 1 and each gets its own slice / commit. (3) **No
+`LICENSE` file at `rag-app/`, no `license = ...` line in this
+`pyproject.toml`, no license mention in `rag-app/README.md`** — all
+three belong to NEXT_WORK item 2. (4) **No `tests/` directory and no
+`pytest` invocation** — that is NEXT_WORK item 3, which depends on
+this slice but is a separate item. (5) **No `.github/workflows/ci.yml`,
+no CI badge in any README, no GitHub Actions config of any kind** —
+that is NEXT_WORK item 4. (6) **No rag-app corpus v1 expansion** —
+the iteration-3 corpus list (OBJECTIVE.md, DECISIONS.md,
+templates/INTERVIEW_TRACKER.md, rag-app/README.md) is unchanged;
+`pyproject.toml` is NOT added to the corpus, matching the iteration-23
+precedent for non-corpus-listed new files. This DECISIONS entry
+itself will rotate the rag-app fingerprint by the standard per-iteration
+drift pattern (the corpus-listed `DECISIONS.md` gains new chunks); the
+new `pyproject.toml` file does not perturb the rag-app fingerprint.
+

@@ -1,0 +1,68 @@
+# rag-app — Packaging contract.
+#
+# Build backend: setuptools (no extra install needed; pip handles
+# build-isolation via PEP 517). Python floor: 3.9, matching the reconciled
+# README claim and what the package's `from __future__ import annotations`
+# posture actually requires.
+#
+# Runtime deps mirror requirements.txt exactly (anthropic>=0.40); only the
+# `ask` slice consumes it, so `load` and `retrieve` work on a stock checkout
+# without installing this project at all. The `dev` extra carries the test /
+# type / lint floor that the upcoming pytest suite and GitHub Actions matrix
+# (NEXT_WORK items 3 and 4) will depend on.
+#
+# The `license` field is deliberately omitted from this slice — NEXT_WORK
+# item 2 owns the LICENSE files at repo root + per-build and explicitly owns
+# the `license = ...` line in each pyproject.toml.
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rag-app"
+version = "0.1.0"
+description = "A small Retrieval-Augmented Generation demo, framed for an AI PM portfolio."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Jubayar Ahad" },
+]
+keywords = [
+    "rag",
+    "retrieval-augmented-generation",
+    "bm25",
+    "anthropic",
+    "claude",
+    "ai-pm-portfolio",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+rag-app = "rag_app.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/jubayar-ahad/ai-pm-role-90days"
+Repository = "https://github.com/jubayar-ahad/ai-pm-role-90days"
+
+[tool.setuptools.packages.find]
+include = ["rag_app*"]
+exclude = ["tests*", ".cache*"]
