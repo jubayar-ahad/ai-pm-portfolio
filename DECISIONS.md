@@ -2025,3 +2025,131 @@ records the binding pick.
    it is the record of how the pick was reached, not a live decision
    document anymore. A header note in CANDIDATES.md marks the resolved
    status for human readers.
+
+
+## 2026-05-16 — Cursor teardown PRD: scope, structure, slicing plan
+
+**Decision:** The Cursor teardown PRD ships as a multi-iteration
+artifact at `teardown-prd/cursor-teardown.md`. This iteration delivers
+the **outline slice**: masthead (product / author POV / observation
+snapshot), an explicit scope decision, and six canonical section
+headers (What's working / What's broken / What to ship next / Proposed
+metrics / Out of scope / How I'd validate), each carrying a
+substantive intent paragraph that names the sub-areas the draft will
+narrow to and the evidence-source posture for the section. No section
+bodies are drafted in this iteration — the per-section drafts are the
+slices that follow.
+
+**Why one document, not a doc-per-section:** the teardown is intended
+as a single interview leave-behind, and reviewers will read it
+top-to-bottom in a sitting. Splitting it across files would force the
+reader to context-switch and would let the proposals in "What to ship
+next" drift away from the symptoms in "What's broken" they
+respond to. The single-file model also makes the no-fabrication
+audit a single grep pass at the polish iteration.
+
+**Why this scope (chat + inline-edit + agent triad, not full product):**
+the three triad surfaces share a model-routing layer, a
+context-assembly layer, and an edit-application layer, so a teardown
+that covers them together can compare PM choices across them rather
+than treat each in isolation. A full-product teardown would spread
+the draft across surfaces the user does not exercise daily (enterprise
+admin, CLI, marketplace) and would dilute the AI-PM framing. A
+single-surface teardown (e.g. autocomplete only) would compete
+head-to-head with Copilot on one dimension and lose the cross-surface
+PM comparison that is the artifact's strongest move. Tab autocomplete
+and the Rules system are mentioned as supporting context but not
+deep-dove.
+
+**Why six sections, not four:** OBJECTIVE.md names four (what's
+working, what's broken, what to ship next, proposed metrics).
+CANDIDATES.md added two (out-of-scope, how I'd validate) and that
+shape is preserved here. Out-of-scope makes the scope decision
+auditable; how-I'd-validate prevents the "what to ship next"
+proposals from reading as opinions in a vacuum. Both are PM craft
+markers an interviewer expects. The six-section list is locked —
+section headers will not be renamed or merged in subsequent slices.
+
+**Per-iteration slicing plan** (each slice is one iteration unless
+the iteration plan explicitly says otherwise):
+
+1. **Outline** (this iteration) — masthead, scope decision, six
+   section intents. Shipped.
+2. **What's working** — narrow the candidate sub-areas to ~3, write
+   each as a PM-decision-with-observable-behavior paragraph, cite
+   public sources inline.
+3. **What's broken** — narrow to ~3, pair each symptom with a
+   reproduction note, cite the source category (own observation /
+   user-community pattern / Cursor changelog) per claim.
+4. **What to ship next** — three proposals, one per top-ranked
+   broken sub-area, each shaped as a PM one-pager (problem,
+   proposed shape, scope, risks, how to know it worked).
+5. **Proposed metrics** — fill the four-quadrant coverage map with
+   ~6 metrics; framework-shaped, no fabricated baselines.
+6. **Out of scope + How I'd validate** — combine into one iteration
+   (both are methodology-shaped, both short).
+7. **Polish / leave-behind framing pass** — masthead consistency,
+   cross-section references, no-fabrication grep audit, source-list
+   reconciliation, final read-aloud pass.
+
+Slices may be re-ordered if a later iteration's user direction
+warrants — the slicing plan is not a slip-resistant contract like
+the build-roadmap slices were, because the underlying artifact is a
+single document a PM revises non-linearly. But each iteration ships
+*one* coherent section in *committable* state, not a half-drafted
+section across two iterations.
+
+**Source discipline locked** (binds every drafted section):
+
+1. Every quantitative or surface-specific claim cites a public source
+   inline. Source categories named in the outline: Cursor docs,
+   Cursor changelog (with version), Cursor pricing page (with
+   snapshot date), public Anysphere statements (blog / interviews /
+   talks, cited by title + date), author's reproduction notes
+   (labeled with date / version / OS / tier), and user-community
+   reports cited only as patterns ("users report X") with a
+   representative link.
+2. No internal Cursor information, no fabricated metrics, no invented
+   user counts, no revenue numbers, no roadmap claims beyond publicly
+   stated direction. This is the OBJECTIVE.md no-fabrication
+   guardrail restated at the artifact level so a future iteration
+   cannot import it as a soft suggestion.
+3. Where a number is needed and unknown, the draft writes a named
+   placeholder identifying the source the reader would consult (e.g.
+   "(latest figures: Anysphere's public funding announcements)") —
+   never an invented value.
+4. Observation snapshot pinned to **2026-05-16** in the masthead;
+   any later iteration that reproduces a behavior on a different
+   date updates the masthead date and re-walks the affected claims,
+   not silently overwrites them.
+
+**Out of scope for this iteration** (deliberate, named so the next
+iteration cannot silently inherit them):
+
+1. **Any section body content.** Section *intent paragraphs* are in
+   scope; section *bodies* are not. A reviewer reading the outline
+   should see what the draft will argue, not the argument itself.
+   The "What's working" slice is the next iteration's deliverable.
+2. **A separate `cursor-teardown-sources.md` sidecar file.** Sources
+   are cited inline at draft time, not collected in a sidecar. A
+   sidecar would force the reader to flip between two files and
+   would let an inline claim drift away from its cited source.
+3. **Pre-populating placeholder content with "TBD" filler in section
+   bodies.** Empty section bodies (header + intent paragraph) is
+   the correct shape for the outline slice; "TBD" filler in the body
+   would visually imply the draft is half-done.
+4. **A rag-app corpus expansion to include the teardown.** The
+   rag-app corpus v1 is locked to four files (OBJECTIVE.md,
+   DECISIONS.md, templates/INTERVIEW_TRACKER.md, rag-app/README.md).
+   Adding the teardown to the corpus is a deliberate corpus-v2
+   supersession, not a side-effect of shipping this artifact.
+
+**Implication for the rag-app corpus_fingerprint:** this iteration
+touches DECISIONS.md but not the other three corpus-v1 files; per the
+per-iteration drift pattern documented in iterations 16 and 20, the
+rag-app corpus_fingerprint will rotate again. The
+teardown-prd/cursor-teardown.md file itself is not in the corpus
+list, so its existence does not perturb the index — only this
+DECISIONS entry does. Tool-use-agent catalog is unchanged so its
+fingerprint is unchanged. Both builds and the evals-harness
+cross-build invariants still pass.
