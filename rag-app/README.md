@@ -14,7 +14,7 @@ incrementally — see [Status](#status) for what currently runs.
 | Slice | State |
 | --- | --- |
 | Design doc (this README) | Shipped |
-| Corpus loader and chunker | Not yet implemented |
+| Corpus loader and chunker | Shipped (`python -m rag_app load`) |
 | Embedding index | Not yet implemented |
 | Retrieval CLI | Not yet implemented |
 | Generation with Claude | Not yet implemented |
@@ -53,7 +53,7 @@ avoid speculative scope.
 | Generation | Anthropic Claude (`claude-haiku-4-5-20251001` as default, configurable) | Cheap, fast, current, and pluggable. Default favors low spend on a demo. |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` (local) | ~80 MB one-time download, no second API key, deterministic across runs. Tradeoff: weaker than hosted embeddings, but acceptable for a few-hundred-chunk corpus. Documented as a known limit. |
 | Vector index | NumPy cosine similarity over an in-memory matrix | Corpus is small enough that a real vector DB would be theater. A single-file `numpy` implementation also reads cleanly in interviews. |
-| Chunking | Fixed-size token windows with overlap, paragraph-aware | Deferred parameter values (chunk size, overlap) — set in the corpus-loader iteration based on the actual corpus. |
+| Chunking | Paragraph-aware word windows with paragraph-level overlap (defaults: 400 words, 80 overlap) | Word counts as a stdlib-only stand-in for token counts — keeps the loader dependency-free; the embedding step can re-measure if needed. |
 | CLI | Single entry: `python -m rag_app ask "<question>"` | One command keeps the demo legible to a recruiter watching a screen share. |
 
 The Anthropic + local-embeddings stack means the demo needs exactly one API
@@ -168,14 +168,28 @@ Each line below is intended to map to a single future iteration:
 
 ## How to run
 
-Not yet runnable. The first runnable command will be added in iteration 4
-(corpus loader + chunker), and the end-to-end `ask` demo arrives by
-roadmap step 4.
-
-When it runs, the invocation will look like:
+Run from the `rag-app/` directory so Python can import the `rag_app`
+package directly. No third-party dependencies are required for the loader.
 
 ```bash
-pip install -r rag-app/requirements.txt
+cd rag-app
+python -m rag_app load
+# Wrote N chunks to .../rag-app/.cache/chunks.jsonl
+#   OBJECTIVE.md: ... chunks
+#   DECISIONS.md: ... chunks
+#   templates/INTERVIEW_TRACKER.md: ... chunks
+#   rag-app/README.md: ... chunks
+```
+
+The loader auto-locates the repo root by walking up from the package
+location until it finds `OBJECTIVE.md`, so the command works from any
+cwd inside the repo. Override with `--corpus-root`, `--chunk-words`,
+`--overlap-words`, or `--out` as needed.
+
+The end-to-end query interface is not yet wired up; once the embedding
+and generation slices land, the invocation will look like:
+
+```bash
 export ANTHROPIC_API_KEY=...
 python -m rag_app ask "What is the Day 20 milestone?"
 ```

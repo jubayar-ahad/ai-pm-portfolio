@@ -132,3 +132,25 @@ for, regardless of how much code has landed. The honesty cost — explicitly
 labeling the build as "in progress" rather than claiming a working demo —
 is paid up front in the README's Status table so the user is never
 surprised.
+
+## 2026-05-16 — rag-app chunker: word-based, paragraph-aware, 400/80
+
+**Decision:** The `rag-app/` corpus loader (`python -m rag_app load`)
+measures chunk size in **words**, not tokens, with defaults `chunk_words=400`
+and `overlap_words=80`. Chunking is paragraph-aware: paragraphs are packed
+greedily, never split mid-paragraph, and overlap is carried as whole
+trailing paragraphs (not arbitrary word slices). A paragraph longer than
+`chunk_words` is emitted as its own oversized chunk rather than mid-split.
+Each chunk record carries an `id` (`source::index`), `source` (repo-relative
+path), `span` (`[start_char, end_char]` in the source file), `word_count`,
+and `text`.
+
+**Rationale:** Token-accurate chunking would require pulling in `tiktoken`
+or a model-specific tokenizer, which adds a dependency the loader does not
+otherwise need. Word counts are a stable, deterministic, stdlib-only proxy
+that is close enough for English markdown of this size; the embedding step
+can re-measure in tokens if it ever matters for a model context budget.
+Paragraph-level overlap preserves semantic coherence in the carried text
+better than arbitrary word-window overlap, which can split mid-sentence.
+Emitting char spans (rather than just text) lets the future generation step
+resolve citations back to exact source positions for verification.
