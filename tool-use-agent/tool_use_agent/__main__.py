@@ -1,18 +1,29 @@
 """Command-line entry point for the tool-use-agent demo.
 
-As of this iteration: `catalog` (print JSON schemas) and `tool` (invoke any
-registered tool directly, no API key needed). Subsequent slices will add
-`ask` (single-step loop, then multi-step) per the README roadmap.
+As of this iteration: `catalog` (print JSON schemas), `tool` (invoke any
+registered tool directly, no API key needed), and `ask` (single-step
+agent loop; auto-falls back to a key-free dry-run that prints the
+assembled prompt and the tool catalog). Multi-step chaining lands in
+slice 3.
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
+from tool_use_agent.agent import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_MODEL,
+    AgentResult,
+    build_dry_run_result,
+    run_single_step,
+)
 from tool_use_agent.catalog import (
     CATALOG,
     Tool,
@@ -127,10 +138,113 @@ def _print_human(tool_name: str, result: Any) -> None:
     sys.stdout.write("\n")
 
 
+def _agent_result_to_payload(result: AgentResult) -> dict[str, Any]:
+    """Render an AgentResult as a JSON-friendly dict for `ask --json`.
+
+    Slice 5 will add the trace-record fields (schema_version, record_id,
+    corpus_fingerprint, generated_at) to this payload by reusing the
+    rag-app trace helpers — the shape here is the slice-2 baseline.
+    """
+    return {
+        "mode": result.mode,
+        "question": result.question,
+        "prompt": {
+            "system": result.system_prompt,
+            "user": result.user_message,
+        },
+        "tool_calls": [dataclasses.asdict(call) for call in result.tool_calls],
+        "stop_reason": result.stop_reason,
+        "model": result.model,
+        "input_tokens": result.input_tokens,
+        "output_tokens": result.output_tokens,
+        "final_text": result.final_text,
+    }
+
+
+def _print_agent_result_human(result: AgentResult) -> None:
+    print(f"Question: {result.question}")
+    print(f"Mode: {result.mode}")
+    if result.mode == "dry-run":
+        print("--- prompt.system ---")
+        print(result.system_prompt)
+        print("--- prompt.user ---")
+        print(result.user_message)
+        print()
+        print(f"--- catalog ({len(CATALOG)} tools the model would see) ---")
+        for tool in CATALOG.values():
+            print(f"  - {tool.name}: {tool.description}")
+        print()
+        print("(dry-run: no model call made)")
+        return
+
+    if result.tool_calls:
+        print(f"--- tool trace ({len(result.tool_calls)} call(s)) ---")
+        for i, call in enumerate(result.tool_calls, start=1):
+            tag = " [ERROR]" if call.is_error else ""
+            print(f"  step {i}: {call.tool}({call.input}){tag}")
+            preview = _preview_output(call.output)
+            print(f"    -> {preview}")
+    else:
+        print("(no tool calls)")
+    print()
+    print("--- answer ---")
+    print(result.final_text or "(empty)")
+    print()
+    print(
+        f"(model={result.model}  stop_reason={result.stop_reason}  "
+        f"input_tokens={result.input_tokens}  "
+        f"output_tokens={result.output_tokens})"
+    )
+
+
+def _preview_output(output: Any, limit: int = 200) -> str:
+    """One-line summary of a tool output for the human trace view."""
+    if isinstance(output, str):
+        text = output.replace("\n", " ")
+    else:
+        try:
+            text = json.dumps(output, ensure_ascii=False, default=str)
+        except TypeError:
+            text = repr(output)
+    if len(text) > limit:
+        return text[: limit - 3] + "..."
+    return text
+
+
+def cmd_ask(args: argparse.Namespace) -> int:
+    repo_root = find_repo_root(Path(__file__).resolve().parent)
+    have_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    if args.dry_run or not have_key:
+        result = build_dry_run_result(args.question)
+    else:
+        result = run_single_step(
+            args.question,
+            repo_root=repo_root,
+            model=args.model,
+            max_tokens=args.max_tokens,
+        )
+
+    if args.json:
+        payload = _agent_result_to_payload(result)
+        print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.dry_run is False and not have_key:
+        # Surface the auto-fallback so the user understands why no model
+        # call happened — same pattern as the rag-app `ask` subcommand.
+        print("(no ANTHROPIC_API_KEY in environment — falling back to dry-run)")
+    _print_agent_result_human(result)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m tool_use_agent",
-        description="Tool-use agent demo (slice 1: catalog + direct tool calls).",
+        description=(
+            "Tool-use agent demo (slice 2: catalog + direct tool calls + "
+            "single-step ask)."
+        ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -154,6 +268,43 @@ def build_parser() -> argparse.ArgumentParser:
             help="Emit the tool result as JSON instead of a human-readable view.",
         )
         sub.set_defaults(func=cmd_tool)
+
+    ask = subparsers.add_parser(
+        "ask",
+        help=(
+            "Run the single-step agent loop on a question. Auto-falls back "
+            "to a key-free dry-run if ANTHROPIC_API_KEY is unset."
+        ),
+    )
+    ask.add_argument("question", help="Natural-language question.")
+    ask.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"Anthropic model id (default {DEFAULT_MODEL}).",
+    )
+    ask.add_argument(
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help=f"Max output tokens per turn (default {DEFAULT_MAX_TOKENS}).",
+    )
+    ask.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Build and print the prompt + catalog without calling Claude. "
+            "Auto-enabled if ANTHROPIC_API_KEY is unset."
+        ),
+    )
+    ask.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "Emit a structured JSON record (prompt, tool_calls, answer) "
+            "for downstream tooling. Trace-record fields land in slice 5."
+        ),
+    )
+    ask.set_defaults(func=cmd_ask)
 
     return parser
 

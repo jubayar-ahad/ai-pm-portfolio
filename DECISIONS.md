@@ -468,3 +468,79 @@ tracker still produces a stable-shaped output and the LLM's
 downstream summarization does not have to guess at missing keys.
 This is the property that lets future eval traces compare the same
 tool call across iterations without per-run schema reconciliation.
+
+## 2026-05-16 — tool-use-agent slice 2: single-step loop, prompt contract, dry-run inheritance
+
+**Decision:** The tool-use-agent's `ask` subcommand is a single
+**tool-call cycle** in this slice — the model is called once with
+`tools=[…]`, every `tool_use` block it emits in turn 1 is executed
+locally via `call_tool(...)`, the results are sent back as
+`tool_result` content blocks, and turn 2's text is the final answer.
+A second cycle of tool calls (the model asking for more tools after
+seeing the first batch of results) is **not** honored in slice 2 —
+`stop_reason` is set to `single_step_cap_reached` and the cap is
+named explicitly in the CLI output. Slice 3 will lift this to a
+bounded `max_steps=6` loop. The slice-2 contract is implemented in
+`tool_use_agent/agent.py` and locks four pieces:
+
+1. **System prompt rules, in priority order.** (a) Refuse with the
+   exact sentence `"I don't have enough information in the provided
+   context to answer this."` when no tool can produce supporting
+   evidence. (b) Prefer the smallest, most targeted tool call
+   (specific line ranges, filtered tracker queries). (c) Be concise;
+   never paste long file contents back to the user. (d) Tool results
+   are the only evidence; outside knowledge is disallowed. The full
+   text lives in `agent.py::SYSTEM_PROMPT`; future edits land in a
+   new DECISIONS entry.
+2. **`REFUSAL_SENTENCE` constant defined in this build.** Same literal
+   string as `rag-app/rag_app/verify.py::REFUSAL_SENTENCE`. Both
+   builds define this independently rather than cross-importing, so
+   each build remains self-contained, but the string is *byte-
+   identical* so the future evals harness can bucket refusals from
+   both builds with a single equality check (no fuzzy match). Slice 4
+   will centralize this in a `verify.py`-style module for this build
+   and add the programmatic threshold-bypass enforcement.
+3. **Tool-result content shape.** Tool outputs are JSON-encoded with
+   `json.dumps(..., default=str)` and passed as `tool_result.content`
+   (string form, which the Anthropic API accepts). Recoverable
+   dispatch errors (unknown tool name → `KeyError`, bad kwargs →
+   `TypeError`, schema-rejected values → `ValueError`) are caught at
+   the dispatch boundary and become `{"type": "tool_result",
+   "tool_use_id": ..., "content": "ERROR: <type>: <msg>",
+   "is_error": true}` so the model receives them as data and can
+   react. Unrecoverable errors (programmer bugs) still raise.
+4. **Dry-run fallback inherited from the rag-app pattern.** `ask`
+   auto-runs in dry-run (prints the assembled system prompt, user
+   message, and the tool catalog the model would see) when
+   `ANTHROPIC_API_KEY` is unset, and there is an explicit `--dry-run`
+   flag for forcing the same path when a key is present. The
+   `anthropic` SDK is imported lazily inside `run_single_step`, so a
+   fresh checkout without `pip install -r tool-use-agent/
+   requirements.txt` can still run `catalog`, `tool`, and `ask
+   --dry-run`. `--json` emits a slice-2 baseline shape (`mode`,
+   `question`, `prompt`, `tool_calls[]`, `stop_reason`, `model`,
+   token usage, `final_text`) — slice 5 will add
+   `schema_version`/`record_id`/`corpus_fingerprint`/`generated_at`
+   to this shape by importing the helpers from
+   `rag-app/rag_app/trace.py`.
+
+**Rationale:** A single-step cap is the smallest implementation that
+exercises the full tool-use surface (catalog → tool_use → dispatch →
+tool_result → final answer) end-to-end, so slice 3's multi-step
+upgrade becomes a loop counter and a termination check rather than a
+re-architecture. Surfacing the cap as a named `stop_reason` (instead
+of silently truncating) means an interviewer who runs the demo today
+sees the planned boundary, not a mysterious half-answer — and slice
+3's "what changed?" diff will be tightly scoped. Inheriting the
+dry-run fallback from `rag-app/` keeps the **exactly one API key
+across both builds** property and makes the slice verifiable in a
+sandbox where no key is present (which is the same property the
+evals harness will need). Catching `KeyError`/`TypeError`/`ValueError`
+at the dispatch boundary and surfacing them as `is_error=true`
+tool_result blocks is the same recoverable-error-as-data pattern
+the slice-1 DECISIONS entry locked for `read_repo_file` — slice 4's
+refusal handling will treat these as one bucket. Defining
+`REFUSAL_SENTENCE` independently in both builds (rather than
+cross-importing across top-level directories) keeps each build
+runnable on its own; the alignment guarantee is a string-equality
+test the evals harness can assert at startup.
