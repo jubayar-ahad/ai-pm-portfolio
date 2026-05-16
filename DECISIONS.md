@@ -1992,3 +1992,36 @@ same per-iteration drift pattern earlier slices documented.
 Expanding the corpus to cover the teardown deliverable belongs to a
 deliberate corpus-v2 supersession, not this iteration.
 
+
+## 2026-05-16 — teardown product locked: Cursor
+
+**Decision:** The Day-20 teardown PRD will be written against **Cursor**.
+This resolves the user-pick gate established in the prior entry
+("teardown-prd CANDIDATES.md and the user-pick gate") and supersedes the
+"Awaiting user pick" status in `teardown-prd/CANDIDATES.md`. Perplexity
+and GitHub Copilot, ranked #2 and #3 in the shortlist, are now out of
+scope for this milestone.
+
+**Rationale:** User directive on 2026-05-16, no further deliberation
+required. The Cursor #1 ranking in CANDIDATES.md already documents the
+PM-relevant rationale (AI-native product, fast surface-area expansion,
+strong PRD-able tensions around agent autonomy vs. user control, etc.) —
+that file remains the canonical justification document. This entry only
+records the binding pick.
+
+**Implications for subsequent iterations:**
+1. The next iteration begins the actual teardown PRD draft at
+   `teardown-prd/cursor-teardown.md`. No more candidate-comparison work.
+2. The teardown is a multi-iteration artifact, not a single-iteration
+   ship. Expect: outline → "what's working" section → "what's broken"
+   section → "what to ship next" section → metrics & instrumentation
+   section → polish/leave-behind framing pass.
+3. The no-fabrication rule still binds: do not invent Cursor internal
+   metrics, employee quotes, or roadmap details. Use only publicly
+   observable product behavior, public statements, and stated user
+   experience. Where a number is needed and unknown, write a placeholder
+   with the source the user would consult to fill it in.
+4. CANDIDATES.md is preserved as-is below this entry's effective date —
+   it is the record of how the pick was reached, not a live decision
+   document anymore. A header note in CANDIDATES.md marks the resolved
+   status for human readers.

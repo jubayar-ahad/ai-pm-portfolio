@@ -1,9 +1,11 @@
 # Teardown PRD — Candidate Shortlist
 
-**Status:** Awaiting user pick. No teardown drafted yet.
-**How to use this doc:** Read the three ranked candidates below, pick one,
-and tell the agent. The next iteration drafts the full teardown PRD against
-that single product.
+**Status:** RESOLVED 2026-05-16 — **Cursor** picked. See DECISIONS.md
+final entry for the binding decision. This document is preserved below
+as the record of how the pick was reached, not a live decision surface.
+**How to use this doc:** Historical reference only. The next iteration
+drafts the full teardown PRD against Cursor at
+`teardown-prd/cursor-teardown.md`.
 
 ---
 
