@@ -3632,3 +3632,154 @@ voice has to come from the user, not from a scaffold (same rule
 the iteration-36 top-level README entry locked); the outreach
 scaffold targets one-to-one DMs, which have a different rhetorical
 contract than one-to-many social posts.
+
+## 2026-05-16 — Target-companies sourcing scaffold (`templates/TARGET_COMPANIES.md`) — upstream of OUTREACH
+
+**Decision.** Ship `templates/TARGET_COMPANIES.md` as the
+*pre-engagement* sourcing inventory that sits **upstream of**
+`templates/OUTREACH.md` and feeds the existing four-scaffold
+hiring-funnel kit. The scaffold reuses the same `_<placeholder>_`
+italic-marker grammar as the existing four template files, so one
+regex (`_<.*>_`) now validates all five scaffolds (the iteration-37
+"unified self-check" property extended to five files). The file
+ships a **30–50-row target band**, a **four-state status workflow**
+(`not-researched` → `researched` → `outreached` →
+`promoted-to-tracker`, with `dropped` as the explicit off-ramp), a
+**Discovery sources** section enumerating where candidate rows
+come from (aggregators, VC portfolio pages, LinkedIn structured
+search, direct competitive scans, AI-PM communities, recorded
+inbound), a **Brainstorm prompts** section with five seed prompts
+to break a stuck-under-30-rows list out of mono-bucket bias, a
+**Quality bar** section with five named cut criteria, the
+**Target list** table itself (10 columns: #, Company, AI surface,
+Role/link, Bucket, Fit hypothesis, Contact path, Status, Date
+added, Notes), a **How this feeds the rest of the kit** section
+naming the per-status downstream artifact transitions, and a
+**Rollup — list health** section with six list-health counters
+explicitly distinct from `templates/INTERVIEW_TRACKER.md`'s
+authoritative Day-30 milestone rollup. The file is NOT added to
+rag-app corpus v1 (locked at iteration 3 to four specific files),
+so this iteration's only corpus drift is this DECISIONS entry by
+the standard per-iteration pattern documented since iteration 16.
+
+**Rationale.** (a) **Why now — the load-bearing gap iteration 37
+named.** Iteration 37's DECISIONS entry shipped OUTREACH.md on the
+grounds that "Active loops=0 vs the Day-30 target of 10+ makes
+outbound volume the load-bearing gap." That ships the *how to
+write a DM* artifact, but leaves a gap one step upstream: the user
+still has to answer *who to DM*, and that question is what an
+empty INTERVIEW_TRACKER's Outreach log section structurally cannot
+answer (the tracker is the *engaged* inventory, not the
+*pre-engagement* one). Shipping a sourcing scaffold without a DM
+scaffold would have inverted the dependency; shipping a DM
+scaffold without a sourcing scaffold leaves the user staring at a
+blank target list. The two together complete the front-of-funnel
+pair (sourcing → outreach) that feeds the four-scaffold downstream
+kit (cover-letter, resume, tracker for engaged pipeline). (b) **Why
+30–50 rows and not 10 or 100.** Funnel math is rough but
+load-bearing: typical cold AI-PM-outreach response rates run
+~10–15% for warm hooks, higher for referrals; a 30–50-row
+inventory is the band where 10+ active loops becomes arithmetically
+reachable without depending on a single referral landing. A list
+of 10 forces overweighting whichever rows you found first; a list
+of 100+ turns row research into procrastination on reaching out to
+already-researched rows. The 30–50 band mirrors the same per-DM
+length-band discipline OUTREACH (30–80 words) and COVER_LETTER
+(250–400 words) use — set a defensible numeric target on the
+load-bearing dimension, name the failure modes at both ends, and
+let the user calibrate inside the band. (c) **Why four explicit
+status states with `promoted-to-tracker` as a delete-from-this-file
+transition.** A row in `outreached` status that *also* lives in
+the tracker's Active pipeline diverges the moment one is updated
+without the other, and the diagnostic value of both files
+collapses. Making `promoted-to-tracker` the only state that
+*deletes* from this file (rather than persists) enforces a
+single-source-of-truth split: this file owns *target* inventory,
+the tracker owns *engaged* inventory, no row lives in both. Same
+architectural pattern OUTREACH's "single ask per DM" rule uses
+scaled up from message-level to artifact-level: do exactly one
+job, name where the work hands off, do not retain ownership past
+the handoff. (d) **Why the Fit hypothesis column is the highest-
+signal field and not the Role link or the Contact path.** "Strong
+AI team" is not a fit hypothesis — it is a vacuous filler that
+locks no commitment from the row author. A sourced-observation →
+trade-off sentence ("Their inline-edit UX has the same review-
+friction problem the Cursor teardown's §1.1 names, and my
+evals-harness build maps to the methodology gap their public
+roadmap implies") is the same rhetoric the
+`teardown-prd/cursor-teardown.md` PM-decision sub-sections use,
+scaled down to one clause. Forcing this density at the
+`researched` transition is what makes the downstream OUTREACH DM
+writeable in 30 seconds rather than 30 minutes — the hook clause
+in any of the three DM variants quotes the Fit hypothesis
+verbatim or with minor edits, not from scratch. Without this
+column, the OUTREACH scaffold's "hook is the highest-leverage
+clause" rule has no upstream input and the hook gets written cold
+every send. (e) **Why discovery sources as named pointers, not
+specific job postings.** The no-fabrication rule (OBJECTIVE.md
+guardrail, restated in iteration 23 and iteration 37) explicitly
+forbids inventing companies the user is interviewing with or
+pretending a specific role is open. Naming Wellfound, a16z
+portfolio, LinkedIn structured search, etc., as *categories of
+discovery surface* is informational pointer work the user can
+verify in 30 seconds, not invention; naming a specific company as
+"hiring an AI PM right now" would cross into fabrication. The
+distinction matters because a future iteration that wants to
+turn this scaffold into a pre-populated list would have to write
+an explicit supersession entry — same defensive pattern iteration
+23's CANDIDATES.md uses for the teardown candidates list (ranking
+real public products is OK; asserting which of them the user is
+interviewing with is not). (f) **Why bucket priority B2 > B1 > B3
+restated here even though INTERVIEW_TRACKER already locked it.**
+The Day-30 rollup in INTERVIEW_TRACKER reads bucket from
+*engaged* rows; the upstream sourcing inventory has to be
+B2-weighted for the engaged rollup to ever reach the priority
+target. If the sourcing list is 60%+ B1, the engaged rollup will
+*systematically* be 60%+ B1 even with perfectly fair conversion
+rates across buckets, because the engaged pipeline cannot be more
+B2-weighted than the source pipeline. Naming the rebalance rule
+("re-balance before sending DMs, not after") in the scaffold body
+puts the constraint exactly where the user is editing — same
+discipline iteration 34's RESUME scaffold uses for its
+"only-include-if-≥2-truthful-items" gating rule on optional
+sections.
+
+**Out of scope for this iteration.** (1) **No follow-up DM/email
+scaffold** — same conditional-volume deferral iteration 37 inherited
+from iteration 35: the threshold for shipping is "first real
+misuse" or "outbound volume sustained for two consecutive weeks at
+10+ sends/week," whichever comes first. The Outreached-this-week
+list-health counter in this scaffold's rollup is what surfaces the
+threshold-hit cue. (2) **No automated lint script across the five
+scaffolds** — the trailing `_<` grep reminder is now in five files
+with one regex (`_<.*>_`) catching all of them; iterations 34, 35,
+and 37 already declined the lint command at three and four
+scaffolds, and five does not change that calculus. The threshold
+remains "first real misuse" or "sixth scaffold," whichever comes
+first. (3) **No pre-populated example rows** — same no-fabrication
+rule the resume / cover-letter / outreach scaffolds use; example
+shape (a clause-by-clause template row with bracketed placeholders)
+carries the same teaching signal as a filled-in example without
+inviting the user to send the example by accident. Naming specific
+real companies in the discovery-sources section as *places to
+look* is not fabrication; naming a specific company as a *target
+on this list* would be, which is why the Target list table itself
+ships only placeholder rows. (4) **No edit to rag-app corpus v1** —
+`templates/TARGET_COMPANIES.md` is NOT in the corpus list (locked
+at iteration 3 to four specific files: OBJECTIVE.md, DECISIONS.md,
+`templates/INTERVIEW_TRACKER.md`, `rag-app/README.md`), so this
+iteration's chunk-count drift comes entirely from this DECISIONS
+entry by the standard per-iteration pattern. Adding the templates
+file to the corpus belongs to a deliberate corpus-v2 supersession
+iteration. (5) **No edit to the three builds, the Cursor teardown
+PRD, the existing four scaffolds, the candidates file, the
+top-level README, or OBJECTIVE.md** — this iteration is purely a
+`templates/TARGET_COMPANIES.md` addition plus this DECISIONS
+entry. (6) **No company-research / interview-prep / negotiation
+scaffolds** — those are *post-engagement* artifacts (running a
+hiring-manager interview, prepping for a panel, evaluating an
+offer) whose value depends on real engagements existing first;
+the five scaffolds shipped today cover the *front-of-funnel and
+inventory* layer end-to-end, and the *engaged-pipeline-prep* layer
+deserves its own deliberate iteration once the tracker has real
+rows rather than a speculative one now.
