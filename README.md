@@ -17,8 +17,8 @@ chronological design log lives in [DECISIONS.md](DECISIONS.md).
 
 A real (not aspirational) AI PM portfolio: three runnable demos that share
 cross-build conventions on purpose, plus a teardown of a live AI product, plus
-the resume / cover-letter / pipeline scaffolds the user populates against the
-actual search.
+a five-scaffold hiring-funnel kit (sourcing → outreach → cover letter →
+resume → tracker) the user populates against the actual search.
 
 ## Milestone map
 
@@ -28,8 +28,7 @@ actual search.
 | Day 10 — Build 2 (Tool-use agent) | [`tool-use-agent/`](tool-use-agent/) | Shipped |
 | Day 10 — Build 3 (Evals harness) | [`evals-harness/`](evals-harness/) | Shipped |
 | Day 20 — Teardown PRD (Cursor) | [`teardown-prd/cursor-teardown.md`](teardown-prd/cursor-teardown.md) | Shipped (interview-ready, 2026-05-16) |
-| Day 30 — Pipeline tracker (populatable) | [`templates/INTERVIEW_TRACKER.md`](templates/INTERVIEW_TRACKER.md) | Shipped (scaffold; user-populated) |
-| Day 30 — Resume + cover letter scaffolds | [`templates/RESUME.md`](templates/RESUME.md), [`templates/COVER_LETTER.md`](templates/COVER_LETTER.md) | Shipped (scaffolds; user-populated) |
+| Day 30 — Five funnel scaffolds (sourcing → outreach → cover letter → resume → tracker) | [`templates/`](templates/) | Shipped (scaffolds; user-populated) |
 
 The three Day-10 builds are real coding work in their own subdirectories with
 working demos and PM-framed READMEs, per the operating guardrails in
@@ -105,23 +104,37 @@ how the choice was reached.
 
 ## The Day-30 scaffolds
 
-Three fill-in templates that share a single placeholder grammar
-(`_<placeholder>_`) so one regex (`_<.*>_`) validates all three:
+Five fill-in templates that share a single placeholder grammar
+(`_<placeholder>_`) so one regex (`_<.*>_`) validates all five. They are
+ordered along the hiring funnel — sourcing feeds outreach, outreach feeds
+applications, applications feed the tracker — so each downstream artifact
+is honestly populatable only after the upstream one is:
 
-- [`templates/INTERVIEW_TRACKER.md`](templates/INTERVIEW_TRACKER.md) — active
-  pipeline + closed/off-ramp table + outreach log + Day-30 milestone rollup,
-  with a fixed stage vocabulary and B1/B2/B3 bucket shorthand encoding the
-  Bucket-2 priority from [OBJECTIVE.md](OBJECTIVE.md).
-- [`templates/RESUME.md`](templates/RESUME.md) — one-page PM resume scaffold
-  with the three Day-10 builds and the Day-20 Cursor teardown pre-stubbed as
-  named portfolio slots the user fills once they can demo each end-to-end.
+- [`templates/TARGET_COMPANIES.md`](templates/TARGET_COMPANIES.md) —
+  pre-engagement sourcing inventory upstream of `OUTREACH.md`: a 30–50-row
+  target list with a four-state status workflow
+  (`not-researched` → `researched` → `outreached` → `promoted-to-tracker`
+  as a delete-from-this-file transition), discovery-source categories,
+  brainstorm prompts, and a list-health rollup distinct from the tracker's
+  authoritative Day-30 milestone rollup.
+- [`templates/OUTREACH.md`](templates/OUTREACH.md) — 30–80-word cold-DM /
+  referral-ask / dormant-re-engagement scaffold with three mutually-exclusive
+  variants keyed to relationship state, a forwardable-blurb sub-section under
+  the referral variant, and a one-explicit-ask-per-DM rule.
 - [`templates/COVER_LETTER.md`](templates/COVER_LETTER.md) — 250–400-word
   letter scaffold with three mutually-exclusive opener variants
   (cold / referral / inbound-recruiter-response) and a paragraph 3 that
   quotes `RESUME.md`'s portfolio section by reference rather than restating
   it (single source of truth for company-agnostic claims).
+- [`templates/RESUME.md`](templates/RESUME.md) — one-page PM resume scaffold
+  with the three Day-10 builds and the Day-20 Cursor teardown pre-stubbed as
+  named portfolio slots the user fills once they can demo each end-to-end.
+- [`templates/INTERVIEW_TRACKER.md`](templates/INTERVIEW_TRACKER.md) — active
+  pipeline + closed/off-ramp table + outreach log + Day-30 milestone rollup,
+  with a fixed stage vocabulary and B1/B2/B3 bucket shorthand encoding the
+  Bucket-2 priority from [OBJECTIVE.md](OBJECTIVE.md).
 
-The trailing `_<` grep self-check is the same across all three: if any
+The trailing `_<` grep self-check is the same across all five: if any
 italic placeholder marker still appears, the artifact is not ready to send.
 
 ## How to run the demos
@@ -165,7 +178,7 @@ all dry-run / non-LLM subcommands are stdlib-only.
 ├── tool-use-agent/        # Day-10 Build 2: tool-using agent
 ├── evals-harness/         # Day-10 Build 3: cross-build evals
 ├── teardown-prd/          # Day-20: Cursor teardown + the shortlist that preceded it
-└── templates/             # Day-30: tracker, resume, cover-letter scaffolds
+└── templates/             # Day-30: sourcing, outreach, cover-letter, resume, tracker scaffolds
 ```
 
 ## On scope and honesty

@@ -3885,3 +3885,146 @@ from both the README edit and this DECISIONS entry; any expansion of
 the corpus file list to include the other two build READMEs, the
 teardown PRD, or the templates remains a deliberate corpus-v2
 supersession iteration of its own.
+
+## 2026-05-16 — Top-level README reconciled with the five-scaffold templates kit
+
+**Decision.** The repo-root `README.md` is updated to reflect that the
+templates kit now ships *five* scaffolds, not three. Specifically:
+(a) the "What this repo is, in one sentence" paragraph names the
+five-scaffold hiring-funnel kit (sourcing → outreach → cover letter →
+resume → tracker) instead of "the resume / cover-letter / pipeline
+scaffolds"; (b) the Milestone-map table collapses the two prior Day-30
+rows (tracker; resume + cover letter) into a single Day-30 row pointing
+at `templates/` with the funnel ordering inline; (c) the "Day-30
+scaffolds" prose section is rewritten from "Three fill-in templates …
+validates all three" to "Five fill-in templates … validates all five"
+and gains one-paragraph descriptions of `TARGET_COMPANIES.md` and
+`OUTREACH.md` matching the existing voice for the three already-listed
+scaffolds, ordered funnel-upstream-first (sourcing → outreach → cover
+letter → resume → tracker); (d) the Layout-diagram comment for
+`templates/` is updated from "tracker, resume, cover-letter scaffolds"
+to "sourcing, outreach, cover-letter, resume, tracker scaffolds". This
+supersedes only the scaffold-count and scaffold-list claims of the
+iteration-36 top-level-README entry — all other clauses (the
+index-and-narrative scope, the deliberate exclusion from rag-app
+corpus v1, the six iteration-36 out-of-scope items) remain in force.
+
+**Rationale.** (a) **What's actually true now versus when iteration 36
+shipped.** Iteration 36 shipped the top-level README on 2026-05-16 with
+three scaffolds in the kit (`INTERVIEW_TRACKER.md`, `RESUME.md`,
+`COVER_LETTER.md`). Iteration 37 added `OUTREACH.md` and explicitly
+pre-committed "no edit to … the top-level README" as a per-iteration
+scope rule (DECISIONS line 3625-3628), and iteration 38 added
+`TARGET_COMPANIES.md` with the same per-iteration scope rule for the
+README (DECISIONS line 3774-3777). Both per-iteration rules
+prevented silent scope creep *within* their own iterations but
+deliberately left the reconcile as a follow-up — same shape as
+iteration 6's flagged Python-version mismatch and iteration 39's
+follow-up reconcile that discharged it. The README's milestone-map
+table, Day-30 prose section, opening-sentence summary, and
+Layout-diagram comment have all been incrementally wrong since
+iteration 37 landed and increasingly wrong since iteration 38; the
+unified `_<` self-check note ("one regex … validates all three")
+became silently wrong the moment a fourth file with the same marker
+shipped, and again with the fifth.
+
+(b) **Why a dedicated reconcile iteration is the right ordering.** A
+reader cloning the repo at the top-level README is the same audience
+the iteration-36 entry named as load-bearing for the discoverability
+gap that README closes: a recruiter or hiring manager who reads the
+index, follows the links, and forms an impression of what's actually
+in the repo. A stale milestone-map row that lists three scaffolds when
+there are five is the *same category of error* the iteration-39
+Python-version reconcile fixed for the rag-app stack table — a
+documentation claim that overstates or understates the artifact
+relative to observable reality, where the claim is non-load-bearing
+to the code/files but load-bearing to a recruiter's expectations.
+The cheaper alternative (have iterations 37/38 bundle the README
+edit) would have violated their *single-artifact-per-iteration*
+discipline; the cheaper alternative (do nothing) would have let the
+gap compound for any further template iteration. A dedicated
+reconcile honors both disciplines — same posture iteration 33's
+polish slice took for the Cursor teardown's stale `§1.4` references
+and build-process leakage.
+
+(c) **Why the funnel-upstream-first ordering in the Day-30 section.**
+The iteration-37 OUTREACH entry's "sourcing → outreach → tracker"
+framing and the iteration-38 TARGET_COMPANIES entry's "front-of-funnel
+pair upstream of the four-scaffold downstream kit" framing together
+imply a canonical funnel order: TARGET_COMPANIES → OUTREACH →
+COVER_LETTER → RESUME → INTERVIEW_TRACKER. Listing the five scaffolds
+in that order in the README's Day-30 section makes the dependency
+explicit ("each downstream artifact is honestly populatable only after
+the upstream one is") — same single-source-of-truth discipline
+COVER_LETTER's "quote RESUME by reference" pattern uses at the
+template layer. The prior README's ordering
+(tracker → resume → cover-letter) was a stylistic choice that read
+ascending in salience but reversed the funnel; the
+funnel-upstream-first ordering reads as a runbook a user can follow
+top-to-bottom, which is the more useful framing for a Day-30 reader.
+
+(d) **Why collapse the Day-30 milestone-map row.** Iteration 36
+shipped two Day-30 rows (tracker on its own; resume + cover letter
+combined). Adding a third row for outreach and a fourth for sourcing
+would make Day-30 occupy four of the table's six rows, visually
+inflating the Day-30 footprint relative to Day-10 (3 rows, 3 builds)
+and Day-20 (1 row, 1 artifact). A single Day-30 row pointing at the
+`templates/` directory with the funnel ordering named inline keeps the
+table's visual weight proportional to milestone weight while the
+detail moves into the (already-existing) Day-30 prose section. This
+mirrors the iteration-36 decision to delegate sub-artifact detail to
+sub-READMEs / sub-sections rather than restate everything in the
+table — same restraint that kept the original table from inflating
+into a sub-artifact inventory.
+
+(e) **Why now and not earlier or later.** Earlier: iterations 37 and
+38 deliberately deferred the README edit to honor their
+single-artifact discipline; the deferral was correct and is now
+discharged exactly the way iteration 39 discharged iteration 6's
+deferred reconcile (single-purpose reconcile iteration after the
+related artifact slices stabilize). Later: any further iteration that
+edits an existing scaffold's contract, ships a sixth scaffold, or
+touches the templates kit would have inherited the stale README as
+its baseline, and a future reader would be increasingly confused.
+The five-scaffold templates kit is at its currently-stable state
+(per iteration 37 and 38 explicitly closing the
+"front-of-funnel-and-inventory layer end-to-end" with no immediate
+sixth scaffold planned), so reconciling now produces a stable
+README, not a moving target.
+
+**Out of scope for this iteration.** (1) **No content change beyond
+the four named surfaces in the README** — only the opening-sentence
+summary, the milestone-map Day-30 row, the Day-30 prose section, and
+the Layout-diagram comment are edited; the three Day-10 build
+sections, the Day-20 teardown section, the "How to run the demos"
+block, the "On scope and honesty" paragraph, and all hyperlinks /
+formatting remain byte-identical except where the four named edits
+require updates. (2) **No new scaffold, no template lint script, no
+follow-up DM scaffold, no interview-prep / negotiation scaffolds**
+— this iteration is purely a README reconcile mirroring the
+iteration-39 Python-version reconcile; any scaffold expansion remains
+deferred by the iteration-37/38 conditional thresholds (sixth
+scaffold; first real misuse; sustained outbound volume). (3) **No
+edit to any other artifact** — specifically no edits to the three
+build READMEs, the three build packages, the evals-harness queries
+or schema, the Cursor teardown PRD, the candidates file, any of the
+five template scaffolds, or OBJECTIVE.md. (4) **No rag-app corpus v1
+expansion** — the top-level `README.md` was deliberately *not* added
+to corpus v1 at iteration 36 (locked at iteration 3 to four specific
+files: OBJECTIVE.md, DECISIONS.md, templates/INTERVIEW_TRACKER.md,
+rag-app/README.md), so this iteration's chunk-count drift comes
+entirely from this DECISIONS entry by the standard per-iteration
+pattern; the README edit itself does not perturb the rag-app
+fingerprint. (5) **No restructure of the milestone-map table beyond
+collapsing the two Day-30 rows** — the table keeps its three-column
+shape (Milestone / Artifact / State), the Day-10 rows remain as
+three separate rows (one per build), and the Day-20 row remains as
+one row. The Day-30 collapse is justified in rationale (d); no other
+row-shape change is in scope. (6) **No automated "is the top-level
+README in sync with the templates/ directory" script** — the
+iteration-36 entry explicitly named this as deferred ("the index is
+the user's call"), and the same posture holds today: a one-line
+check (`ls templates/*.md | wc -l` matching the README's stated
+count) is cheap to run manually, and automating it would commit the
+repo to a maintenance surface that costs more than the drift it
+prevents.
