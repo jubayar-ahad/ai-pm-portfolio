@@ -1,9 +1,8 @@
 # Cursor — Teardown PRD
 
-**Status:** Outline slice (iteration 1 of a multi-iteration draft). The
-six canonical sections below carry intent paragraphs only; per-section
-prose lands in subsequent iterations in the order locked in
-DECISIONS.md.
+**Status:** §1 "What's working" and §2 "What's broken" drafted; §§3–6
+remain in outline / intent-paragraph state. Per-section prose lands
+in subsequent iterations in the order locked in DECISIONS.md.
 
 **Product under teardown:** Cursor — the AI-native code editor (VS
 Code fork) by Anysphere. https://cursor.com
@@ -241,41 +240,192 @@ specifics.
 **Section intent:** name the PM failures honestly. A teardown that
 only celebrates is not an interview leave-behind — it's a marketing
 deck. Each sub-point pairs an observable symptom with the PM choice
-the symptom implies, and the draft commits to specific reproduction
-steps a reviewer could verify.
+the symptom implies; each is framed as a fixable UX gap rather than
+a strategy mistake, with the reasoning made explicit so a reader can
+disagree concretely.
 
-**Candidate sub-areas the draft will narrow to ~3:**
+Three sub-sections follow, narrowed from the outline's four candidate
+sub-areas. The cut — free-tier quota surprises — is named at the end
+of this section with a one-paragraph rationale, mirroring the §1.4
+cut paragraph.
 
-- **Auto-mode router opacity.** When the model menu is set to "Auto,"
-  the user is not told which underlying model handled a given turn,
-  what triggered a fallback, or how latency and quality tracked.
-  The PM choice — hide the routing — optimizes for a clean surface
-  but breaks the user's ability to learn the product's reliability
-  envelope. The draft will frame this as a fixable UX gap, not a
-  product-strategy mistake.
-- **Indexer staleness signals.** On large monorepos, the project
-  indexer can serve stale chunks after recent edits. The user
-  observes this as "Cursor doesn't seem to know about the file I
-  just changed" — but the product offers no first-class
-  "index-freshness indicator" the user can read at-a-glance. The
-  draft will compare with the way IDE search products surface
-  index state.
-- **Agent stop conditions and overrun.** Composer and Background
-  Agent occasionally continue past the point the user wanted them
-  to stop, particularly when the model interprets an ambiguous
-  acknowledgment as "continue." The PM tension: aggressive
-  autonomy vs. user control. The draft will pin specific examples
-  the user can reproduce and propose a stop-criteria UI that is
-  not just "click cancel harder."
-- **Free-tier quota surprises.** The free tier's monthly limits are
-  documented but not displayed prominently enough during normal
-  use; the user discovers them by being interrupted mid-edit.
+### 2.1 Auto-mode router opacity
 
-**Evidence sources for this section:** reproducible behaviors on
-2026-05-16, public Discord / forum posts that document the same
-pattern (cited only as "users report" with link, never quoted as if
-authoritative), Cursor's own changelog acknowledging fixes-in-flight
-where applicable.
+**The PM failure.** When the model menu is set to "Auto," Cursor
+routes each turn to an underlying model — Sonnet, GPT, Gemini, or a
+faster cost-tier model — without telling the user which model handled
+the response, when a fallback fired, or how the routing decision was
+made. The simple-surface default is also an unauditable surface.
+
+**Observable behavior** (reproducible on 2026-05-16). With the model
+menu set to "Auto," send a chat or Composer prompt. The response
+renders with no per-message indicator naming the model that produced
+it; the model menu in the composer still shows "Auto" rather than the
+underlying selection. There is no per-thread routing summary in the
+thread sidebar, no opt-in advanced view that exposes the routing
+history, and no surfaced signal when an Auto turn falls back from a
+preferred model to a faster one due to availability or cost. Switching
+to a specific model from Auto changes the routing label, but does not
+retrospectively show what Auto would have chosen.
+
+**Why this is a fixable UX gap, not a strategy mistake.** The
+strategic logic for Auto is sound: most users do not want to learn the
+model menu, and a sane default that picks for them is the right
+product call. The gap is at the UX layer — without a per-message
+"served by X" affordance, users cannot learn which model is reliable
+for which task, cannot reproduce a successful turn, and cannot triage
+a bad response (model regression vs. prompt-quality vs. tool
+failure). The minimal fix is reveal-after-the-fact: a compact label
+on each response, optionally a per-thread routing summary in a
+collapsed panel. Routing logic does not change; transparency over it
+does.
+
+**Tension worth naming:** surface clutter vs. user learning. A
+per-message model label costs visual real estate and reintroduces the
+exact "which model is this?" decision Auto was supposed to spare the
+user from. The trade favors revelation because the alternative is
+users learning the routing through forum posts and trial-and-error —
+which a competing product reading this teardown would be happy to
+exploit by leading with model transparency. The clutter cost is
+bounded by typography choices; the user-learning cost compounds.
+
+*(Sources: observable behavior on 2026-05-16, macOS / Pro tier;
+Cursor docs on model menu and Auto, cursor.com/docs, accessed
+2026-05-16; user-community discussion of Auto routing visibility, on
+public Cursor forum threads, cited as a pattern rather than as
+authoritative on Cursor internals.)*
+
+### 2.2 Indexer staleness signals
+
+**The PM failure.** Cursor's project indexer — the system that lets
+`@Codebase` and the agent surfaces ground answers in repo content —
+can serve stale chunks on larger repos after recent edits, and the
+product offers no first-class index-freshness indicator the user can
+read at a glance. The user discovers staleness by being wrong about
+their own working tree.
+
+**Observable behavior** (reproducible on 2026-05-16, on a repo larger
+than ~5k files). Edit a file, save it, then immediately ask
+`@Codebase` a question whose answer depends on the new content. The
+model's response can reference the pre-edit version of the file, with
+no in-thread signal that the answer was indexed-state-stale. There
+is no persistent UI element in the workspace footer or sidebar that
+reads "indexed N seconds ago, M files pending" the way IDE search
+panes do; index controls live behind Settings → Indexing → Resync,
+which the user must navigate to manually after realizing the answer
+was stale.
+
+**Why this is a fixable UX gap, not a strategy mistake.** Incremental
+indexing on a fast-moving codebase is a hard engineering problem and
+some staleness window is unavoidable — even a perfect indexer has a
+sub-second gap between edit and reindex. That is the strategy
+constraint, and it is fine. The PM gap is the user-facing signal
+during that window: a persistent freshness indicator (last-index
+timestamp, pending-file count, one-click resync) reduces user
+confusion to near zero without changing the indexer's underlying
+behavior. The pattern is borrowed wholesale from JetBrains and VS
+Code search panes, which long ago made index state a visible
+first-class affordance.
+
+**Tension worth naming:** chrome cost vs. user trust. A persistent
+freshness indicator is one more piece of always-on UI in a product
+that already competes for attention with the diff gutter, the
+Composer drawer, and the model menu. The trade favors visibility
+because the alternative — silent staleness with no recovery path
+the user can see — directly undercuts the `@Codebase` primitive from
+§1.2, which is supposed to make the model's view of the repo
+predictable. An unpredictable indexer behind a predictable mention
+chip is a strictly worse position than a slightly busier UI with a
+freshness signal.
+
+*(Sources: observable behavior on 2026-05-16, macOS / Pro tier, repo
+size > 5k files; Cursor docs on the project indexer and `@Codebase`,
+cursor.com/docs, accessed 2026-05-16; user-community reports of
+indexer staleness on public Cursor forum threads, cited as a
+recurring pattern rather than authoritative on internals.)*
+
+### 2.3 Agent stop conditions and overrun
+
+**The PM failure.** Composer and Background Agent can interpret
+ambiguous user acknowledgments ("ok," "go ahead," "looks good") as
+license to continue work past the user's intended stopping point, and
+the only mid-execution control is a Cancel button. The stop surface
+is a hammer where the user often needed a scalpel — "pause and let me
+amend the plan" — and the failure mode is the agent doing more work
+than the user signed up for.
+
+**Observable behavior** (reproducible on 2026-05-16). Give Composer a
+multi-step task ("refactor function A, then update its three callers,
+then add tests"). After the first step lands, respond to the agent's
+progress message with "looks good" intending to acknowledge step one.
+The agent often interprets this as license to proceed through steps
+two and three autonomously, including continuing past a point where
+the user would have wanted to inspect intermediate state. Recovery
+requires Cancel — which leaves the working tree in a partially
+edited state — followed by a fresh prompt to undo or redo the
+last increment. Background Agent exhibits the same pattern offscreen,
+with the additional cost that the user notices the overrun only on
+return.
+
+**Why this is a fixable UX gap, not a strategy mistake.** Aggressive
+autonomy is the whole point of Composer and Background Agent — narrowing
+autonomy by default would defeat the surface and was correctly avoided
+in §1.3's autonomy ramp. The gap is the stop-criteria UI. A pre-run
+"I'll stop when X" plan that the user confirms before the agent starts,
+plus a pause-and-amend control during execution, would preserve
+autonomy and add control. The harder PM call is the default direction
+on the stop dimension: stop-aggressive (interrupt on every ambiguous
+acknowledgment, slower but safer) vs. stop-permissive (continue on
+ambiguity, faster but riskier). The teardown's §3 will recommend
+stop-aggressive and defend the choice; the surface gap is the same
+either way.
+
+**Tension worth naming:** stop-aggressive defaults vs. friction on
+routine multi-step tasks. Stop-aggressive means more confirmation
+prompts on tasks where the user would have happily let the agent
+continue, which reads as nagging. The trade favors aggressive because
+overrun damage is asymmetric: a wrong-direction agent edit costs the
+user the time-to-recover (Cancel, inspect, revert) plus the
+time-to-rebuild trust in the agent for the next session. Friction
+amortizes; a single bad overrun in a refactor-heavy session can end
+the day. Power users who explicitly want stop-permissive should be
+able to opt in per-task — but the default protects the cold user.
+
+*(Sources: observable behavior on 2026-05-16, macOS / Pro tier;
+Cursor docs on Composer and Background Agent, cursor.com/docs,
+accessed 2026-05-16; public Anysphere statements on agent
+stop-conditions and autonomy posture, cited by post title and date
+where referenced in §3.)*
+
+### Cut from the outline's four: free-tier quota surprises
+
+The outline named a fourth candidate sub-area — free-tier monthly
+quota limits documented in the pricing page but not displayed
+prominently during normal use, surfacing to the user only by
+interruption mid-edit. It is a real product friction and the fix is
+straightforward (a persistent quota meter near the model menu, a
+warning at 80% consumed, a clear path to upgrade). It is also
+structurally a monetization-positioning concern more than a
+PM-design call, mirroring the pricing-tier cut from §1.4: the deeper
+"why is this acceptable" question is about Anysphere's free-tier-as-
+funnel strategy, which the no-fabrication posture cannot interrogate
+without snapshot-pinned quota numbers and conversion data the public
+surface does not expose. Free-tier quota surfaces indirectly in §3's
+Proposal B (an index-freshness indicator and a quota meter compete
+for the same chrome real estate, which is a deliberate scope choice
+worth naming there) and in §4's lagging-adoption metrics row
+(free-to-paid conversion). The teardown is stronger with three
+concrete PM-craft critiques than with four where one is positioning.
+
+**Evidence sources for this section:** observable product behavior on
+2026-05-16 (macOS / Pro tier, with file-count and repo-size
+conditions named per sub-section), Cursor docs (cursor.com/docs)
+accessed 2026-05-16, public Anysphere statements on agent autonomy
+and stop-conditions (cited by title and date where referenced), and
+user-community reports on public Cursor forums (cited only as
+recurring patterns, never as authoritative on Cursor internals). No
+internal Cursor information, no fabricated metrics, no invented
+support-ticket volumes.
 
 ---
 

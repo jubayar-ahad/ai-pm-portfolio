@@ -2286,3 +2286,140 @@ corpus, so its drafting does not perturb the index — only this
 DECISIONS entry does. Tool-use-agent catalog is unchanged so its
 fingerprint is unchanged. Both builds and the evals-harness
 cross-build invariants still pass.
+
+---
+
+## 2026-05-16 — Cursor teardown PRD slice 3: "What's broken" drafted
+
+**Decision:** The "What's broken" section of
+`teardown-prd/cursor-teardown.md` ships in drafted state, replacing
+the outline slice's four-candidate bullet list with three full
+sub-section drafts plus an inline "cut" paragraph naming the dropped
+candidate. The drafts follow the canonical five-slot shape locked in
+the preceding slice-2 entry (PM failure / observable behavior / why-
+fixable-UX-gap-not-strategy-mistake / tension / inline source).
+Sections 3–6 remain in outline / intent-paragraph state and are
+picked up in subsequent slices per the seven-step plan from
+iteration 27.
+
+**Three sub-areas selected:**
+
+1. **§2.1 Auto-mode router opacity** — Auto-mode hides the underlying
+   model identity, fallback events, and routing rationale from the
+   user, breaking the user's ability to learn the product's
+   reliability envelope or triage a bad turn. The fix is
+   reveal-after-the-fact: per-message model label, optional
+   per-thread routing summary. Strategic logic for an Auto default
+   is sound; only the post-hoc transparency is missing.
+2. **§2.2 Indexer staleness signals** — On larger repos the project
+   indexer can serve stale chunks after recent edits, with no
+   first-class index-freshness indicator the user can read at a
+   glance. The fix borrows the pattern wholesale from IDE search
+   panes (last-index timestamp, pending-file count, one-click
+   resync). The §1.2 `@`-mention chip system relies on predictable
+   model context, and silent indexer staleness directly undercuts
+   that contract.
+3. **§2.3 Agent stop conditions and overrun** — Composer and
+   Background Agent can read ambiguous user acknowledgments as
+   license to continue past the intended stopping point, and the
+   only mid-execution control is Cancel. The fix is an explicit
+   pre-run "I'll stop when X" plan plus a pause-and-amend
+   mid-execution control. The default-direction call — stop-
+   aggressive vs. stop-permissive — is named here and recommended
+   in §3, defending stop-aggressive on overrun-damage asymmetry.
+
+**Cut from the outline's four: free-tier quota surprises.** The
+free-tier quota UX gap is real and the fix (a persistent quota meter,
+80%-consumed warning, clear upgrade path) is straightforward, but
+the sub-area is structurally a monetization-positioning concern
+rather than a PM-design call — the same axis that put §1.4's
+pricing-tier shape outside the section. Defending it requires
+snapshot-pinned quota numbers and conversion data the public surface
+does not expose, which collides with the no-fabrication posture.
+Free-tier quota surfaces lightly in §3's Proposal B context (a
+quota meter and an index-freshness indicator compete for the same
+chrome real estate, named explicitly when Proposal B drafts) and in
+§4's lagging-adoption metrics row (free-to-paid conversion). The
+topic is acknowledged where it touches the PM-design surfaces
+without being deep-dove on its own.
+
+**Slot substitution from slice 2's shape:** the canonical first slot
+is "the PM decision" in §1 and "the PM failure" in §2 (per the slice-2
+entry's "with 'the PM failure' and 'the PM proposal' substituting"
+clause). Slot 3 — "why this is the right PM call" in §1 — substitutes
+to "why this is a fixable UX gap, not a strategy mistake" in §2, per
+iteration 28's learning note that this framing is the load-bearing
+slot for §2 ("converts each sub-section from 'Cursor got it wrong'
+into a PM-craft critique a Cursor PM could action without rewriting
+the product strategy"). Slots 2 (observable behavior), 4 (tension
+worth naming), and 5 (inline source citation) carry forward
+unchanged. The five-slot list and its rationale (forcing each sub-
+section to fill all five or explain why it cannot) remain binding
+for §3 as well, with slot 1 substituting to "the PM proposal" there
+per the slice-2 entry's pre-commitment.
+
+**Source-density discipline** restated unchanged from slice 2: every
+claim about Cursor's surface behavior cites either (a) "observable
+behavior on 2026-05-16" with reproduction conditions (OS, tier, and
+when relevant repo-size or file-count), (b) a docs URL
+(cursor.com/docs) with the accessed date, (c) a changelog reference
+(cursor.com/changelog) with the accessed date, or (d) a public
+Anysphere statement (cited by post title and date). User-community
+reports (forums, social media) are cited only as recurring patterns,
+never as authoritative on Cursor internals. No fabricated version
+numbers, no invented support-ticket volumes, no specific dollar
+amounts.
+
+**Header convention** carries from slice 2 unchanged: `### N.M ...`
+three-level headers for sub-sections, `## N. ...` for top-level
+canonical sections. The §2 cut paragraph uses a sub-section header
+(`### Cut from the outline's four: ...`) parallel to the §1 cut
+paragraph, so a reader scanning the document by header sees the
+narrowing decision in both sections at the same depth.
+
+**Word-budget discipline** carried from iteration 28's learning note
+(~150–250 words per sub-section across five rhetorical slots). The
+drafted §2 sub-sections track that budget within ±10% so a reviewer
+can scan the three sub-sections at roughly equal cost and notice
+which one is structurally weakest. Maintaining a fixed word budget
+across sections is what makes the five-slot lock observable rather
+than aspirational.
+
+**Out of scope for this iteration** (deliberate, named so the next
+iteration cannot silently inherit them):
+
+1. **Edits to sections 3–6.** Those sections remain in outline /
+   intent-paragraph state; the §3 "What to ship next" draft is the
+   next iteration's deliverable, paired one-to-one with §2's three
+   broken sub-areas (Proposal A → §2.1, Proposal B → §2.2,
+   Proposal C → §2.3).
+2. **Revisions to §1 or to the masthead / scope decision.** §1's
+   three drafted sub-sections and the cut paragraph stand. If a §2
+   sub-section appears to require restating a §1 decision, the §2
+   sub-section is revised, not §1.
+3. **A new outline-candidate added to §2 mid-draft.** The §2 cut
+   paragraph names exactly one cut (free-tier quota); silently
+   adding a fifth or sixth candidate would defeat the
+   narrow-to-three discipline established in slice 2.
+4. **Promotion of the cut sub-area into a deep-dive elsewhere.**
+   Free-tier quota surfaces only as named in §3 Proposal B and §4's
+   metrics row, neither of which is a deep-dive. Reopening it as a
+   sub-section of §3 or §4 would reintroduce the cut by side door,
+   same posture slice 2 took on pricing-tier.
+5. **Any change to the rag-app corpus v1 file list.** Corpus v1
+   stays locked to (OBJECTIVE.md, DECISIONS.md,
+   templates/INTERVIEW_TRACKER.md, rag-app/README.md). The teardown
+   file itself remains outside the corpus and its drafted §2 does
+   not perturb the rag-app index.
+
+**Implication for the rag-app corpus_fingerprint:** this iteration
+touches DECISIONS.md but not the other three corpus-v1 files; per the
+per-iteration drift pattern documented from iteration 16 onward, the
+rag-app corpus_fingerprint will rotate. The
+teardown-prd/cursor-teardown.md file's drafted §2 is not in the
+corpus, so its drafting does not perturb the index — only this
+DECISIONS entry and the small status-line update at the top of the
+teardown file do (and only the DECISIONS entry, because the teardown
+file is not in corpus v1). Tool-use-agent catalog is unchanged so its
+fingerprint stays at 626af64cb9bf48bf. Both builds and the
+evals-harness cross-build invariants still pass.
