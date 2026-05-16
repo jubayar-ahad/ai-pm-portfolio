@@ -226,3 +226,61 @@ the right unit to test deterministically. Default model remains
 `--model` flag exists for the moment an interviewer asks "what about
 Sonnet?", which is a useful PM-conversation moment, not a config
 crisis.
+
+## 2026-05-16 — rag-app refusal threshold and citation verification
+
+**Decision:** The `ask` slice enforces two mechanical guardrails on top
+of the prompt rules locked in the prior entry:
+
+1. **BM25 top-score refusal threshold.** Default `MIN_RETRIEVAL_SCORE =
+   1.5` (overridable per call with `--min-score`). When the BM25 top
+   score is below the threshold (or retrieval returns no chunks), `ask`
+   short-circuits before the model call and emits the canonical refusal
+   sentence with `reason: low_retrieval_score` in the JSON trace and a
+   `Mode: refused-low-score` line in the human-readable output. No
+   tokens are spent.
+2. **Citation verification on live answers.** `rag_app/verify.py`
+   regex-parses every `[<source>#<start>-<end>]` citation in the
+   model's answer (grammar: `\[([^#\]]+)#(\d+)-(\d+)\]`) and marks each
+   `resolved` iff its `(source, start, end)` exactly matches the source
+   and span of a chunk that was retrieved for this query. The CLI
+   prints a one-line `citations: N/M resolved — OK|MISMATCH` summary
+   and lists every unresolved citation; `--json` emits a structured
+   `verification` block.
+
+The canonical refusal sentence — `"I don't have enough information in
+the provided context to answer this."` — is defined exactly once in
+`rag_app/verify.py` as `REFUSAL_SENTENCE` and interpolated into
+`generate.py`'s `SYSTEM_PROMPT` and the CLI's refusal short-circuit, so
+the model-following-the-prompt path and the threshold-bypass path emit
+byte-identical strings.
+
+**Rationale:** Three properties earned by this slice.
+
+- **Refusal is testable without an API key.** The threshold path is
+  pure-Python and deterministic, so the evals harness can score
+  refusal-when-uncertain accuracy by replaying retrieval traces — no
+  network, no key, no nondeterminism. The threshold value (1.5) is
+  honest-to-v1 only: queries with zero corpus-token overlap score 0.0
+  and refuse cleanly, but BM25 over an English markdown corpus does
+  not perfectly separate in-corpus from out-of-corpus questions when
+  they share high-frequency stopwords ("what", "the", "is"). The
+  evals harness will retune this against a labeled set, and a future
+  iteration can swap in a query classifier or stopword-stripped index
+  if the gap proves load-bearing.
+- **Groundedness is mechanically auditable.** Verifying citations
+  against the *retrieved* set (not the full corpus) directly enforces
+  the system-prompt rule that the model must not cite context it was
+  not given; a citation pointing to a real corpus chunk that wasn't in
+  this query's top-k still flags as unresolved. Span equality (not
+  containment) is required so the model cannot invent sub-spans the
+  chunker did not emit.
+- **One refusal string, one definition.** Drifting the refusal
+  sentence between the system prompt and the threshold-bypass output
+  would split the eval bucket and force the harness to maintain a
+  fuzzy-match. Centralizing it in `verify.py` is the smallest possible
+  guarantee against that drift.
+
+The `1.5` threshold is the only tunable parameter in this slice and is
+intentionally an ordinary constant (not a config file) until the evals
+harness produces a reason to move it.

@@ -22,11 +22,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from rag_app.retrieve import RetrievedChunk
+from rag_app.verify import REFUSAL_SENTENCE
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 1024
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT = f"""\
 You are a careful question-answering assistant for the AI PM 90-day project repo.
 
 You answer questions using ONLY the context chunks provided in the user message.
@@ -35,7 +36,7 @@ Rules, in order of priority:
 
 1. If the provided context does not contain enough information to answer
    the question, reply exactly with this sentence and nothing else:
-   "I don't have enough information in the provided context to answer this."
+   "{REFUSAL_SENTENCE}"
 
 2. Every factual claim in your answer must be followed by a citation in the
    form [<source>#<start>-<end>], where <source> is the chunk's source path

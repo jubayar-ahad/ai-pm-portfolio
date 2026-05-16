@@ -31,6 +31,12 @@ from rag_app.retrieve import (
     BM25Index,
     load_chunks,
 )
+from rag_app.verify import (
+    MIN_RETRIEVAL_SCORE,
+    REFUSAL_SENTENCE,
+    should_refuse,
+    verify_citations,
+)
 
 DEFAULT_CHUNKS_PATH = "rag-app/.cache/chunks.jsonl"
 
@@ -116,16 +122,31 @@ def cmd_ask(args: argparse.Namespace) -> int:
     prompt = build_prompt(args.question, retrieved)
 
     have_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    do_live = not args.dry_run and have_key
-    mode = "live" if do_live else "dry-run"
+    refuse = should_refuse(retrieved, threshold=args.min_score)
+    top_score = retrieved[0].score if retrieved else 0.0
 
-    answer = call_claude(prompt, model=args.model, max_tokens=args.max_tokens) if do_live else None
+    if refuse:
+        mode = "refused-low-score"
+    elif args.dry_run or not have_key:
+        mode = "dry-run"
+    else:
+        mode = "live"
+
+    answer = None
+    verification = None
+    if mode == "live":
+        answer = call_claude(
+            prompt, model=args.model, max_tokens=args.max_tokens
+        )
+        verification = verify_citations(answer.text, retrieved)
 
     if args.json:
         payload = {
             "mode": mode,
             "question": args.question,
             "top_k": args.top_k,
+            "min_score": args.min_score,
+            "top_score": round(top_score, 6),
             "retrieved": [
                 {
                     "rank": r.rank,
@@ -138,19 +159,54 @@ def cmd_ask(args: argparse.Namespace) -> int:
                 for r in retrieved
             ],
             "prompt": {"system": prompt.system, "user": prompt.user},
-            "answer": asdict(answer) if answer is not None else None,
+            "answer": (
+                {"text": REFUSAL_SENTENCE, "reason": "low_retrieval_score"}
+                if mode == "refused-low-score"
+                else asdict(answer) if answer is not None else None
+            ),
+            "verification": (
+                {
+                    "total": verification.total,
+                    "resolved": verification.resolved_count,
+                    "all_resolved": verification.all_resolved,
+                    "citations": [
+                        {
+                            "raw": c.raw,
+                            "source": c.source,
+                            "start": c.start,
+                            "end": c.end,
+                            "resolved": c.resolved,
+                        }
+                        for c in verification.citations
+                    ],
+                }
+                if verification is not None
+                else None
+            ),
         }
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
 
     print(f"Question: {args.question}")
     print(f"Mode: {mode}")
-    if not do_live and not args.dry_run and not have_key:
+    if mode == "refused-low-score":
+        print(
+            f"  (top BM25 score {top_score:.3f} < threshold "
+            f"{args.min_score:.3f} — refusing without a model call)"
+        )
+    elif mode == "dry-run" and not args.dry_run and not have_key:
         print("  (no ANTHROPIC_API_KEY in environment — falling back to dry-run)")
     print(f"Retrieved {len(retrieved)} of {len(indexed)} chunks:")
     for r in retrieved:
         print(f"  #{r.rank}  score={r.score:6.3f}  {r.id}  span={r.span}")
     print()
+
+    if mode == "refused-low-score":
+        print("--- answer ---")
+        print(REFUSAL_SENTENCE)
+        print()
+        print("(no model call made; emit policy: low_retrieval_score)")
+        return 0
 
     if answer is None:
         print("--- prompt.system ---")
@@ -164,6 +220,14 @@ def cmd_ask(args: argparse.Namespace) -> int:
     print("--- answer ---")
     print(answer.text)
     print()
+    if verification is not None:
+        status = "OK" if verification.all_resolved else "MISMATCH"
+        print(
+            f"(citations: {verification.resolved_count}/{verification.total} "
+            f"resolved — {status})"
+        )
+        for c in verification.unresolved:
+            print(f"  unresolved: {c.raw}")
     print(
         f"(model={answer.model}  "
         f"input_tokens={answer.input_tokens}  "
@@ -259,6 +323,15 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=DEFAULT_MAX_TOKENS,
         help=f"Max output tokens (default {DEFAULT_MAX_TOKENS}).",
+    )
+    p_ask.add_argument(
+        "--min-score",
+        type=float,
+        default=MIN_RETRIEVAL_SCORE,
+        help=(
+            "BM25 top-score floor. Below this, ask short-circuits with the "
+            f"canonical refusal sentence (default {MIN_RETRIEVAL_SCORE})."
+        ),
     )
     p_ask.add_argument(
         "--dry-run",

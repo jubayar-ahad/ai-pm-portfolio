@@ -18,8 +18,8 @@ incrementally — see [Status](#status) for what currently runs.
 | Retrieval CLI (BM25) | Shipped (`python -m rag_app retrieve "<question>"`) |
 | Generation with Claude | Shipped (`python -m rag_app ask "<question>"`) |
 | End-to-end `ask` demo | Shipped (live with `ANTHROPIC_API_KEY`, otherwise auto dry-run) |
-| Refusal + citation hardening | Not yet implemented |
-| Evaluation hooks (for `evals-harness/`) | Partial — `ask --json` emits the full trace; the harness will consume it |
+| Refusal + citation hardening | Shipped (BM25 score threshold + `[source#start-end]` citation verifier) |
+| Evaluation hooks (for `evals-harness/`) | Partial — `ask --json` emits retrieval, prompt, answer, and verification; harness will consume it |
 
 The `ask` subcommand runs in two modes. With `ANTHROPIC_API_KEY` set it
 calls Claude and prints a cited answer. Without a key (or with explicit
@@ -56,7 +56,9 @@ avoid speculative scope.
 | Retrieval | Stdlib BM25 (Okapi, k1=1.5, b=0.75) over the loaded chunks | Zero model download, zero extra dependencies, runs on any Python. BM25 is the established sparse baseline; at this corpus size (tens of chunks) it is competitive with dense embeddings. Dense retrieval is deferred to a future hybrid (BM25 + reranker) rather than treated as the primary index — see [DECISIONS.md](../DECISIONS.md) for the supersession. |
 | Chunking | Paragraph-aware word windows with paragraph-level overlap (defaults: 400 words, 80 overlap) | Word counts as a stdlib-only stand-in for token counts — keeps the loader dependency-free; the embedding step can re-measure if needed. |
 | CLI | Three subcommands of one entry point: `python -m rag_app {load,retrieve,ask}` | Keeps the demo legible (one command per slice, no flag soup) while letting an interviewer poke each stage independently. |
-| Citation format | `[<source>#<start>-<end>]` using the chunker's char span | Regex-clean (no collision with the `::` chunk-ID separator), human-readable, and trivially verifiable: a future iteration can parse it back and re-read the cited bytes from disk to confirm groundedness. |
+| Citation format | `[<source>#<start>-<end>]` using the chunker's char span | Regex-clean (no collision with the `::` chunk-ID separator), human-readable, and trivially verifiable: the citation verifier parses it back and confirms each (source, span) was actually in the retrieved set. |
+| Refusal threshold | BM25 top-score floor (default `1.5`, `--min-score` to override) | Below the floor, `ask` short-circuits to the canonical refusal sentence with `reason: low_retrieval_score` — no model call, no token spend. Empirically separates in-corpus queries (top score ≥ ~3) from out-of-corpus queries (top score < 0.2). |
+| Citation verification | `verify.py` regex-parses every citation in the live answer and checks (source, start, end) against the retrieved chunk spans | A citation that doesn't match a retrieved span is flagged as `unresolved`, surfaced inline and in the `--json` `verification` block, so the upcoming evals harness can score groundedness mechanically. |
 | Dry-run fallback | `ask` auto-falls back to printing the prompt if `ANTHROPIC_API_KEY` is unset | Makes the demo runnable in any environment without an API key, and gives the evals harness a no-network code path for prompt-construction tests. |
 
 The Anthropic + BM25 stack means the demo needs exactly one API key
@@ -166,11 +168,13 @@ Each line below is intended to map to a single future iteration:
 4. **Refusal + citation hardening.** Threshold the BM25 top score so the
    `ask` path forces an abstention when the context is weak, and parse the
    answer's `[<source>#<start>-<end>]` citations back to verify each one
-   resolves to a real chunk span on disk.
-5. **Eval hooks.** `ask --json` already emits the full
-   `{question, retrieved, prompt, answer}` trace; once `evals-harness/`
-   exists, this is the surface it scores against. May grow a small
-   stable-id field per record so eval runs are diff-able across days.
+   resolves to a retrieved chunk span. *(Shipped — see `verify.py` and
+   the `--min-score` flag on `ask`.)*
+5. **Eval hooks.** `ask --json` emits the full
+   `{question, retrieved, prompt, answer, verification}` trace; once
+   `evals-harness/` exists, this is the surface it scores against. May
+   grow a small stable-id field per record so eval runs are diff-able
+   across days.
 6. **Hybrid retrieval (optional quality lift).** Add a dense reranker over
    the BM25 top-N. Treat dense as a quality knob on top of the lexical
    baseline, not as a replacement.
@@ -231,9 +235,40 @@ python -m rag_app ask "What is the Day 20 milestone?"
 # (model=...  input_tokens=...  output_tokens=...)
 ```
 
-Useful flags on `ask`: `--top-k`, `--model`, `--max-tokens`, `--dry-run`
-(force the prompt-only path), and `--json` (emit the full
-`{question, retrieved, prompt, answer}` record for the evals harness).
+Useful flags on `ask`: `--top-k`, `--model`, `--max-tokens`, `--min-score`
+(BM25 floor for refusal, default 1.5), `--dry-run` (force the prompt-only
+path), and `--json` (emit the full
+`{question, retrieved, prompt, answer, verification}` record for the
+evals harness).
+
+A question whose terms do not overlap the corpus short-circuits to the
+canonical refusal sentence without a model call:
+
+```bash
+python -m rag_app ask "<a question this repo's markdown does not cover>"
+# Question: ...
+# Mode: refused-low-score
+#   (top BM25 score 0.XXX < threshold 1.500 — refusing without a model call)
+# Retrieved 5 of N chunks:
+#   #1  score=...  ...
+# ...
+# --- answer ---
+# I don't have enough information in the provided context to answer this.
+#
+# (no model call made; emit policy: low_retrieval_score)
+```
+
+Caveat: the corpus is the repo's own markdown including this README, so
+any literal query string you put here would itself become an indexed
+chunk on the next `load`. Empirically, queries that share even
+high-frequency stopwords with the corpus can squeak above a static
+threshold — the threshold is a deliberate v1 floor, and the evals
+harness will retune it against a labeled set.
+
+When `ask` runs live, every citation in the answer is parsed and checked
+against the retrieved chunk spans. The CLI prints a one-line summary
+(`citations: N/M resolved — OK|MISMATCH`) and lists any unresolved
+citations; `--json` mirrors this in a structured `verification` block.
 
 ## Design tradeoffs called out for interview discussion
 
