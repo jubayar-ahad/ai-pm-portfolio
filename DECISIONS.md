@@ -3398,3 +3398,103 @@ since iteration 16. (6) No edit to the three builds, the Cursor
 teardown PRD, the resume scaffold, or the interview tracker — this
 iteration is purely a `templates/COVER_LETTER.md` addition plus
 this DECISIONS entry.
+
+## 2026-05-16 — Top-level README.md as the portfolio index
+
+**Decision:** Ship `README.md` at the repo root as the index that maps the
+[OBJECTIVE.md](OBJECTIVE.md) milestones (Day-10 / Day-20 / Day-30) to the
+artifacts that satisfy them, with one-line product framings, a status
+table, a "how to run the demos" block for the three runnable subdirs, a
+layout diagram, and an explicit on-scope-and-honesty paragraph naming the
+no-fabrication guardrails. The README is a navigational and narrative
+artifact, not a redrawn design doc — every claim in it is reproduced from
+an existing source (sub-build README, teardown PRD masthead, or
+[OBJECTIVE.md](OBJECTIVE.md)) rather than invented for the top-level page.
+It is deliberately **not** added to the rag-app corpus v1 list (locked at
+iteration 3 to four specific files), so its addition does not perturb the
+rag-app fingerprint; only this DECISIONS entry does, by the standard
+per-iteration drift pattern documented since iteration 16.
+
+**Rationale.** (a) **Why a top-level README at all, and why now.** The
+operating guardrails in [OBJECTIVE.md](OBJECTIVE.md) name the three builds
+and the teardown PRD as the interview-leave-behind artifacts. Without a
+top-level README, a recruiter or hiring manager landing at the repo URL
+sees only `OBJECTIVE.md` and a set of subdirectories — they have to
+discover the narrative arc by clicking into each subdir's README in turn.
+The top-level README closes that discoverability gap by giving a
+recruiter the milestone-to-artifact map, a one-paragraph framing of each
+build, and the three runnable commands that prove the demos work. The
+right iteration for this is the one *after* all six artifact slots are
+shipped (Day-10 builds + Day-20 teardown + Day-30 templates), so the
+README is documenting a real state rather than promising future work.
+Shipping it earlier would have created a status surface that drifts
+every slice; shipping it now means the status table can be all
+"Shipped." (b) **Why an index-and-narrative shape rather than a redrawn
+design doc.** The per-build READMEs and the teardown PRD already own
+the design contracts; redrawing those at the top level would create two
+sources of truth that drift on the first edit. The top-level README's
+job is *narrative arc* (this is what the repo is, this is how the
+artifacts relate, this is how to run the demos) — its first-class
+content is the milestone-to-artifact table, the one-line framing of
+each build, the cross-build invariant note that motivates the harness,
+and the layout diagram. Anything load-bearing about scope, stack, or
+design decisions lives in the sub-READMEs the top-level points at.
+(c) **Why a "How to run the demos" block at the top level.** A
+recruiter who wants to try the demos should not need to click into
+three subdirs to find three slightly different invocation patterns;
+listing all three with the same shape (`cd <dir>`, three or four
+commands, `cd ..`) in one place is materially friendlier than expecting
+the reader to assemble the picture themselves. The block reproduces
+commands that already exist in each sub-README's "How to run" section,
+so it is not a new contract — if the sub-README's invocation changes,
+the top-level README's block has to be edited too, which is the
+standard cost of any index over multiple sources. The single
+`anthropic>=0.40` runtime-dep note at the bottom of the block is the
+one fact a recruiter needs that does not jump out of the per-build
+READMEs at a glance. (d) **Why an explicit on-scope-and-honesty
+paragraph at the bottom.** The no-fabrication guardrail in
+[OBJECTIVE.md](OBJECTIVE.md) ("Do NOT fabricate companies the user is
+interviewing with"; "never invent employment history, projects, or
+credentials") is enforced inside each scaffold and inside the teardown
+PRD, but a reader landing at the top level cannot see it without
+opening those files. Naming the discipline once at the top of the repo
+— and pointing at the per-artifact enforcement points — is the
+cheapest defense against a recruiter assuming the scaffolds carry
+populated data the user has not actually claimed, and against a future
+iteration loosening the guardrail in any one artifact without that
+loosening being visible at the index level. (e) **Why the README is
+NOT in rag-app corpus v1.** Adding a fifth file to corpus v1 would
+require a deliberate `corpus v2` supersession entry per the
+iteration-3 lock, and the top-level README's content is by design a
+narrative reproduction of claims already in the corpus (via
+`OBJECTIVE.md` and `rag-app/README.md`). Adding it would inflate the
+chunk count and make every README edit perturb the index, without
+adding any retrieval signal the existing four-file corpus doesn't
+already carry. The right iteration to expand the corpus is one whose
+explicit job is to do so, with its own supersession entry; this
+iteration is not that.
+
+**Out of scope for this iteration.** (1) No rag-app corpus v1 change
+— see rationale (e); expanding the corpus is a separate deliberate
+slice with its own supersession entry, not a silent side effect of
+adding a README. (2) No edits to any sub-build README, the teardown
+PRD, the resume scaffold, the cover-letter scaffold, the interview
+tracker, the candidates file, `OBJECTIVE.md`, or any code in the three
+builds — the README documents the existing state, it does not change
+it. (3) No LinkedIn-post draft, no Twitter-thread template, no public
+explainer-blog post — those are user-channel artifacts whose voice has
+to come from the user, not from a scaffold; sharing the repo URL is
+the unit of action the README enables, the marketing prose around it
+is the user's call. (4) No automated "is the top-level README in sync
+with sub-READMEs" check — the README is small enough that an editor
+running through the sub-READMEs on a deliberate sync iteration is
+cheaper than a script, and the milestone table's "Shipped" column is
+the load-bearing freshness signal. (5) No badges, no shields.io
+links, no CI workflow files — those would imply a polish layer the
+repo does not currently carry and would commit to maintaining green
+states (build, lint, test) that none of the builds currently expose
+as CI surfaces. (6) No `CHANGELOG.md` — the chronological per-iteration
+log already lives in this `DECISIONS.md` file, and duplicating it as
+a CHANGELOG would create the same single-source-of-truth drift the
+COVER_LETTER ↔ RESUME quote-by-reference contract was designed to
+prevent.
