@@ -5753,3 +5753,249 @@ iteration (refusal + citation hardening)" which already shipped)
 violate the "make the smallest change that solves the problem"
 rule in the global CLAUDE.md.
 
+
+
+## 2026-05-16 — `tool-use-agent/tests/` pytest suite, 94% line coverage on `tool_use_agent` (NEXT_WORK item 3, sub-checkbox 2 of 4)
+
+**Decision.** Shipped the second build's pytest harness:
+`tool-use-agent/tests/` with seven test modules (test_catalog.py,
+test_tools_repo.py, test_tools_pipeline.py, test_verify.py,
+test_trace.py, test_agent.py, test_main.py), a session-scoped
+`conftest.py` exposing the fixture repo path, and a self-contained
+fixture repo under `tests/fixtures/tiny_repo/` (stub `OBJECTIVE.md`
+anchor + `animals.md` + `sub/cities.md` + a populated
+`templates/INTERVIEW_TRACKER.md` covering placeholder filtering and
+all three buckets). 117 tests pass in ~0.3s with no network access,
+no API key, and no external dependencies beyond pytest itself. The
+single cross-build test (`test_refusal_sentence_byte_equal_to_rag_app`)
+skips when `rag_app` isn't on `sys.path` — sub-checkbox 4's
+consolidating slice owns the cross-build wiring.
+
+**Per-module coverage matrix (from `coverage report` against
+`--source=tool_use_agent`):**
+
+| Module | Stmts | Miss | Cover | What's missed |
+|---|---|---|---|---|
+| `tool_use_agent/__init__.py` | 0 | 0 | 100% | (empty file) |
+| `tool_use_agent/agent.py` | 105 | 0 | 100% | — |
+| `tool_use_agent/catalog.py` | 32 | 0 | 100% | — |
+| `tool_use_agent/trace.py` | 16 | 0 | 100% | — |
+| `tool_use_agent/verify.py` | 14 | 0 | 100% | — |
+| `tool_use_agent/tools_pipeline.py` | 88 | 2 | 98% | Two malformed-table early-return branches reached only via single-corner-case input |
+| `tool_use_agent/tools_repo.py` | 92 | 8 | 91% | UnicodeDecodeError fallbacks + binary-file-size cap branch — outside the key-free fixture-corpus envelope |
+| `tool_use_agent/__main__.py` | 162 | 18 | 89% | `cmd_ask` live-mode branch + `_print_agent_result_human` tool-trace rendering (live-only) + `__main__` guard |
+| **Total** | **509** | **28** | **94%** | All misses are live-call paths, codec-error fallbacks, or argparse-dispatch dead branches |
+
+**What each test module exercises:**
+
+1. `test_catalog.py` — 16 tests covering the locked six-tool order
+   (`list_repo_files`, `read_repo_file`, `grep_repo`,
+   `list_pipeline_rows`, `count_by_stage`, `count_by_bucket`),
+   name uniqueness, `Tool` dataclass shape, every tool's
+   `input_schema` is `type: "object"` with `additionalProperties:
+   false`, `required` subset of `properties`, stage/bucket enums
+   match the locked `ALL_STAGES`/`BUCKETS` tuples, `_serialize`
+   recurses through dataclasses/lists/dicts and passes scalars
+   through, `call_tool` dispatches by name and raises `KeyError`
+   on unknown names, `catalog_as_anthropic_tools` preserves
+   insertion order and is JSON-serializable.
+2. `test_tools_repo.py` — 24 tests covering `find_repo_root`
+   (locates anchor + raises when missing), `list_repo_files`
+   (default `*.md` pattern, sorted/unique paths, directory
+   filter, exclusion of `.git`/`__pycache__`, empty list on
+   missing directory, explicit `**/*.md`), `read_repo_file`
+   (full file, line range, open-ended range, error strings for
+   missing/directory/path-escape/bad-start-line/end-before-start/
+   start-past-EOF), `grep_repo` (substring match, case-insensitive,
+   `max_matches` respected, empty query empty, `max_matches=0`
+   empty, missing path empty, file-targeting).
+3. `test_tools_pipeline.py` — 17 tests covering the locked stage
+   partition (`ALL_STAGES == ACTIVE_STAGES + TERMINAL_STAGES`),
+   `BUCKETS == ("B1", "B2", "B3")`, parses 4 real rows from the
+   fixture tracker (Acme/Beta Corp/Gamma/Delta), excludes the
+   `_<placeholder>_` row, returns `PipelineRow` instances, stage
+   filter (`panel` → 1 row), bucket filter (`B2` → 2 rows),
+   combined filter, unknown stage/bucket returns empty,
+   missing-tracker returns empty, `count_by_stage` covers every
+   locked stage as a key (zeros included), `count_by_bucket`
+   returns `{B1: 1, B2: 2, B3: 1}`, malformed-table early return,
+   missing-`## Active pipeline`-heading early return.
+4. `test_verify.py` — 14 tests covering `REFUSAL_SENTENCE` exact
+   text + 71-character length invariant, `canonical_call_key`
+   determinism/order-invariance/discriminates on tool name and
+   input, `detect_repeated_error` returns the overlapping key /
+   `None` on disjoint sets / `None` on empty inputs,
+   `is_model_refusal` strict-equality after strip / rejects
+   prose-around-sentence / rejects empty and unrelated text, plus
+   the conditional cross-build byte-equality test against
+   `rag_app/verify.py` (skipped when `rag_app` is unavailable).
+5. `test_trace.py` — 10 tests covering `SCHEMA_VERSION` locked at
+   `"tool-use-agent.ask.v1"`, `catalog_canonical_bytes`
+   deterministic and sorts keys (different insertion orders →
+   same bytes), `compute_corpus_fingerprint` is 16-hex-char and
+   deterministic and changes when the catalog changes,
+   `compute_record_id` is 16-hex-char and deterministic and
+   changes on every input field (question, model, max_steps,
+   mode, corpus_fingerprint), `now_iso` matches
+   `YYYY-MM-DDTHH:MM:SSZ`.
+6. `test_agent.py` — 14 tests covering `build_user_message` /
+   `build_dry_run_result`, `run_agent` rejects zero/negative
+   `max_steps`, and the four refusal buckets the agent loop
+   commits to: (a) `model_refused` — stub `end_turn` with the
+   canonical refusal text, (b) no-refusal happy path — stub
+   `end_turn` with a real answer leaves `refusal_reason=None`,
+   (c) `max_steps_exhausted` — stub repeatedly emits `tool_use`
+   so the cap fires with `final_text=REFUSAL_SENTENCE`, (d)
+   `repeated_tool_error` — stub emits the same unknown-tool
+   call twice and the loop refuses at step 2 (not at the cap).
+   Plus: parallel `tool_use` blocks share a `step` number,
+   `ToolCallTrace` fields populate (tool, input, step,
+   latency_ms ≥ 0, output_len > 0), `input_tokens`/
+   `output_tokens` accumulate from `response.usage`, `max_steps`
+   override is honored against the per-call cap.
+7. `test_main.py` — 22 tests covering `cmd_catalog` emits the
+   six-tool JSON list in order, `cmd_tool` dispatches a sample
+   tool and renders human or JSON output, `cmd_ask --dry-run`
+   prints `Mode: dry-run` and the catalog stanza, `cmd_ask
+   --dry-run --json` emits the full `tool-use-agent.ask.v1`
+   record (schema_version, record_id, generated_at,
+   corpus_fingerprint, mode, question, requested_model,
+   max_steps, steps_taken, tool_calls, …), `cmd_ask` rejects
+   `--max-steps < 1` with rc=2, missing-key auto-fallback prints
+   the dry-run advisory, `_agent_result_to_payload` is
+   record_id-deterministic across calls and bumps the record_id
+   when `requested_model` changes, `main([])` raises SystemExit(2),
+   `main(["--help"])` exits 0 with the three subcommands named,
+   `main(["catalog"])` end-to-end emits six tools, `main(["ask",
+   ..., "--dry-run", "--json"])` end-to-end emits the v1 record,
+   plus the `_print_human` branches (string passthrough, empty
+   list marker, list-of-strings, list-of-dicts pipe format, dict
+   key-padded, JSON fallback) and `_preview_output` truncation /
+   non-string / newline-replacement.
+
+**Stubbing the Anthropic SDK via `sys.modules` injection.** The
+agent loop does `from anthropic import Anthropic` *lazily inside
+`run_agent`*, which is how the `--no-deps` install verification
+pattern (iteration 49) works without standing up a 30 MB anthropic
+install in test envs. `test_agent.py` reuses that property to stub
+the SDK: a `pytest` fixture monkeypatches `sys.modules["anthropic"]`
+with a `types.SimpleNamespace(Anthropic=StubAnthropic)` before
+`run_agent` does its import, and `StubAnthropic` exposes a
+`.messages.create()` method that returns canned `StubResponse`
+objects. Each `StubResponse` carries the same surface the real SDK
+does (`.content` list of blocks with `.type`/`.text`/`.name`/
+`.input`/`.id`, plus `.usage.input_tokens`, `.usage.output_tokens`,
+`.stop_reason`, `.model`). The four refusal-bucket tests
+(`model_refused`/`repeated_tool_error`/`max_steps_exhausted`/no-
+refusal) and the trace-population tests all exercise the real loop
+body — no monkeypatching of the agent module's internals, only the
+SDK boundary. Worth carrying as the canonical pattern for any future
+test that needs to exercise lazy-imported SDK code paths without an
+API key: stub at the import boundary, not at the function call site,
+so the loop body is real code under test.
+
+**Fixture repo design rationale.** `tests/fixtures/tiny_repo/` has
+four properties chosen deliberately. (1) **Self-anchoring:** the
+directory contains a stub `OBJECTIVE.md` so `find_repo_root` resolves
+to the fixture root itself, never walking up into the actual repo —
+which would make tools' enumeration/grep results depend on the
+real repo's evolving contents. (2) **Domain-disjoint markdown
+files:** `animals.md` (pangolins/octopuses/axolotls) and
+`sub/cities.md` (Reykjavik/Singapore/Kyoto) share no content
+words, so grep-by-substring assertions are stable — "Pangolin"
+hits only `animals.md`, "capital" hits only `cities.md`. (3) **A
+populated `templates/INTERVIEW_TRACKER.md` covering placeholder
+filtering, all three buckets, and four distinct stages** — this is
+the load-bearing fixture for `tools_pipeline.py` and the one piece
+that materially differs from the rag-app fixture corpus. Four real
+rows plus one placeholder lets us exercise stage-filter,
+bucket-filter, combined-filter, and the placeholder-exclusion
+branch in a single fixture. (4) **No `templates/` directory at
+tmp_path-anchored tests** — the malformed-table and
+missing-heading test cases materialize their own minimal trackers
+under `tmp_path/templates/INTERVIEW_TRACKER.md`, keeping the
+positive and negative cases on separate fixture trees so a
+positive-case edit can't accidentally pass a negative-case test.
+
+**Direct dispatch over subprocess (carrying iteration 56's
+pattern).** Same as the rag-app suite, this build's CLI tests
+construct `argparse.Namespace` objects and invoke `cmd_*` /
+`main()` directly, with `contextlib.redirect_stdout` or pytest's
+`capsys` to capture output. This avoids the
+`find_repo_root(Path(__file__).resolve().parent)` coupling the
+iteration-49 build-verification entry surfaced (six of seven CLI
+commands across the three builds anchor data-file discovery to
+the package source root, which subprocess'ing from a test working
+directory does not redirect), keeps coverage attribution clean,
+and runs in-process so `pytest` finishes the full 117-test suite
+in ~0.3s. The pattern is now confirmed across two of three builds;
+sub-checkbox 3 (evals-harness) will carry it forward.
+
+**REFUSAL_SENTENCE cross-build invariant — now machine-checkable
+both ways.** Iteration 56 added the rag-app-side check
+(`test_refusal_sentence_is_byte_identical`). This iteration adds
+the symmetric tool-use-agent-side check
+(`test_refusal_sentence_byte_equal_to_rag_app`), which conditionally
+imports `rag_app.verify.REFUSAL_SENTENCE` and asserts equality with
+the local copy — skipping when `rag_app` isn't on `sys.path` so
+the test runs cleanly in a tool-use-agent-only install. The
+two-sided pin tightens the cross-build invariant: any future
+divergence is caught by whichever suite happens to run first against
+a co-installed pair, regardless of which direction the drift came
+from. The consolidating sub-checkbox 4 entry will lock the
+cross-build pytest fixture that makes the check unconditional in
+CI.
+
+**Catalog corpus_fingerprint is the right surface to fingerprint.**
+The tool-use-agent's analog of a corpus is the model-facing
+catalog (the JSON the SDK serializes into the system prompt's
+`tools=[...]` field), not the Python `impl` callables. The
+fingerprint is computed over `catalog_as_anthropic_tools()` —
+`{name, description, input_schema}` per tool — so a refactor of
+`tools_repo.grep_repo`'s implementation that preserves its
+schema does not bust the fingerprint, while adding a new tool or
+re-describing an existing one does. `test_trace.py`'s perturbation
+test (`test_compute_corpus_fingerprint_changes_with_catalog`)
+mechanizes this property: appending a fabricated extra tool to a
+copy of the catalog flips the fingerprint, confirming the
+fingerprint moves with the surface the model actually sees and
+not with some incidental file-layout property. Worth carrying as
+the canonical "what counts as corpus" definition for any future
+agent build added to the repo: corpus = whatever the model sees,
+fingerprinted at the surface boundary.
+
+**Per-iteration DECISIONS drift held exactly.** rag-app DECISIONS.md
+is now ~135 chunks (corpus chunk count rotated upward by the standard
++4-5 per-iteration drift pattern intact since iteration 16). Cross-
+build invariants (tool-use-agent 6-tool catalog order; evals-harness
+16-labels-2-invariants ingest pass; REFUSAL_SENTENCE byte-equality)
+held through this iteration unchanged — adding a tests/ subtree
+to tool-use-agent is purely additive, outside the rag-app corpus
+files, and doesn't transform any model-facing surface in any
+build.
+
+**Six out-of-scope items deliberately deferred from this slice.**
+(1) **The evals-harness test suite (sub-checkbox 3 of item 3)** —
+ships in its own iteration to preserve the per-build cadence;
+the direct-dispatch + sys-modules-anthropic-stub patterns will
+carry forward. (2) **The consolidating DECISIONS entry for item
+3 (sub-checkbox 4)** — pytest as framework, no-network-in-tests,
+fixture directory convention, coverage floor; lands once all
+three per-build suites exist, matching iteration 50's precedent.
+(3) **Adding coverage / pytest-cov to pyproject's dev extras** —
+properly the consolidating slice's work so all three builds gain
+the dependency in lockstep. (4) **Any pytest config block in
+pyproject** — the existing implicit config (rootdir=
+tool-use-agent, testpaths=`tests`) works fine; locking
+`testpaths = ["tests"]` and a coverage floor is the consolidating
+slice's discipline call. (5) **CI wiring (NEXT_WORK item 4)** —
+item 3 must complete before item 4 opens, per the topmost-
+unchecked-first rule. (6) **Any edit to the existing
+`tool_use_agent/` package code** — the slice is tests-only.
+Some docstrings or branch shapes I noticed while reading
+(`agent.py`'s top-of-file comment refers to "slice 3" and
+"slice 4" as if they were still upcoming, when they shipped
+months ago) would be cleaner if rewritten, but bundling a
+narrative-prose refactor into a tests-only slice violates the
+"make the smallest change that solves the problem" rule and
+would silently inflate the diff.

@@ -41,7 +41,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
   parser happy + sad paths, refusal sentence byte-equality), `generate.py`
   (dry-run JSON contract — schema and field types only, no live calls).
   Target: ≥80% line coverage on the package.
-- [ ] `tool-use-agent/tests/`: tests for the tool catalog (registration + JSON
+- [x] `tool-use-agent/tests/`: tests for the tool catalog (registration + JSON
   schema validity), each registered tool's pure behavior, the agent loop's
   bounded-step contract (default cap, `--max-steps` override, refusal
   classification across the four buckets), trace record schema.
