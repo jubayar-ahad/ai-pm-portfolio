@@ -245,7 +245,7 @@ questions, per-question strong-answer rubric, `_<your draft>_` italic
 slot. **Do NOT fabricate the user's stories or experience** — every
 answer slot stays empty for the user to fill.
 
-- [ ] `interview-prep/behavioral.md` — 12–15 questions covering the
+- [x] `interview-prep/behavioral.md` — 12–15 questions covering the
   canonical PM behavioral surface: tell-me-about-a-time prompts (a hard
   decision, a conflict, a failure, a successful launch, an ambiguous
   situation), why-leaving / why-this-role / why-AI-PM, biggest
