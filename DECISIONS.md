@@ -10871,3 +10871,221 @@ network).**
   OBJECTIVE ("NEXT_WORK.md complete" in spirit, with
   the literal exception that item 5 awaits user input
   and is structurally outside the agent's reach).
+
+---
+
+## 2026-05-17 — `rag-app/corpus/willison/` shipped as the first of three corpus subdirectories (NEXT_WORK item 5, sub-checkbox 1 of 5; partial slice — sub-checkbox NOT ticked)
+
+**What this slice ships.** Eight markdown files under
+`rag-app/corpus/willison/` plus a top-level
+`rag-app/corpus/SOURCES.md` recording per-file origin
+URL and retrieval date for the first of three corpus
+subdirectories called for by the revised NEXT_WORK item
+5 user pick ("all three" of Cursor docs, Anthropic docs,
+Willison essays). The other two corpus subdirectories
+(`cursor-docs/`, `anthropic-docs/`) are intentionally
+**not** in this slice — see "Why this is a partial
+slice" below.
+
+**Files shipped under `rag-app/corpus/willison/`**
+(retrieval date 2026-05-17, fetched via Claude Code's
+WebFetch against the live source):
+
+| File | Origin URL |
+|---|---|
+| `normalization-of-deviance.md` | `simonwillison.net/2025/Dec/10/normalization-of-deviance/` |
+| `claude-chrome-cloudflare.md` | `simonwillison.net/2025/Dec/22/claude-chrome-cloudflare/` |
+| `claude-cowork-first-impressions.md` | `simonwillison.net/2026/Jan/12/claude-cowork/` |
+| `moltbook.md` | `simonwillison.net/2026/Jan/30/moltbook/` |
+| `clinejection.md` | `simonwillison.net/2026/Mar/6/clinejection/` |
+| `pragmatic-summit-agentic-engineering.md` | `simonwillison.net/2026/Mar/14/pragmatic-summit/` |
+| `snowflake-cortex-ai.md` | `simonwillison.net/2026/Mar/18/snowflake-cortex-ai/` |
+| `auto-mode-for-claude-code.md` | `simonwillison.net/2026/Mar/24/auto-mode-for-claude-code/` |
+
+**Chunk count under the default chunker.** Mechanical
+re-check using
+`rag_app.corpus.split_paragraphs` +
+`chunk_paragraphs(…, DEFAULT_CHUNK_WORDS=400,
+DEFAULT_OVERLAP_WORDS=80)` against the eight files
+produces **18 chunks (5762 words)** distributed as: 3 /
+1 / 3 / 1 / 2 / 1 / 6 / 1 across the files sorted by
+name. This lands cleanly inside the NEXT_WORK
+sub-checkbox 1 target ("~10–30 chunks per corpus") and
+implies the combined three-corpus index will end in the
+30–80-chunk band the chunker is sized for (per the
+sub-checkbox text) once the cursor-docs and
+anthropic-docs subdirectories ship.
+
+**License / reuse posture (Willison).** Simon
+Willison's blog at `https://simonwillison.net/` does
+**not** publish an explicit copyright /
+reuse-license statement on its `/about/` page. A
+WebFetch of `simonwillison.net/about/` on 2026-05-17
+returned no copyright-terms-or-license text — only a ©
+symbol with years and no license clause. The corpus
+posture for this subdirectory is therefore
+**fair use for non-commercial portfolio demonstration
+with full attribution and source URLs**, with the
+removal-on-request guarantee recorded explicitly in
+`rag-app/corpus/SOURCES.md`: if the author requests
+removal, all files under `willison/` are deleted in a
+single commit. This honors the NEXT_WORK item 5
+revised text ("Fair-use-with-attribution for a
+non-commercial portfolio demo is acceptable; strict
+US public domain is not required") without inventing
+a license claim Willison's blog does not make.
+
+**Retrieval method, locked.** Each file was fetched via
+Claude Code's `WebFetch` tool against the URL recorded
+in the SOURCES.md table on the recorded retrieval date.
+The fetch prompt asked for "the full article body text
+as plain text" with explicit instructions to skip
+nav / footer / comments / social-share UI and preserve
+paragraph breaks. The returned text was saved as
+markdown without further editorial changes other than:
+(a) the H1 title line, (b) the `Posted <date> by Simon
+Willison.` byline, and (c) block-quote markdown
+preservation as `>`-prefixed lines. The
+no-editorial-rewrite rule is the load-bearing
+fabrication-prevention property — paraphrasing the body
+would be fabrication; the byline + H1 + block-quote
+rendering are formatting, not content.
+
+**SOURCES.md shape, locked.** The
+`rag-app/corpus/SOURCES.md` file ships at the corpus
+root (not per-subdirectory) with three section types:
+(1) one section per acquired subdirectory containing
+subject-matter framing, license / reuse rationale, the
+retrieval-method paragraph, and a per-file `| File |
+Origin URL | Retrieval date |` table; (2) one stub
+section per planned-but-not-yet-shipped subdirectory
+with a one-line "not yet acquired" placeholder; (3) the
+file-level header naming the no-fabrication rule
+("**No URLs or content here are fabricated**") and the
+incremental rollout posture. This shape lets the
+SOURCES.md grow forward as `cursor-docs/` and
+`anthropic-docs/` ship in subsequent slices without
+restructuring.
+
+**Why this is a partial slice (sub-checkbox NOT
+ticked).** NEXT_WORK item 5 sub-checkbox 1 text reads
+"Acquire and add corpus files under
+`rag-app/corpus/cursor-docs/`,
+`rag-app/corpus/anthropic-docs/`, and
+`rag-app/corpus/willison/`." The literal "and" makes
+the sub-checkbox a three-part conjunction: ticking it
+requires all three subdirectories to ship. This slice
+ships only the third (`willison/`), so sub-checkbox 1
+stays unticked. This is the same discipline applied at
+iterations 56 / 57 / 58 for the pytest-suite-per-build
+sub-checkbox of NEXT_WORK item 3, where each per-build
+test suite shipped without ticking the parent
+sub-checkbox until all three were in place. Three prior
+attempts (iterations 76 / 77 / 78) at fetching all
+three corpora in one iteration each exited code 1
+without a recorded summary — strong signal that the
+"acquire all three corpora in one slice" shape exceeds
+a viable per-iteration budget under WebFetch's
+return-content size. Splitting one corpus per iteration
+is the right cadence.
+
+**Verification surface (3 checks).**
+1. `wc -l rag-app/corpus/willison/*.md` returns 8 file
+   names with non-empty bodies, and
+   `rag-app/corpus/SOURCES.md` exists at the corpus
+   root listing all 8 files in its table.
+2. Mechanical chunk re-check via
+   `rag_app.corpus.split_paragraphs` +
+   `chunk_paragraphs(…, 400, 80)` returns 18 chunks for
+   the willison/ subset, within the 10–30 sub-checkbox
+   target band.
+3. `pytest` baseline re-verifies 473 + 1-skip green
+   across the three build directories (rag-app 66,
+   tool-use-agent 224 + 1 skip, evals-harness 183) at
+   sub-second wall clock — corpus files under
+   `rag-app/corpus/` are not in `DEFAULT_CORPUS_FILES`,
+   so this slice transforms no test-covered surface.
+
+**Cross-build invariants honored (unchanged).**
+1. **REFUSAL_SENTENCE byte-equality** between
+   `rag_app/verify.py` and
+   `tool_use_agent/verify.py` — not touched by this
+   slice (no code changes).
+2. **`trace.py` reuse via import** — not touched
+   (corpus files are content, not code).
+3. **`rag-app.ask.v1` JSON schema** — not touched
+   (no generation-path edits).
+4. **No-network / no-API-key test invariants** — held;
+   `pytest` continues to pass without WebFetch, network,
+   or API keys (WebFetch was used at acquisition time,
+   not at test time).
+
+**Out of scope, explicitly deferred.**
+1. **Cursor docs corpus** (`rag-app/corpus/cursor-docs/`)
+   — to be acquired in a subsequent iteration. The
+   SOURCES.md scaffold pre-allocates a section header
+   so that slice will append a per-file table, not
+   restructure.
+2. **Anthropic docs corpus**
+   (`rag-app/corpus/anthropic-docs/`) — same shape as
+   (1).
+3. **Updating `DEFAULT_CORPUS_FILES` in
+   `rag-app/rag_app/corpus.py`** — currently hardcoded
+   to the four original repo-markdown files. Changing
+   this is sub-checkbox 3's territory ("Update
+   `rag-app/README.md` Status section, demo
+   invocation"), which depends on the demo script
+   (sub-checkbox 4) and full corpus acquisition
+   (sub-checkbox 1's full completion). Not in this
+   slice.
+4. **The `make-demo.sh` / `python -m rag_app demo`
+   one-shot script** — sub-checkbox 3 of item 5; the
+   demo question must be cross-corpus by NEXT_WORK
+   sub-checkbox 3 text ("Pick a demo question that
+   *needs* multiple corpora to answer well"), so it
+   cannot ship until all three subdirectories exist.
+5. **`rag-app/README.md` Status section update** —
+   sub-checkbox 4 of item 5; not until the demo script
+   is in place to point at.
+6. **Marking the prior CORPUS_CANDIDATES.md decision
+   entry as superseded** — sub-checkbox 5 of item 5
+   ("DECISIONS.md entry locking the corpus pick …
+   supersedes the prior CANDIDATES decision entry");
+   that's the closing slice and is one entry, not five.
+7. **Adding the corpus subdirectories to
+   `.gitignore`** — they are *intentionally*
+   git-tracked (the corpus is the demo's content;
+   git-ignoring it would be a fabrication-of-absence).
+   The existing `rag-app/.gitignore` excludes only
+   `.cache/` and `__pycache__/`; the corpus is not
+   covered. No edit needed.
+8. **Reconciliation pass against the iteration-75
+   DECISIONS entry's claim of "6 of 7 top-level items
+   closed"** — NEXT_WORK was subsequently expanded
+   from 7 to 11 items by the user, and the prior
+   entry's accounting is stale. OBJECTIVE.md forbids
+   reconciliation passes ("Do NOT do reconciliation
+   passes across unrelated artifacts"); this slice
+   does not back-edit the prior entry. The next
+   closer of item 5 (sub-checkbox 5) is the right
+   slice to land the updated accounting.
+
+**State of NEXT_WORK.md after this slice.**
+
+- Items 1, 2, 3, 4, 6, 7: **ticked** (parent + all
+  sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 unticked
+  (partial — willison shipped, cursor-docs +
+  anthropic-docs pending); sub-checkboxes 2 / 3 / 4 / 5
+  unticked.
+- Items 8, 9, 10, 11: parent unticked; all
+  sub-checkboxes unticked (added to NEXT_WORK by the
+  user in the same revision that picked "all three"
+  for item 5).
+- **6 of 11 top-level items closed**; the topmost
+  unchecked item is still item 5; the next slice should
+  pick whichever of `cursor-docs/` or `anthropic-docs/`
+  is the smaller / safer acquisition target and ship
+  it in the same shape (subdirectory + appended
+  SOURCES.md section + chunk-count check + paired
+  DECISIONS entry).
