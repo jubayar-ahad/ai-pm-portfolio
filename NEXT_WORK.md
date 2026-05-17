@@ -100,7 +100,7 @@ rather than treating this as a separate test deliverable).
   (replace / append / prepend), applies it under a sandboxed root
   (`tool-use-agent/sandbox/`), and returns the diff. Refuses paths outside
   the sandbox.
-- [ ] `regex_extract` — accepts a path + a regex, returns matches as JSON
+- [x] `regex_extract` — accepts a path + a regex, returns matches as JSON
   with line numbers. Useful for the agent's own "find places to change"
   reasoning.
 - [ ] Tool catalog test extended to cover the three new tools.

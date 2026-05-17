@@ -31,6 +31,7 @@ from tool_use_agent.tools_repo import (
     list_repo_files,
     read_repo_file,
 )
+from tool_use_agent.tools_regex import regex_extract
 from tool_use_agent.tools_rewrite import OPERATIONS as REWRITE_OPERATIONS
 from tool_use_agent.tools_rewrite import file_rewrite
 from tool_use_agent.tools_sql import sql_query
@@ -298,6 +299,49 @@ def build_catalog() -> dict[str, Tool]:
                 "additionalProperties": False,
             },
             impl=file_rewrite,
+        ),
+        Tool(
+            name="regex_extract",
+            description=(
+                "Walk text files under a repo-relative path and return "
+                "regex matches with line numbers and capture groups. "
+                "Useful for the agent's own 'find places to change' "
+                "reasoning. Read-only. The pattern is a Python re-style "
+                "regex; use `(?i)` inline for case insensitivity."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": (
+                            "Python re-style regex pattern. Compiled "
+                            "before any file IO; malformed patterns are "
+                            "refused with an ERROR string."
+                        ),
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Repo-relative file or directory to scan. "
+                            "Defaults to the repo root."
+                        ),
+                        "default": ".",
+                    },
+                    "max_matches": {
+                        "type": "integer",
+                        "description": (
+                            "Cap on returned matches (1–1000). "
+                            "Defaults to 20."
+                        ),
+                        "minimum": 1,
+                        "default": 20,
+                    },
+                },
+                "required": ["pattern"],
+                "additionalProperties": False,
+            },
+            impl=regex_extract,
         ),
     ]
     return {tool.name: tool for tool in tools}

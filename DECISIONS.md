@@ -8250,3 +8250,287 @@ checkboxes / items).**
   - Item 7 (interview-prep Q&A bank): untouched. Reached
     after item 6 closes.
 
+## 2026-05-16 — `regex_extract` tool shipped (NEXT_WORK item 6, sub-checkbox 3 of 5)
+
+**What shipped.** The third and final new catalog tool —
+`tool_use_agent.tools_regex.regex_extract` — registered as
+the ninth entry in the locked catalog at
+`tool_use_agent/catalog.py:303` (deterministic order:
+`list_repo_files`, `read_repo_file`, `grep_repo`,
+`list_pipeline_rows`, `count_by_stage`, `count_by_bucket`,
+`sql_query`, `file_rewrite`, `regex_extract`). The tool
+accepts a Python `re`-style `pattern` (required), an
+optional repo-relative `path` (default `"."`), and an
+optional `max_matches` cap (default `20`, hard ceiling
+`1000`), walks text-suffixed files under the path, and
+returns matches as a structured dict:
+`{"pattern", "path", "matches": [{path, line_number,
+match, groups, span}, ...], "match_count", "truncated"}`.
+On failure it returns a sentinel `"ERROR: ..."` string
+matching the recovery contract of `read_repo_file` /
+`sql_query` / `file_rewrite`.
+
+Per-tool unit test file added at
+`tool-use-agent/tests/test_tools_regex.py` (28 new tests,
+100% line coverage on `tools_regex.py`) covering both
+guardrail layers, happy-path matching against the
+committed `tiny_repo` fixture, capture-group extraction,
+multi-match-per-line, max_matches truncation, span
+two-int shape, inline `(?i)` flag use, single-file and
+directory targeting, default-path-equals-repo-root
+behavior, the four classes of refused input (empty
+pattern / non-string pattern / oversize pattern /
+malformed regex), the four classes of size/scope refusal
+(path escape / missing path / max_matches=0 /
+max_matches>MATCH_CEILING), and the four classes of
+silent skip (non-text suffix / excluded directory /
+oversize file / un-decodable bytes inside a text-suffix
+file).
+
+**Two-layer safety guardrail.** Per OBJECTIVE.md ("safe
+(no shell-out, no network)") and the NEXT_WORK item 6
+sub-checkbox 5 framing ("write-keyword denylist for SQL,
+no path traversal"), the tool ships TWO independent
+refusal layers so a regression in either is still caught
+by the other — mirroring the `sql_query` two-layer
+pattern from iteration 65 and the `file_rewrite`
+two-layer pattern from iteration 66:
+
+  *Layer 1 — regex compile + pattern-length cap.* The
+  pattern is validated by `re.compile(pattern)` BEFORE
+  any file IO; a malformed regex (e.g. `(unclosed group`)
+  surfaces as `ERROR: invalid regex: <msg>` and the file
+  walk never starts. A pattern over
+  `MAX_PATTERN_LENGTH = 1000` characters is rejected as
+  `ERROR: pattern length <n> exceeds 1000-char cap`. The
+  length cap bounds the worst-case backtracking blast
+  radius for the pathological-quantifier family of
+  patterns (`(a+)+b`-style) — a 1000-char pattern's
+  combinatorial fan-out is bounded; a 1MB paste-the-whole-
+  file pattern would not be. The 1000-char ceiling
+  matches `sql_query`'s `ROW_CEILING` and
+  `tools_regex.MATCH_CEILING` choice of "round number,
+  agent-friendly, still bounds the bad case."
+
+  *Layer 2 — repo-relative resolve + match ceiling.* The
+  `path` argument is resolved through
+  `tools_repo._resolve_inside_repo`, the same helper used
+  by `read_repo_file` / `grep_repo` / `sql_query`; any
+  path escaping `repo_root` returns
+  `ERROR: path <p> escapes the repo root` BEFORE the file
+  walk starts. The match-collection loop is bounded by
+  `max_matches` (caller-tunable, default 20) and by
+  `MATCH_CEILING = 1000` (hard absolute ceiling regardless
+  of caller). When the cap is hit, the response sets
+  `truncated: true` so the agent knows additional matches
+  may exist beyond the cap and can re-query with a
+  narrower path. Per-file IO inherits the
+  `MAX_GREP_FILE_BYTES = 1_000_000` cap and
+  `TEXT_SUFFIXES` allowlist from `tools_repo` via direct
+  import, so a binary file or oversize blob is skipped
+  silently — same shape as `grep_repo`.
+
+The layered design is the lock. Either layer alone would
+be insufficient: layer 1 alone would still scan the
+entire repo even if every file produced zero matches
+(unbounded work); layer 2 alone would allow malformed
+regex to crash the walk midway with a `re.error` raised
+to the agent loop (a broken contract — the agent expects
+either a structured success dict or an `ERROR: ...`
+string). Together, the layers fire BEFORE any file IO
+and bound the worst-case work to
+`min(max_matches, MATCH_CEILING)` matches.
+
+**Why static + match-bound, not signal-based timeout.**
+A `signal.alarm`-style timeout would catch the
+pathological-backtrack family of regex DoS attacks more
+completely than a length cap, but `signal.alarm` is
+POSIX-only (Windows would silently skip the guard), is
+not safe on non-main threads (and the agent loop's
+future threading shape is unconstrained), and introduces
+platform-conditional code that obscures the actual safety
+contract. The 1000-char pattern cap is a weaker theoretical
+bound but a stronger practical one: it's portable, has no
+runtime cost, and rejects the "paste the whole file as a
+regex" misuse pattern that any plausible agent-generated
+pathological pattern would have to start from.
+
+**Reusing `tools_repo` internals.** The new module imports
+four helpers from `tools_repo` directly:
+`_resolve_inside_repo` (the repo-relative resolve),
+`_excluded` (the dotdir filter), `TEXT_SUFFIXES` (the
+allowlist), and `MAX_GREP_FILE_BYTES` (the per-file cap).
+The direct import is the cleanest way to honor the
+"each new tool gets its own module" pattern AND the
+"reuse path-resolution machinery across tools" property
+established by `tools_sql.py` (which also imports
+`_resolve_inside_repo` from `tools_repo`). The four
+helpers are leading-underscore but the test suite pins
+them via the public `tools_regex` module — a regression
+in the underscored names is loud at the test surface, so
+the "private but cross-module-imported" status is locked
+by mechanism, not just convention.
+
+**Return shape and the `truncated` flag.** The response
+shape is a richer dict than `grep_repo`'s
+`list[GrepMatch]` because regex matching exposes useful
+side-channels — capture groups, `span` (start_col,
+end_col), and a `truncated` flag — that grep_repo's
+plain substring scan does not. The richer shape is the
+direct enabling of the NEXT_WORK use case ("find places
+to change"): the agent extracts e.g. the column range of
+each match so a downstream `file_rewrite` call has
+precise location info, not just "this line contains
+something." `truncated: true` distinguishes "the cap was
+hit, more matches may exist" from "this is everything,"
+which the agent uses to decide whether to narrow the
+path and re-run.
+
+**Schema design.** The JSON schema mirrors `grep_repo`'s
+pattern: `pattern` is required (the substantive input),
+`path` defaults to `.` (so the agent can do whole-repo
+scans without ceremony), `max_matches` is the cap. The
+schema declares `additionalProperties: false` so an
+unrecognized field surfaces as a clean reject by the
+Anthropic SDK BEFORE the tool body is called. The
+required-fields set is `["pattern"]` only, matching
+grep_repo's `["query"]` shape.
+
+**Catalog placement at slot 9.** Order in
+`build_catalog()` is observable and load-bearing for
+golden-fingerprint stability across the agent's dry-run
+record. The new tool is appended last so the locked
+order of the first eight is preserved (this is the same
+discipline applied in iterations 65 and 66 for slots 7
+and 8). The deterministic
+`(list_repo_files, read_repo_file, grep_repo,
+list_pipeline_rows, count_by_stage, count_by_bucket,
+sql_query, file_rewrite, regex_extract)` order is now
+the locked catalog shape for sub-checkboxes 4 and 5 of
+item 6 to consolidate against.
+
+**Test-count and assertion ripple.** Adding a ninth tool
+mechanically forces three sibling test edits:
+
+  - `tests/test_catalog.py`:
+    `EXPECTED_TOOL_NAMES` appended with `regex_extract`
+    and the parameterized count test renamed
+    `test_catalog_has_eight_tools_in_locked_order`
+    → `test_catalog_has_nine_tools_in_locked_order`.
+
+  - `tests/test_main.py`:
+    `test_cmd_catalog_emits_eight_tools` renamed to
+    `test_cmd_catalog_emits_nine_tools` with the
+    `len(payload) == 8` assertion bumped to `9` and the
+    `names[-1] == "file_rewrite"` assertion bumped to
+    `names[-1] == "regex_extract"`; the dry-run prose
+    check `"catalog (8 tools` bumped to
+    `"catalog (9 tools`; the main-dispatch test
+    `assert len(payload) == 8` bumped to `9`.
+
+These four edits are registration housekeeping. The
+deeper schema-shape tests for each of the three new
+tools (per-tool input_schema validation, per-tool
+required-fields pin, per-tool description-non-empty)
+remain in sub-checkbox 4 of item 6 ("Tool catalog test
+extended to cover the three new tools").
+
+**CLI integration is free.** `__main__._add_tool_argparse_flags`
+materializes the JSON schema as argparse flags
+automatically; the new tool gets
+`python -m tool_use_agent tool regex_extract
+--pattern <regex> [--path <path>] [--max-matches <n>]
+[--json]` for free with no per-tool CLI wiring. Smoke
+test: the live CLI returns the structured success dict
+for a good pattern (`REFUSAL_SENTENCE` against
+`rag-app/rag_app/` yields three matches across the
+`__main__.py` file) and the structured ERROR string for
+a malformed pattern (`(unclosed` against the same path
+yields
+`"ERROR: invalid regex: missing ), unterminated
+subpattern at position 0"`). Both behaviors are pinned
+by the unit-test suite at the tool-body level, but the
+CLI smoke test confirms the schema-to-argparse
+materialization path stays intact.
+
+**Verification surface (four checks).**
+
+  1. `python3 -m pytest -x -q` from `tool-use-agent/`
+     returns `211 passed, 1 skipped in 0.34s` — 28 new
+     `tools_regex` tests + 183 prior tests + 1 prior
+     conditional skip = no regression.
+  2. `python3 -m coverage run --source=tool_use_agent.tools_regex
+     -m pytest tests/test_tools_regex.py` followed by
+     `python3 -m coverage report -m` reports 100% line
+     coverage on `tools_regex.py` (50 statements, 0
+     misses).
+  3. `python3 -m tool_use_agent catalog` emits a 9-entry
+     JSON array with `regex_extract` last, with the
+     full input_schema (pattern required, path defaults
+     to ".", max_matches defaults to 20 with minimum 1,
+     `additionalProperties: false`).
+  4. `python3 -m tool_use_agent tool regex_extract
+     --pattern <good> --path <p> --json` returns the
+     structured success dict; `--pattern '(unclosed'`
+     returns the `ERROR: invalid regex` sentinel
+     string.
+
+**Cross-build invariants that held unchanged.**
+
+  - `REFUSAL_SENTENCE` (rag-app/tool-use-agent
+    byte-equality) — not touched; regex_extract has no
+    refusal-sentence surface.
+  - `compute_corpus_fingerprint` for the agent's tool
+    catalog — automatically updates to include
+    `regex_extract` because it is recomputed from
+    `catalog_as_anthropic_tools()` at each dry-run call;
+    no test pins the prior 8-tool fingerprint value.
+  - LICENSE four-way byte-equality (iteration 54) —
+    not touched.
+  - CI matrix shape (iteration 60) — the new test file
+    is picked up by the existing `pytest` step
+    automatically; no workflow edit needed.
+
+**Out of scope this slice (deferred to later sub-
+checkboxes / items).**
+
+  - Tool-catalog test extension to cover the three new
+    tools (item 6, sub-checkbox 4): per-tool schema-
+    shape pins (pattern type=string, path type=string,
+    max_matches type=integer with minimum=1), per-tool
+    required-fields pin (`required: ["pattern"]`),
+    per-tool description-non-empty assertion, and a
+    catalog-level invariant test that every tool's
+    schema validates against `additionalProperties:
+    false`. The count bump from 8 → 9 in this slice is
+    registration housekeeping; the deeper extension
+    lives in sub-checkbox 4.
+  - Consolidating DECISIONS entry locking the full
+    safety-guardrails contract across all three new
+    tools (item 6, sub-checkbox 5): will reference this
+    entry's two-layer guardrail design (regex compile +
+    pattern-length cap, plus repo-resolve +
+    match-ceiling), iteration 65's two-layer guardrail
+    design (write-keyword denylist + `mode=ro` URI
+    connection), and iteration 66's two-layer guardrail
+    design (operation enum + sandbox-root resolve), in
+    a single lock at the close of item 6.
+  - README / demo-invocation documentation for the new
+    tool: deferred. The package README's tool catalog
+    list does NOT yet name `regex_extract`, and a
+    README edit is the right home for that addition
+    when sub-checkbox 4 or 5 ships.
+  - Item 5 sub-checkboxes 2/3/4 (corpus selection, demo
+    script, README + DECISIONS): item 5's sub-checkbox
+    1 (iteration 64) shipped the
+    `CORPUS_CANDIDATES.md` ranked-three file with a
+    machine-checkable `Pick: _<user fills…>_` line. As
+    of this iteration the placeholder is unchanged, so
+    per OBJECTIVE.md ("ship a single ranked CANDIDATES
+    file for that sub-item and move to the next
+    unchecked item; do not block the queue"), item 6
+    proceeds. Item 5 remains in a holding pattern until
+    a user pick lands.
+  - Item 7 (interview-prep Q&A bank): untouched. Reached
+    after item 6 closes.
+
