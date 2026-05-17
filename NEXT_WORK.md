@@ -108,17 +108,35 @@ c. **A 5–10 essay set from Simon Willison's blog** (`simonwillison.net`).
    Explicit permissive reuse, canonical "thoughtful person using LLMs"
    prose. Lower product-fit than (a)/(b) but high AI-fluency signal.
 
-- [ ] `rag-app/corpus/CORPUS_CANDIDATES.md` — rewrite from scratch against
-  the revised criteria, ranking the three shortlist candidates a/b/c
-  above with per-candidate license note, sample demo question, and
-  concerns. Same `Pick:` line convention at the bottom. Do not re-include
-  the prior public-domain literary candidates.
-- [ ] Once the user picks (or by default the top-ranked candidate after a
-  second iteration): add the chosen corpus files under
-  `rag-app/corpus/<name>/` with a `SOURCES.md` listing exact URLs,
-  retrieval date, and license/fair-use rationale, and a `make-demo.sh`
-  (or `python -m rag_app demo`) one-shot script that loads, retrieves,
-  and asks a hand-picked question with dry-run output for the README.
+**User pick (2026-05-17): all three.** Skip the re-rank — the candidates
+file is not needed for this milestone. Ship all three corpora as separate
+subdirectories under `rag-app/corpus/`. The multi-corpus demo is a
+deliberate choice: it shows the rag-app handles heterogeneous sources and
+makes citation provenance visually meaningful (a chunk path of
+`cursor-docs/agent.md` vs. `anthropic-docs/tool_use.md` vs.
+`willison/prompt-injection.md` self-explains the system's behavior).
+
+- [ ] Acquire and add corpus files under `rag-app/corpus/cursor-docs/`,
+  `rag-app/corpus/anthropic-docs/`, and `rag-app/corpus/willison/`. Aim
+  for ~10–30 chunks per corpus (so the combined corpus stays in the
+  ~30–80 chunk band the chunker is sized for). If full pages are too
+  long, pick the most demo-relevant subsections rather than truncating
+  mid-paragraph. Use plain markdown, normalize to UTF-8, strip nav/footer
+  cruft. **Do not fabricate URLs or content** — every file must trace to
+  a real page on the live source, and the SOURCES.md must record exact
+  URLs + retrieval date.
+- [ ] One `rag-app/corpus/SOURCES.md` at the corpus root listing every
+  source file, its origin URL, retrieval date, and a per-source
+  license/fair-use rationale (Cursor docs and Anthropic docs: fair-use
+  for non-commercial portfolio demo with attribution; Willison: explicit
+  permissive reuse — link to his stated reuse policy).
+- [ ] A `make-demo.sh` (or `python -m rag_app demo`) one-shot script
+  that loads all three corpora into one index, retrieves on a hand-picked
+  cross-corpus demo question, and produces dry-run output suitable for
+  pasting into the README. Pick a demo question that *needs* multiple
+  corpora to answer well (e.g., contrast a Cursor design choice with the
+  Anthropic recommendation it implements, or with the Willison commentary
+  on it). One question is enough — don't pad.
 - [ ] Update `rag-app/README.md` Status section, demo invocation, and a
   one-line note explaining the corpus choice in portfolio terms (so a
   reviewer understands *why* this corpus, not just what it is).
