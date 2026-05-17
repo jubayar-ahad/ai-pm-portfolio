@@ -8831,3 +8831,377 @@ checkboxes / items).**
   - **Item 7 (interview-prep Q&A bank):** untouched.
     Reached after item 6 closes.
 
+## 2026-05-16 — Agent-tool safety guardrails locked for sql_query / file_rewrite / regex_extract (NEXT_WORK item 6, sub-checkbox 5 of 5; closes item 6)
+
+**Decision.** This entry is the canonical single-place record
+of the safety contract for the three new agent-loop tools
+shipped under NEXT_WORK item 6 (`sql_query`, `file_rewrite`,
+`regex_extract`). NEXT_WORK item 6 sub-checkbox 5's literal
+text names three properties to lock — **(a) sandbox root**,
+**(b) write-keyword denylist for SQL**, **(c) no path
+traversal** — and this entry locks all three in one place
+alongside the cross-cutting properties they share: the
+two-layer guardrail pattern, the `ERROR: …` sentinel-string
+return contract, the no-network / no-shell-out posture, the
+write/read separation across tools, and the `_resolve_inside_*`
+helper as the single source of truth for path-containment.
+The substance has already been recorded across four prior
+entries (iteration 65 — `sql_query`; iteration 66 —
+`file_rewrite`; iteration 67 — `regex_extract`; iteration 68
+— the tool-catalog test extension), but NEXT_WORK item 6's
+fifth sub-checkbox explicitly asks for a *consolidating* entry
+that names the safety contract once so a future reader does
+not have to reconstruct it by reading four entries plus three
+tool modules plus four test modules. That is what this entry
+is. No file in this repo changes in this iteration's slice
+except `NEXT_WORK.md` (sub-checkbox 5 tick + parent item 6
+tick) and `DECISIONS.md` (this entry). This is a
+documentation-only consolidating slice, matching iterations
+50 / 59 / 63's shape for closing items 1 / 3 / 4 respectively.
+
+**The locked safety contract, in one place.**
+
+| Tool             | Safety surface                     | Layer 1 (input-language validator)                                                                                                    | Layer 2 (scope-and-resource bound)                                                                                                       | Hard ceiling          | Locked by                                                                                                  |
+|------------------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------------------------|
+| `sql_query`      | write-keyword denylist + read-only | `WRITE_KEYWORDS` frozenset (`INSERT/UPDATE/DELETE/REPLACE/DROP/ALTER/CREATE/TRUNCATE/ATTACH/DETACH/PRAGMA/VACUUM/REINDEX`) at `tools_sql.py:41`; case-insensitive token-scanner strips SQL comments + string-literals + quoted-identifiers before matching | `sqlite3.connect(uri=True, mode=ro)` URI connection — the SQLite engine itself refuses writes regardless of what the denylist let through; `_resolve_inside_repo(repo_root, path)` rejects path-escape (`..`, absolute, symlink-out) | `ROW_CEILING = 1000` (`tools_sql.py:50`); single-statement cap (`_statement_count(sql) > 1` → refusal); `max_rows` caller-tunable default 100, ceiling 1000 | Iteration 65                                                                                               |
+| `file_rewrite`   | sandbox-root + operation enum      | `OPERATIONS = frozenset({"replace","append","prepend"})` (`tools_rewrite.py:44`) — any other `operation` value is rejected with a sentinel ERROR before path resolution; structured-edit-only (no free-form `bytes` argument, no `os.system`-style shell-out shape) | `_sandbox_root(repo_root)` resolves to `<repo>/tool-use-agent/sandbox/` (`tools_rewrite.py:40`, `SANDBOX_RELDIR = "tool-use-agent/sandbox"`); `_resolve_inside_sandbox` does `.resolve()` + `.relative_to(sandbox)` so `..`, absolute, and symlink-out paths all return `None` → sentinel ERROR; lazy `mkdir(parents=True, exist_ok=True)` creates the sandbox root on demand without ever creating anything *outside* it | `MAX_CONTENT_BYTES = 1_000_000` on incoming `content`; `MAX_FILE_BYTES = 1_000_000` on post-edit file size — both fire as sentinel ERRORs before any write hits disk | Iteration 66                                                                                               |
+| `regex_extract`  | compile-validation + match-bound   | `re.compile(pattern)` catches malformed regex *before* any file IO; `MAX_PATTERN_LENGTH = 1000` (`tools_regex.py:67`) bounds backtracking blast radius — the static-length cap is the portable rejection of "paste the whole file as a regex" misuse without requiring `signal.alarm` (POSIX-only, non-main-thread-unsafe) | `_resolve_inside_repo(repo_root, path)` (reused from `tools_repo`) rejects path-escape; `_excluded(file_path, repo_root)` skips excluded directories; per-file `MAX_GREP_FILE_BYTES` cap mirrors `grep_repo`'s discipline; `TEXT_SUFFIXES` whitelist silently skips binaries | `MATCH_CEILING = 1000` (`tools_regex.py:72`); `max_matches` caller-tunable default 20, ceiling 1000; **`truncated: bool`** flag in response distinguishes "all matches" from "cap fired, narrow path and re-query" | Iteration 67                                                                                               |
+
+**The two-layer guardrail pattern, in one place.** Across
+all three new tools the same shape holds: Layer 1 is the
+**input-language validator** (catches structurally bad input
+*before* file IO or engine invocation); Layer 2 is the
+**scope-and-resource bound** (catches resource exhaustion
+and path escape). Each layer alone has a documented bypass
+— a static denylist can be fooled by exotic quoting /
+encoding; a connection-level read-only mode lets the agent
+*attempt* the write before refusal; an operation enum alone
+doesn't prevent path-escape; a sandbox-root resolve alone
+doesn't prevent passing `operation: "delete"`; a regex
+compile alone doesn't bound match-count; a match ceiling
+alone doesn't catch malformed regex — but **together they
+compose into a single hard refusal that fires before either
+layer needs to do real work**. The pattern is portable to any
+future tool that touches an executable-language string
+(SQL/shell/regex) or a file path under `repo_root`: ship
+Layer 1 + Layer 2 always, and prefer composing-two-cheap-
+checks over one-strong-check because the cheap checks fail
+loudly and independently. This is now the canonical
+agent-tool-safety design pattern for this build.
+
+**The sandbox root, in one place.** `tool-use-agent/sandbox/`
+is the single writable root for the `file_rewrite` tool.
+Resolution semantics:
+
+- `_sandbox_root(repo_root) = (repo_root / "tool-use-agent/sandbox").resolve()`
+  (resolved via `Path.resolve()`, which collapses `..` and
+  follows symlinks, producing a canonical absolute path).
+- `_resolve_inside_sandbox(repo_root, relative)` constructs
+  `(sandbox / relative).resolve()` and calls
+  `.relative_to(sandbox)` — any path that resolves outside
+  the sandbox raises `ValueError`, which the helper catches
+  and returns `None` for; the caller turns `None` into the
+  sentinel ERROR string `"ERROR: path escapes sandbox …"`.
+  This means `..` traversal, absolute paths, and
+  symlink-out attempts all fail by the *same* mechanism, so
+  there is no asymmetric-defense bug across the three
+  escape vectors.
+- The sandbox root is created lazily via
+  `mkdir(parents=True, exist_ok=True)` only on first write
+  — a fresh checkout's `tool-use-agent/sandbox/` already
+  exists (seeded by iteration 66 with `README.md` +
+  `notes.md` + `todos.md`), so the lazy path is a defensive
+  fallback. Tests pass `tmp_path` as the `repo_root` so the
+  committed sandbox is never mutated by the suite (iteration
+  66's `tmp_path-not-committed-sandbox` discipline,
+  re-applied by iteration 68's dispatch test).
+- `_resolve_inside_sandbox` is **separate** from
+  `_resolve_inside_repo` (the helper `sql_query` /
+  `regex_extract` reuse from `tools_repo`). `file_rewrite`
+  intentionally does NOT use `_resolve_inside_repo` —
+  scoping it to `repo_root` would let `file_rewrite` write
+  anywhere in the repo, defeating the sandbox property.
+  The two helpers serve different contracts and are kept
+  separate by name, not unified into a single `_resolve_inside_*`
+  with a `root: Path` parameter; that unification would be
+  the kind of premature abstraction that hides the
+  load-bearing difference between the two scopes.
+
+**The write-keyword denylist for SQL, in one place.**
+`tools_sql.WRITE_KEYWORDS` is the static frozenset of 12
+case-insensitive tokens (`INSERT`, `UPDATE`, `DELETE`,
+`REPLACE`, `DROP`, `ALTER`, `CREATE`, `TRUNCATE`, `ATTACH`,
+`DETACH`, `PRAGMA`, `VACUUM`, `REINDEX`). The denylist is
+the **first** layer; the **second** layer is the
+`sqlite3.connect(uri=True, mode=ro)` URI connection, where
+the SQLite engine itself enforces read-only regardless of
+denylist bypass. Three properties of the denylist matter:
+
+- **Case-insensitive matching**: tokens are
+  `lower()`-canonicalized before lookup, so `INSERT` /
+  `insert` / `InSeRt` all hit the denylist; this prevents
+  trivial case-variation bypass.
+- **In-literal false-positive prevention**: the
+  `_tokens(sql)` scanner strips SQL comments
+  (`-- …` and `/* … */`), single-quoted string literals
+  (`'…'` with `''` escape), double-quoted identifiers
+  (`"…"`), and bracket-quoted identifiers (`[…]`) before
+  tokenizing; this prevents `SELECT 'INSERT' AS x` from
+  being refused. Tests parametrize 12 in-literal patterns
+  against the denylist and assert all 12 succeed (iteration
+  65's `test_tools_sql.py`).
+- **Single-statement cap**: `_statement_count(sql) > 1`
+  triggers refusal regardless of denylist content; this
+  prevents multi-statement bundles where the first
+  statement is a benign `SELECT` and the second is a
+  smuggled write. (SQLite's `cursor.execute` only runs the
+  first statement of a multi-statement string, but
+  `cursor.executescript` runs them all, and tools that
+  evolve the dispatch shape could accidentally switch.)
+
+Because the second layer is the SQLite engine's own
+`mode=ro` URI flag, a denylist bypass via exotic quoting or
+encoding **still** fails — the engine refuses the write
+before the response leaves the tool. The denylist's job is
+to fail *loudly* (with a clear sentinel ERROR string
+naming the offending keyword) so the agent can recover
+without having to interpret SQLite's lower-level error
+message. This is the canonical pattern for any future
+SQL-fronted tool: deny the *language* surface in Python
++ deny the *engine* surface in the driver; never rely on
+either alone.
+
+**No path traversal, in one place.** Across all three tools
+the path-containment helpers (`_resolve_inside_repo` for
+`sql_query` / `regex_extract`; `_resolve_inside_sandbox`
+for `file_rewrite`) share the same three properties:
+
+- **Canonical resolution**: every path is `.resolve()`-ed
+  before containment check, so `..` segments are collapsed
+  and symlinks are followed before the `.relative_to`
+  test. A bare string comparison against the prefix
+  (`str(path).startswith(str(root))`) would be insufficient
+  — `/tmp/repo/../../../etc/passwd` looks prefix-compliant
+  before resolution.
+- **`.relative_to` for containment**: containment is tested
+  via `path.relative_to(root)`, which raises `ValueError`
+  when `path` is not under `root`. The helper catches
+  `ValueError` and returns `None`, which the caller
+  converts to a sentinel ERROR. This is more robust than a
+  prefix string match because `.relative_to` is the
+  filesystem-aware operation Python itself uses for path
+  containment; it doesn't have the trailing-slash
+  ambiguity (`/tmp/repo-evil/` looks prefix-compliant
+  against `/tmp/repo`).
+- **Symlink-out rejection**: because `.resolve()` follows
+  symlinks before the containment check, a symlink inside
+  the root pointing outside the root resolves to its
+  target path and fails the `.relative_to(root)` test.
+  Tests parametrize three escape vectors per tool (`..`
+  traversal, absolute path, symlink-out) and assert all
+  three return the sentinel ERROR (iteration 66 for
+  `file_rewrite`; iterations 65 / 67 for
+  `sql_query` / `regex_extract` via `_resolve_inside_repo`).
+
+The two helpers' separation (sandbox vs. repo) is
+intentional: `file_rewrite` cannot accidentally widen its
+scope to the whole repo via a refactor that "unifies the
+path helpers" because the helper names differ at the call
+site. Future readers grep'ing for "where can `file_rewrite`
+write?" land on `_resolve_inside_sandbox` and immediately
+see the answer; grep'ing for "where can `sql_query` read?"
+lands on `_resolve_inside_repo` and likewise. The names
+are part of the safety surface, not just naming preference.
+
+**The `ERROR: …` sentinel-string return contract.** All
+three tools — and the existing six tools they join — return
+plain strings (or structured dicts) on success and a sentinel
+`"ERROR: …"` string on every failure mode. The agent loop
+treats the `ERROR:` prefix as a recoverable signal: the model
+sees the message, can revise its tool call, and can retry
+within the bounded step cap. Raising Python exceptions would
+either crash the loop or require a per-tool try/except in the
+dispatcher, both of which lose the agent's ability to learn
+from the failure. The sentinel-string pattern is also why the
+guardrail layers compose loudly: each layer's refusal carries
+a distinct, parseable message naming exactly which guard
+fired and what the offending input was, which is observable
+in the trace records (`trace.jsonl`) for post-hoc debugging.
+
+**Cross-cutting properties held by all three tools.**
+
+- **No network**. None of the three tools open a socket,
+  invoke an HTTP client, or call any function that
+  transitively does so. The verification is mechanical: no
+  `import urllib`, `import requests`, `import httpx`,
+  `import http.client`, or `socket` in the three tool
+  modules.
+- **No shell-out**. None of the three tools invoke
+  `subprocess`, `os.system`, `os.exec*`, `shutil.which`,
+  or any function that transitively forks a process. The
+  verification is mechanical: no `import subprocess`, no
+  `os.system` call, no `os.popen` call. The agent never
+  has a "run arbitrary shell command" tool — by design.
+- **No API key required**. None of the three tools read
+  environment variables, look up an API key, or require
+  any credential to execute. They are pure-Python tools
+  against local files plus the SQLite stdlib module.
+- **No global state mutation**. The tools take `repo_root`
+  as an explicit argument (passed from the dispatcher,
+  not read from a global). Tests can pass `tmp_path` to
+  isolate state per test; the production CLI passes the
+  real repo root once at startup.
+- **Bounded output**. Each tool has a hard ceiling on its
+  response shape (`ROW_CEILING` for `sql_query`,
+  `MAX_FILE_BYTES` for `file_rewrite`, `MATCH_CEILING` for
+  `regex_extract`) that fires regardless of caller input
+  — a caller cannot request more than the ceiling. The
+  caller-tunable cap (`max_rows`, `max_matches`) is
+  bounded by the ceiling, so the worst-case response size
+  is fixed at module-load time.
+
+**Write/read separation across the catalog.** Of the nine
+tools in `build_catalog()`, only **one** writes:
+`file_rewrite`. The other eight (`read_repo_file`,
+`list_repo_files`, `grep_repo`, `list_pipeline_rows`,
+`pipeline_row_detail`, `pipeline_stats`, `sql_query`,
+`regex_extract`) are read-only. The single writer is
+sandbox-scoped (cannot escape `tool-use-agent/sandbox/`),
+so a runaway agent loop's worst-case write-blast-radius is
+the sandbox directory — not the repo, not the user's
+filesystem, not a remote server. This is a structurally
+stronger guarantee than "trust the model not to delete
+things"; the trust is enforced by mechanism (the resolve
+helper), not by prompt engineering.
+
+**Verification surface (mechanical, no API key, no network).**
+
+1. **Three independent test modules** lock per-tool
+   behavior at 100% line coverage on the impl:
+   - `tool-use-agent/tests/test_tools_sql.py` (37 tests):
+     denylist coverage incl. 12-pattern in-literal false-
+     positive prevention, mode=ro source-presence pin,
+     path-escape rejection, single-statement cap, fixture
+     identity (`PRAGMA application_id == 0x54554153` /
+     "TUAS"), token-scanner internals (comment / literal /
+     quoted-id stripping).
+   - `tool-use-agent/tests/test_tools_rewrite.py` (29
+     tests): operation-enum rejection (7 parametrized
+     cases), sandbox-escape via `..` / absolute / symlink,
+     happy-path replace/append/prepend, identical-content
+     empty-diff, content + post-edit size caps, lazy-mkdir
+     property.
+   - `tool-use-agent/tests/test_tools_regex.py` (28 tests):
+     Layer 1 refusals (empty / non-string / oversize /
+     malformed pattern), Layer 2 refusals (path escape,
+     missing path, oversize `max_matches`), silent skips
+     (non-text suffix, excluded dir, oversize file,
+     undecodable bytes), happy-path single-file / dir /
+     capture-group / span / inline-flag / multi-match /
+     truncation.
+2. **One catalog test module** (`tool-use-agent/tests/test_catalog.py`,
+   29 tests after iteration 68's extension) locks the
+   catalog-boundary contract: input-schema shape,
+   description-keyword pin (e.g. `'sandbox' in description.lower()`
+   for `file_rewrite`, `'read-only' in description.lower()`
+   for `sql_query`), `call_tool` dispatch wiring.
+3. **CLI integration** (`tool-use-agent/tests/test_main.py`)
+   exercises the argparse-layer enum validation for
+   `file_rewrite`'s `--operation` (a third line of defense
+   above the Python-level enum and the Anthropic SDK schema)
+   plus the catalog payload length (9 tools) and the
+   `--catalog` dry-run prose count.
+4. **Build re-verification baseline.** As of this slice:
+   - `rag-app/`: 66 passed in ~0.08s
+   - `tool-use-agent/`: 224 passed + 1 skipped in ~0.35s
+   - `evals-harness/`: 183 passed in ~0.30s
+   - Total: **473 passed + 1 skipped** across the three
+     build directories at ~0.7s wall clock combined,
+     unchanged from iteration 68. Documentation-only
+     consolidating slice does not transform any
+     test-covered surface.
+
+**Cross-build invariants honored by this slice.**
+
+- **REFUSAL_SENTENCE byte-equality** between
+  `rag_app.verify.REFUSAL_SENTENCE` and
+  `tool_use_agent.verify.REFUSAL_SENTENCE` continues to
+  hold; locked by the evals-harness invariants suite plus
+  the rag-app and tool-use-agent suites (three independent
+  test runs).
+- **No-network / no-API-key** posture in tests is
+  preserved; this entry adds no new imports anywhere.
+- **Catalog payload shape**: 9 tools, sorted-by-registration,
+  all names matching `[a-z_]+`, all input-schemas being
+  valid JSON Schema dicts with `type: object` +
+  `additionalProperties: false`. Verified mechanically by
+  the catalog test module's schema-validity assertions.
+- **Trace record schema**: unchanged — the three new
+  tools record their invocation under the same
+  `{tool_name, tool_input, tool_output, …}` shape as the
+  existing six tools. No new trace fields, no per-tool
+  trace customization.
+
+**Out-of-scope deferrals (explicit).**
+
+1. **Item 5 (real corpus for rag-app)** stays in holding
+   pattern. `rag-app/corpus/CORPUS_CANDIDATES.md`'s
+   `Pick: _<user fills with 1, 2, or 3>_` line is
+   unchanged. Per OBJECTIVE.md ("ship a single ranked
+   CANDIDATES file for that sub-item and move to the next
+   unchecked item; do not block the queue"), item 5 stays
+   on hold and item 7 is the next item to advance after
+   this iteration.
+2. **Item 7 (interview-prep Q&A bank)** is the next
+   unchecked top-level item. Sub-checkbox 1 is
+   `interview-prep/cursor-teardown.md` (10 likely
+   questions with strong-answer rubric + placeholder
+   slot); that ships in the next iteration.
+3. **No new tools beyond the three named in item 6.** The
+   item names exactly three (`sql_query`, `file_rewrite`,
+   `regex_extract`); a fourth tool would be scope creep.
+4. **No mypy-strict audit for the three new modules.**
+   The CI policy locked at item 4 sub-checkbox 4 is
+   `mypy` non-blocking via `continue-on-error: true`; a
+   future iteration that runs the strictness audit can
+   drop the escape hatch, but that work is not part of
+   item 6.
+5. **No tightening of `grep_repo`'s contract** (the
+   pre-existing read-only sibling of `regex_extract`).
+   Iteration 67 noted that `grep_repo` does not expose a
+   `truncated` flag when its `max_matches` cap fires —
+   that is a minor recoverable design debt for that tool,
+   not a regression introduced by item 6, and not a
+   sub-checkbox of item 6.
+6. **No back-edits to the three per-tool DECISIONS
+   entries** (iterations 65 / 66 / 67) and no back-edits
+   to the catalog-test-extension entry (iteration 68).
+   This consolidator references them by date + iteration
+   number; the canonical per-tool record stays where it
+   was originally written.
+7. **No `pyproject.toml` edits.** The three new tool
+   modules ship under the existing `tool_use_agent`
+   package and require no new dependencies (`sqlite3` is
+   stdlib; `re` is stdlib; `difflib` is stdlib). The
+   packaging contract locked at item 1 sub-checkbox 5
+   stays unchanged.
+8. **No README edits in this slice.** The CI badge
+   convention locked at item 4 sub-checkbox 3 already
+   covers `tool-use-agent/README.md`; the badge URL is
+   unchanged. A future iteration adding a
+   "current catalog: 9 tools" line to that README would
+   be either a tightening of item 6 (if it ships before
+   this consolidator) or item-7-or-later (if it ships
+   after); this consolidator does not pre-empt that
+   choice.
+
+**State of NEXT_WORK.md after this slice.**
+
+- Items 1, 2, 3, 4, 6: **ticked** (parent + all sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 ticked;
+  sub-checkboxes 2 / 3 / 4 unticked (awaiting user pick).
+- Item 7: parent unticked; all sub-checkboxes unticked
+  (next to advance after this slice).
+- 5 of 7 top-level items closed; item 5 on hold awaiting
+  user pick; item 7 is the next item to advance.
+

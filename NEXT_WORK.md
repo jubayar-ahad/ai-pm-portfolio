@@ -85,7 +85,7 @@ retrieval + citation behavior is provable on unfamiliar content.
 - [ ] Update `rag-app/README.md` Status section and demo invocation.
 - [ ] DECISIONS.md entry locking the corpus pick and the demo-script contract.
 
-## 6. Three new agent-y tools for tool-use-agent
+## 6. Three new agent-y tools for tool-use-agent [x]
 
 Current catalog is six read-only tools. Add three that demonstrate richer
 agent-loop behavior. All must be safe (no shell-out, no network), and each
@@ -104,7 +104,7 @@ rather than treating this as a separate test deliverable).
   with line numbers. Useful for the agent's own "find places to change"
   reasoning.
 - [x] Tool catalog test extended to cover the three new tools.
-- [ ] DECISIONS.md entry locking the safety guardrails (sandbox root,
+- [x] DECISIONS.md entry locking the safety guardrails (sandbox root,
   write-keyword denylist for SQL, no path traversal).
 
 ## 7. Mock-interview Q&A bank — one per portfolio piece
