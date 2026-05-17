@@ -5530,3 +5530,226 @@ byte-equivalence test, opening item 3 in the same commit would
 silently bundle two NEXT_WORK items into one commit, breaking the
 topmost-unchecked-first discipline the objective names.
 
+## 2026-05-16 — `rag-app/tests/` pytest suite, 94% line coverage on `rag_app` (NEXT_WORK item 3, sub-checkbox 1 of 4)
+
+**Decision.** Shipped the first build's pytest harness:
+`rag-app/tests/` with five test modules (test_corpus.py,
+test_retrieve.py, test_verify.py, test_generate.py, test_main.py),
+a session-scoped `conftest.py` exposing the fixture corpus path,
+and a self-contained fixture corpus under `tests/fixtures/tiny_corpus/`
+(stub `OBJECTIVE.md` anchor + `animals.md` + `sub/cities.md`).
+66 tests pass with no network access, no API key, and no external
+dependencies beyond pytest itself. Coverage on the `rag_app`
+package is 94% line coverage measured via `python -m coverage run
+--source=rag_app -m pytest tests/ -q`, comfortably above the 80%
+floor the sub-checkbox names.
+
+**Per-module coverage matrix (from `coverage report -m` against
+`--source=rag_app`):**
+
+| Module | Stmts | Miss | Cover | What's missed |
+|---|---|---|---|---|
+| `rag_app/__init__.py` | 0 | 0 | 100% | (empty file) |
+| `rag_app/corpus.py` | 86 | 0 | 100% | — |
+| `rag_app/retrieve.py` | 88 | 0 | 100% | — |
+| `rag_app/verify.py` | 46 | 0 | 100% | — |
+| `rag_app/trace.py` | 18 | 0 | 100% | — |
+| `rag_app/generate.py` | 37 | 10 | 73% | `call_claude` body (lines 101-123) — live SDK call, explicitly out of scope per "no live calls" |
+| `rag_app/__main__.py` | 143 | 16 | 89% | `cmd_ask` live-mode branch (lines 240-256), `__main__` guard (line 373), one `if not have_key` branch (line 218) |
+| **Total** | **418** | **26** | **94%** | All misses are live-call paths or argparse-dispatch dead branches |
+
+**What each test module exercises:**
+
+1. `test_corpus.py` — 14 tests covering `split_paragraphs` (offset
+   preservation, blank-block skipping), `chunk_paragraphs` (basic
+   emission, oversized-paragraph handling, paragraph-level overlap
+   carry, bad-args rejection), `Paragraph.word_count`,
+   `load_and_chunk` (runs on fixture corpus, determinism — same
+   inputs produce equal `Chunk` lists across two calls, missing-file
+   raises), `write_chunks` (JSONL roundtrip + parent-dir creation),
+   `find_repo_root` (locates anchor + raises when missing).
+2. `test_retrieve.py` — 14 tests covering `tokenize` (lowercasing,
+   `\w+` regex, Unicode-aware), `load_chunks` (missing file raises,
+   blank lines skipped, invalid JSON raises),
+   `IndexedChunk.term_freqs` sums to `length`, `BM25Index` (empty
+   corpus raises, locked `k1`/`b` constants, top-result-by-source
+   for known queries, monotone-descending scores, sequential ranks
+   from 1, empty/OOV/whitespace queries return empty list,
+   `top_k` respected, determinism — two queries return identical
+   `(rank, id, score)` tuples).
+3. `test_verify.py` — 14 tests covering `REFUSAL_SENTENCE` byte
+   equality (71 characters, exact text), `MIN_RETRIEVAL_SCORE`
+   locked at 1.5, `should_refuse` (empty retrieval, below
+   threshold, at threshold, above, custom threshold),
+   `parse_citations` (happy path, nested-path source, no-citations,
+   ignores malformed), `CITATION_RE` group round-trip,
+   `verify_citations` (all-resolved span match, unresolved span,
+   wrong source, sub-span rejection, empty answer, mixed
+   resolved+unresolved).
+4. `test_generate.py` — 12 tests covering `DEFAULT_MODEL` locked
+   to `claude-haiku-4-5-20251001`, `DEFAULT_MAX_TOKENS` 1024,
+   `SYSTEM_PROMPT` embeds `REFUSAL_SENTENCE`, system prompt
+   documents the `[<source>#<start>-<end>]` citation format,
+   `format_chunk` shape, `build_prompt` pure with/without
+   chunks, `cmd_ask` dry-run JSON contract (all 14 fields:
+   `schema_version`, `record_id`, `generated_at`,
+   `corpus_fingerprint`, `mode`, `question`, `top_k`, `model`,
+   `min_score`, `top_score`, `retrieved`, `prompt`, `answer`,
+   `verification`), refusal-path JSON (mode = `refused-low-score`,
+   answer = canonical sentence, `verification` is None), the
+   non-JSON dry-run text output, the refusal text output, and the
+   lazy-import contract (importing `rag_app.generate` does not
+   bind `Anthropic` at module level).
+5. `test_main.py` — 7 tests covering `cmd_load` (writes JSONL with
+   five required keys per record + per-source counts line),
+   `cmd_retrieve` (human output, JSON output, no-matches branch),
+   `main([])` raising SystemExit(2) for missing subcommand,
+   `main(["--help"])` exiting 0 with all three subcommands in the
+   help text, `main(["retrieve", ...])` end-to-end dispatch.
+
+**Fixture corpus design rationale.** The
+`tests/fixtures/tiny_corpus/` corpus has three properties chosen
+deliberately. (1) **Self-anchoring:** the directory contains a stub
+`OBJECTIVE.md` so `find_repo_root(tiny_corpus_root)` resolves to
+the fixture root itself rather than walking up into the actual
+repo, which would make tests that depend on retrieval results
+dependent on the repo's evolving corpus. (2) **Domain-disjoint
+files:** `animals.md` (pangolins, octopuses, axolotls) and
+`sub/cities.md` (Reykjavik, Singapore, Kyoto) share no content
+words, so the BM25 top-result-by-source assertions are stable —
+"axolotl" hits only animals.md, "Reykjavik" hits only cities.md,
+and a multi-term query like "pangolins Reykjavik" reliably
+returns one chunk from each. (3) **Small but realistic
+paragraph structure:** each file has 3-4 paragraphs separated by
+blank lines so `split_paragraphs` exercises the same code path
+the real repo corpus does, while staying small enough that each
+file produces exactly one chunk with default settings — keeping
+chunk identities (`animals.md::0`, `sub/cities.md::0`) stable
+and predictable across test runs.
+
+**Why call cmd_ask/cmd_load/cmd_retrieve directly with an
+`argparse.Namespace` rather than via `subprocess` on
+`python -m rag_app`.** Original draft used `subprocess.run([
+sys.executable, "-m", "rag_app", "ask", ...])` to capture the
+CLI's JSON output. Two problems surfaced. (1) `cmd_load`'s
+default file list is `DEFAULT_CORPUS_FILES` (`OBJECTIVE.md`,
+`DECISIONS.md`, `templates/INTERVIEW_TRACKER.md`,
+`rag-app/README.md`), and there is no `--files` CLI flag — so
+pointing `--corpus-root` at the fixture corpus raises
+`FileNotFoundError: Corpus file missing: …/DECISIONS.md`. Either
+the fixture would need to ape four files of the real repo
+(brittle and pointless), or the CLI would need a new flag (out
+of scope for tests). (2) `subprocess` shells out to the system
+Python and is sensitive to which `python3` is on `PATH` — on
+this host the user's pytest runs against `/Library/Developer/
+CommandLineTools/usr/bin/python3`, which finds `rag_app` via
+the editable install, but a CI environment that uses a venv'd
+Python with `rag-app` installed elsewhere could surface different
+failures. Direct dispatch with an `argparse.Namespace` exercises
+the same `cmd_ask`/`cmd_retrieve`/`cmd_load` function bodies the
+CLI hits (the only code argparse adds is parameter parsing,
+which `test_main.py::test_main_dispatches_to_retrieve` covers in
+isolation), avoids the DEFAULT_CORPUS_FILES coupling, and runs
+in-process so coverage attribution and stdout capture both work
+naturally via `contextlib.redirect_stdout`. Worth carrying as
+the pattern for tool-use-agent (sub-checkbox 2) and
+evals-harness (sub-checkbox 3) tests: direct-dispatch over
+`subprocess` whenever the CLI couples to file-system layout the
+fixture corpus doesn't replicate.
+
+**Tests/fixtures/ directory convention.** Fixtures live under
+`<build>/tests/fixtures/<name>/`. This iteration's slice
+materializes only `tiny_corpus/` — sub-checkbox 4 of item 3
+will lock this as the canonical convention across all three
+builds in the consolidating DECISIONS entry, alongside the
+pytest-as-framework decision and the no-network-in-tests
+guardrail. This iteration is deliberately silent on those
+framework-level decisions to preserve the
+one-sub-checkbox-per-commit discipline iteration 50 named.
+
+**Coverage tool choice.** Used `coverage.py` (v7.10.7 via
+`pip install --user coverage`) invoked as
+`python -m coverage run --source=rag_app -m pytest tests/`.
+`coverage.py` is the canonical Python coverage tool, supported
+by all three target Python versions (3.9/3.10/3.11/3.12 per the
+NEXT_WORK item 4 CI matrix), and produces both terminal-readable
+reports (`coverage report -m`) and machine-readable XML for CI
+integration. Did NOT add `coverage` to the `[project.optional-
+dependencies].dev` extras in `rag-app/pyproject.toml` this
+iteration — that wiring is properly the consolidating slice's
+work (sub-checkbox 4), where it can be added uniformly across
+all three builds in one commit alongside the pytest-as-framework
+decision. Adding it here would silently fragment the dev-deps
+contract that iteration 50 locked.
+
+**Test count vs. surface area.** 66 tests for ~388 statements of
+package code is a 1:6 ratio — reasonable for a portfolio
+codebase where each public function gets at least one happy-path
++ one sad-path test and each constant gets a "value-is-locked"
+assertion. The 80% coverage floor is a useful lower bound but
+not the right summary statistic; the more useful number is that
+every public function in `rag_app.corpus`, `rag_app.retrieve`,
+`rag_app.verify`, `rag_app.trace`, and `rag_app.generate`
+(except the live `call_claude` SDK wrapper) has at least one
+test asserting its observable behavior, not just its existence.
+The 89% coverage on `__main__.py` is the right shape for a CLI
+shim — argparse dispatch and live model rendering are the right
+things to leave out of a key-free, network-free test suite.
+
+**REFUSAL_SENTENCE byte-equality is now a test, not just a
+comment.** Iteration 9's cross-build invariant
+("REFUSAL_SENTENCE is byte-identical across rag-app and
+tool-use-agent at 71 chars") was previously enforced only by
+human review of DECISIONS.md entries and post-iteration spot
+checks. `test_verify.py::test_refusal_sentence_is_byte_identical`
+now mechanizes that check inside rag-app's test suite:
+sub-checkbox 2 of item 3 (tool-use-agent tests) will mirror this
+test and the two suites together will form the byte-equality
+invariant's machine-readable encoding. Until then, the rag-app
+test is one-sided — it pins the rag-app side of the invariant
+without enforcing tool-use-agent doesn't drift, but a single-
+sided pin is strictly better than no pin and the cross-build
+fixture (sub-checkbox 4) will close the loop.
+
+**Citation-resolver `all_resolved` semantics on empty answers.**
+Discovered while writing `test_verify_citations_empty_answer`:
+the `VerificationReport.all_resolved` property returns False when
+`total == 0` (the `total > 0 and not self.unresolved` formula
+short-circuits on the first clause). This is a deliberate choice
+in `rag_app/verify.py` line 73 — an empty answer with zero
+citations is not "all resolved", it's "no citations to assess".
+A future call site that wants the "no-citations-is-fine" reading
+needs to check `total == 0` explicitly. Worth recording because
+the property name `all_resolved` is mildly misleading on the
+empty case and a future reader writing a wrapper would otherwise
+have to read the property body to discover this.
+
+**Six out-of-scope items deliberately deferred from this slice.**
+(1) **The tool-use-agent and evals-harness test suites
+(sub-checkboxes 2 and 3 of item 3)** — each ships in its own
+iteration to preserve the per-build cadence; the
+direct-dispatch-over-subprocess pattern this iteration
+established will carry forward. (2) **The consolidating
+DECISIONS entry for item 3 (sub-checkbox 4)** — pytest as
+framework, no-network-in-tests, fixture directory convention,
+coverage floor; these get a single-table consolidating entry
+once all three per-build suites land, matching iteration 50's
+precedent for item 1. (3) **Adding coverage to pyproject's
+dev extras** — properly the consolidating slice's work so the
+three pyprojects gain the dependency in lockstep. (4) **Adding
+a pytest config block to pyproject** — the existing implicit
+config (rootdir=rag-app, testpaths defaults to current dir)
+works fine; locking `testpaths = ["tests"]` and a
+`--cov-fail-under = 80` floor is the consolidating slice's
+discipline call. (5) **Wiring tests into CI (NEXT_WORK item 4)**
+— item 3 must complete before item 4 opens, and the
+topmost-unchecked-first discipline requires we finish item 3's
+remaining three sub-checkboxes before touching item 4. (6) **Any
+edit to the existing `rag_app/` package code** — including
+docstring fixes I noticed while reading the modules (e.g.,
+`generate.py`'s top-of-file comment refers to "the next
+iteration (refusal + citation hardening)" which already shipped)
+— would silently bundle a refactor into a tests-only slice and
+violate the "make the smallest change that solves the problem"
+rule in the global CLAUDE.md.
+

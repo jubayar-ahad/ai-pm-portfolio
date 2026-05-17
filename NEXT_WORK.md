@@ -36,7 +36,7 @@ Highest-signal item on this list. Each build gets its own `tests/` directory.
 Tests should be runnable with plain `pytest` from inside the build directory,
 no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 
-- [ ] `rag-app/tests/`: tests for `corpus.py` (chunking shape + determinism),
+- [x] `rag-app/tests/`: tests for `corpus.py` (chunking shape + determinism),
   `retrieve.py` (BM25 ranking on a fixture corpus), `verify.py` (citation
   parser happy + sad paths, refusal sentence byte-equality), `generate.py`
   (dry-run JSON contract — schema and field types only, no live calls).
