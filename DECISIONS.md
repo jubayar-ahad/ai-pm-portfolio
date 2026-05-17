@@ -9922,3 +9922,287 @@ groupings).
 - 5 of 7 top-level items closed; item 5 on hold awaiting user
   pick; item 7 mid-flight with 3 of 6 sub-checkboxes ticked.
 
+
+## 2026-05-16 — `interview-prep/evals-harness.md` ships 10-question mock-interview Q&A bank (NEXT_WORK item 7, sub-checkbox 4 of 6)
+
+**Slice substance.** A single 440-line file
+`interview-prep/evals-harness.md` containing ten anticipated
+interviewer questions on the `evals-harness/` build, each with the
+strong-answer rubric and a `_<your draft>_` italic-marker placeholder
+for the user's own draft. No content beyond this file ships this
+slice; the four per-artifact Q&A banks are now all shipped
+(cursor-teardown.md, rag-app.md, tool-use-agent.md, evals-harness.md),
+leaving the index README to sub-checkbox 5 and the consolidating
+DECISIONS entry to sub-checkbox 6.
+
+**Why ten and why these ten.** NEXT_WORK item 7 sub-checkbox 4
+literally names the count range ("8–10 questions") and lists six
+topics: rubric selection, why these five, cost rubric design, what's
+missing, cross-build invariants, how this scales to a larger eval
+set. The drafted ten cover all six named topics with one question
+each — Q1 (rubric selection), Q2 (why these five), Q3 (cost rubric
+design), Q4 (what's missing), Q5 (cross-build invariants), Q6 (how
+this scales) — plus four extensions the README and the broader
+portfolio surface demand: Q7 (one labeled file vs. per-build files,
+from the README's Design-tradeoffs section), Q8 (deterministic vs.
+LLM-graded rubrics, also from Design-tradeoffs, defending the v1
+no-API-key property against the obvious next-step), Q9 (how would
+you tell if the eval set itself is bad, from the Failure-modes
+section's label-drift / confounded-comparison / stale-traces +
+Productization #5 false-positive-rate signals), Q10 (post-hire ship-
+one / cut-one, the portable closer mirroring the prior three Q&A
+banks' Q10). The six-named-plus-four-extensions ratio matches
+tool-use-agent.md's exactly — same shape, same count discipline —
+and the 8-named-plus-2-extensions ratio of rag-app.md is the third
+data point in the pattern. The question-count discipline (10
+questions across all four banks) is now fully portable across the
+four shipped Q&A banks.
+
+**Anchoring grammar is README heading names, not §-numbers (3-of-4
+banks now use heading-name anchoring).** The `evals-harness/README.md`
+uses *named* section headings ("Status", "Stack choices",
+"Architecture", "Success metrics (the rubrics the harness will
+score)", "Failure modes worth designing around", "What's
+intentionally out of scope here", "Productization questions a PM
+should ask before shipping this for real", "Roadmap (subsequent
+iterations)", "Design tradeoffs called out for interview
+discussion") and numbered list items inside those sections (the five
+named success-metric rubrics, the five productization questions, the
+seven roadmap slices). Forcing §-numbers onto the README would have
+either required renumbering the README (out of scope — this slice
+does not touch `../evals-harness/README.md`) or inventing §-numbers
+in the rubrics that don't exist in the source — a fabricated
+citation the no-fabrication rule prohibits. The right call is to
+anchor rubrics by *what the README actually labels*: heading text
+plus the README's own numbered list items (e.g. "Productization
+questions" #5). A `grep "Success metrics"` or `grep "Failure modes
+worth designing around"` from any rubric in this file lands on a
+real section of the README; the drift-detection move is the same as
+rag-app.md's and tool-use-agent.md's, just parameterized by the
+evals-harness README's specific heading text. The cross-bank pattern
+is now stable: three README-based banks anchor on heading names; the
+one PRD-based bank (cursor-teardown.md) anchors on §-numbers because
+its source artifact uses §-numbers. The convention is *parameterized
+by the source artifact's labeling style*, not picked top-down — the
+consolidating entry at sub-checkbox 6 can lock this as a portable
+rule rather than choosing a winner.
+
+**Placeholder grammar at `_<your draft>_`, matching the project-wide
+convention.** The italic-marker `_<placeholder>_` grammar (used
+throughout `templates/`) is honored: one `_<your draft answer
+here…>_` placeholder per question, 10 placeholders total in the
+file. NEXT_WORK item 7's masthead literally shows `<your answer
+here>` (angle brackets, no italic wrapper), but the project's actual
+convention across all five populatable scaffolds in `templates/`
+plus the prior three Q&A banks is `_<placeholder>_`, validated by
+one regex (`_<.*>_`) that finds every unfilled slot. The
+project-wide convention wins over the NEXT_WORK example text
+because the example predates the italic-marker convention's
+adoption; honoring the convention means the user's "what's left to
+fill?" check is the same regex across `templates/`, `interview-prep/`
+all four Q&A banks, and any future populatable artifact. The four
+shipped Q&A banks together now form the portable precedent — any
+fifth populatable artifact would inherit the grammar by
+copy-and-modify.
+
+**Q1 and Q2 are deliberately paired but distinct.** NEXT_WORK item
+7 sub-checkbox 4 names two topics that read as overlapping —
+"rubric selection" and "why these five" — but they admit two
+distinct questions worth asking: Q1 is the *shape* question (what
+*kind* of rubric set is this, and what does it cover) while Q2 is
+the *per-rubric* defense question (defend each rubric on the
+merits against a named alternative). A credible AI-PM interviewer
+would ask both, in that order — Q1 first to test whether the
+candidate thinks about coverage matrices, Q2 next to test whether
+the candidate can defend the specific rubrics against the
+alternatives a domain expert would propose. Collapsing the two into
+one question would have wasted a Q-slot and weakened the bank's
+ability to surface the *coverage / merit* distinction the README's
+own Success-metrics section structures around. The decision to
+treat NEXT_WORK's "rubric selection" and "why these five" as two
+adjacent-but-distinct questions is the right honest read of the
+sub-checkbox text.
+
+**Q5 anchors the cross-build-invariants discipline.** Q5 is the
+only rubric across all four shipped Q&A banks that walks a
+specific *engineering* discipline (the two startup invariants) with
+file-path-level grounding into both other builds
+(`rag-app/rag_app/verify.py`, `tool_use_agent/verify.py`,
+`rag-app/rag_app/trace.py`, `tool_use_agent/trace.py`). The
+rubric's three sub-points — (a) name the two invariants, (b)
+defend "two not many" on the fail-loud-on-silently-wrong-report
+property, (c) defend "startup not score-time" on fail-fast
+economics — close the README's "Two invariants vs. a full helper
+test suite" Design-tradeoff row with named upstream citations.
+This is structurally analogous to tool-use-agent.md's Q5 (safety
+guardrails walking three tools through Layer 1 / Layer 2
+mechanisms): both Q5 slots happen to be the engineering-discipline
+load-bearing rubric in their respective banks, by coincidence of
+the named-topic ordering in NEXT_WORK, not by design. Worth
+recording so the sub-checkbox 6 consolidating entry can note that
+Q5-as-engineering-defense is a *banks-vary-on-substance-but-share-
+shape* property: every bank has at least one rubric that walks
+file-path-level engineering grounding (cursor-teardown.md Q3 on
+§3.3 stop-aggressive defense; rag-app.md Q9 on verify.py
+structural-vs-semantic limits; tool-use-agent.md Q5 on the
+two-layer safety guardrails; this file's Q5 on the cross-build
+invariants), but *which* Q-slot it lands in is artifact-dependent.
+
+**Per-Q cross-link grouping convention (consistent with the
+tool-use-agent.md precedent).** The Source-of-truth section groups
+the Q-slots that share a cross-link target: rubrics Q2/Q5/Q7 group
+on the `../rag-app/` build (whose `verify.py` defines one of the
+two `REFUSAL_SENTENCE` strings, whose `verification` block
+groundedness reads); rubrics Q1/Q2/Q3/Q5 group on the
+`../tool-use-agent/` build (whose `verify.py` defines the other
+`REFUSAL_SENTENCE`, whose `trace.py` is the second half of the
+trace-helper invariant, whose `tool_calls[]` / `stop_reason` /
+`refusal_reason` fields the first-call / termination / cost
+rubrics consume). The grouping is *substantive*, not cosmetic —
+each cross-link names which specific README section or file path a
+rubric reaches into, so a future revision of either sibling build
+that renames or moves a referenced surface surfaces as a
+drift-detection signal at the rubric level. This convention now
+appears in three of the four banks (rag-app.md, tool-use-agent.md,
+evals-harness.md); cursor-teardown.md predates the convention and
+uses a single-paragraph cross-link list without per-Q grouping.
+
+**Walk-through stub pivots into Q1 / Q5 (now consistent across all
+four shipped banks).** Each Q&A bank's walk-through stub names *two*
+questions the walk-me-through-portfolio answer naturally pivots into
+as deep-dive follow-ups. For evals-harness.md the pivot pair is Q1
+(rubric selection as the first PM-craft signal — "I picked the
+*minimum* defensible set, not the maximum") and Q5 (cross-build
+invariants as the first engineering-discipline signal — "two
+checks that prevent silently wrong reports"). The pivot-into-two
+pattern is now consistent across all four banks: cursor-teardown.md
+pivots into Q1/Q4 (why-Cursor / what-to-cut), rag-app.md pivots
+into Q1/Q8 (stack-choice / failure-mode-priority),
+tool-use-agent.md pivots into Q1/Q5 (step-cap / safety-guardrails),
+this file pivots into Q1/Q5 (rubric-selection / cross-build-
+invariants). The Q1 anchor is universal — every bank's first
+question is the central PM-framing question — and the second pivot
+varies by which engineering-discipline rubric is most distinctive
+per artifact.
+
+**Forward-referenced cross-links — now zero remaining sibling banks
+to forward-reference.** This is the LAST per-artifact Q&A bank to
+ship in item 7. Prior banks (cursor-teardown.md / rag-app.md /
+tool-use-agent.md) each forward-referenced the not-yet-existing
+siblings by their NEXT_WORK sub-checkbox identity (sub-checkbox 2 /
+3 / 4); now those references resolve cleanly to shipped files.
+evals-harness.md's only forward-reference is to `README.md` at
+sub-checkbox 5 (the index file). The compounding-savings property
+of the forward-referenced cross-links discipline pays off here:
+zero back-fill edits to the prior three banks were required when
+this slice shipped, because each prior bank already named
+`evals-harness.md` (without a leading `..`) by its sub-checkbox-4
+identity. The README index slice (sub-checkbox 5) is the
+single remaining link target; sub-checkbox 6's consolidating entry
+can lock the forward-reference-by-sub-checkbox-identity convention
+as the canonical cheap-cross-link pattern.
+
+**Verification surface (4 checks).**
+
+1. File exists at `interview-prep/evals-harness.md`, 440 lines, 10
+   `## Q[0-9]` headings, 14 `_<your draft` matches (10 placeholders
+   in rubric responses + 4 grammar references in the How-to-use
+   section and the Source-of-truth section).
+2. NEXT_WORK.md item 7 sub-checkbox 4 ticked; parent item 7 stays
+   unticked with sub-checkboxes 5 (README index) and 6
+   (consolidating DECISIONS entry) still open.
+3. Existing pytest baselines unchanged — this slice ships only new
+   markdown content and a 3-character edit to NEXT_WORK.md, both
+   outside any test-covered build directory; the three Python
+   builds (rag-app, tool-use-agent, evals-harness) carry their
+   own pytest suites that this slice does not touch.
+4. DECISIONS.md gets this paired entry locking the slice's
+   substance (the four properties above plus the eight
+   out-of-scope deferrals below). The entry follows the
+   tool-use-agent.md precedent's shape: question-and-extension
+   rationale → anchoring grammar → placeholder grammar →
+   per-Q-slot decisions → cross-link convention → walk-through
+   stub pattern → forward-reference convention → verification
+   surface → invariants → deferrals → closure cadence projection
+   → NEXT_WORK state.
+
+**Cross-build invariants honored unchanged.** The four cross-build
+invariants — single-source-pyproject (no per-build floor drift),
+LICENSE byte-equality across all four LICENSE files, CI matrix
+shape locked at item 4 sub-checkbox 4, safety guardrails locked at
+item 6 sub-checkbox 5 — are all documentation-untouched by this
+slice. The slice transforms zero code surface and the doc-only
+edits do not touch any locked-property prose.
+
+**Eight explicit out-of-scope deferrals (mirroring prior banks'
+list shape).**
+
+1. Sub-checkbox 5 of item 7 (`interview-prep/README.md` index
+   file) — explicitly deferred; this slice ships only the
+   evals-harness Q&A bank, not the index. Index file will link
+   the four shipped Q&A banks (cursor-teardown / rag-app /
+   tool-use-agent / evals-harness), name the suggested prep
+   order, and carry the cross-artifact questions section
+   including the cross-cutting "walk me through your portfolio"
+   question stubbed in all four shipped banks.
+2. Sub-checkbox 6 of item 7 (consolidating DECISIONS entry on
+   Q&A file shape, no-fabrication rule, behavioral-prep
+   deferral, heading-name-vs-§-number anchoring split, per-Q
+   cross-link grouping convention, walk-through pivot-into-two
+   pattern, forward-reference-by-sub-checkbox-identity
+   convention) — explicitly deferred.
+3. User-supplied draft answers — every `_<your draft>_` slot is
+   intentionally empty; the no-fabrication rule at the slot level
+   says the agent does not invent the user's answers, the user
+   fills them.
+4. The `evals-harness` README itself — this slice does NOT touch
+   `../evals-harness/README.md`. The Q&A bank is a derivative
+   companion artifact; the README is the design contract. Any
+   rubric that found a real weakness in the README would surface
+   upstream as a separate slice, not via this file.
+5. Item 5's holding pattern — the corpus pick is still open
+   (`Pick: _<user fills with 1, 2, or 3>_` is unchanged in
+   `rag-app/corpus/CORPUS_CANDIDATES.md`). This slice neither
+   advances item 5 nor blocks on it.
+6. Templates directory — no edits to `templates/*.md`. The
+   `_<your draft>_` grammar is borrowed from templates but no
+   template files are touched.
+7. Behavioral interview prep — NEXT_WORK item 7's masthead
+   explicitly defers behavioral-question prep to a separate (not-
+   this-list) item. The ten questions in this file are all
+   *artifact-anchored* (anticipate questions the README's content
+   demands), not behavioral.
+8. Per-artifact-file LLM-judge variance budget — Q8's rubric
+   names that model-graded scoring would need a recorded
+   judge-model + seed for variance auditability, but the harness
+   itself does NOT implement model-graded scoring (explicitly
+   deferred per README "What's intentionally out of scope here"
+   #1). The Q8 rubric's "two-track future" framing is interview-
+   prep guidance, not a roadmap commitment.
+
+**Item 7 closure cadence projection (updated).** Item 7 has 6 sub-
+checkboxes; this slice closed the fourth. The remaining two are:
+sub-checkbox 5 (`README.md` index linking the four shipped Q&A
+banks plus the cross-artifact questions section) and sub-checkbox
+6 (consolidating DECISIONS entry on file shape + no-fabrication
+rule + behavioral-prep deferral). The README index is one
+iteration; the consolidating closer is one iteration. Two more
+iterations close item 7. The four shipped Q&A banks now fully
+demonstrate the portable shape the consolidating entry will lock
+(question count of 10, placeholder grammar `_<your draft>_`,
+anchoring grammar with the 3-named-headings-vs-1-§-numbered split,
+forward-referenced cross-links by sub-checkbox identity,
+walk-through stub with pivot-into-two, per-Q cross-link groupings,
+Q5-as-engineering-defense observation, six-named-plus-four-vs-
+eight-named-plus-two ratio variability driven by NEXT_WORK named-
+topics count).
+
+**NEXT_WORK state after this slice.**
+
+- Items 1, 2, 3, 4, 6: ticked (parent + all sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 ticked; sub-checkboxes
+  2 / 3 / 4 unticked (awaiting user pick).
+- Item 7: parent unticked; sub-checkboxes 1 / 2 / 3 / 4 ticked;
+  sub-checkboxes 5 / 6 unticked.
+- 5 of 7 top-level items closed; item 5 on hold awaiting user
+  pick; item 7 mid-flight with 4 of 6 sub-checkboxes ticked.

@@ -126,7 +126,7 @@ weaknesses in the artifacts themselves.
 - [x] `interview-prep/tool-use-agent.md` — 8–10 questions covering: step
   cap rationale, refusal taxonomy, observability (trace schema), tool
   catalog design, safety guardrails, how you'd productionize it.
-- [ ] `interview-prep/evals-harness.md` — 8–10 questions covering: rubric
+- [x] `interview-prep/evals-harness.md` — 8–10 questions covering: rubric
   selection, why these five, cost rubric design, what's missing,
   cross-build invariants, how this scales to a larger eval set.
 - [ ] `interview-prep/README.md` — index file linking the four Q&A banks,
