@@ -7926,3 +7926,327 @@ title, year FROM books ORDER BY year LIMIT 3"` returns
 the expected three earliest books; the same path with
 `--sql "DROP TABLE books"` returns
 `ERROR: write keyword(s) rejected: ['DROP']`.
+
+## 2026-05-16 — `file_rewrite` tool shipped with sandbox seed (NEXT_WORK item 6, sub-checkbox 2 of 5)
+
+**What shipped.** A new sandboxed file-rewrite tool —
+`tool_use_agent.tools_rewrite.file_rewrite` — registered as
+the eighth entry in the locked catalog at
+`tool_use_agent/catalog.py:222` (deterministic order:
+`list_repo_files`, `read_repo_file`, `grep_repo`,
+`list_pipeline_rows`, `count_by_stage`, `count_by_bucket`,
+`sql_query`, `file_rewrite`). Paired with a committed
+sandbox directory at `tool-use-agent/sandbox/` holding a
+`README.md` + two seed text files (`notes.md`, `todos.md`)
+the agent can edit without first running a setup script.
+Per-tool unit test file added at
+`tool-use-agent/tests/test_tools_rewrite.py` (29 new tests
+covering operation-enum rejection, sandbox-escape
+refusals via `..` traversal / absolute paths / symlinks,
+happy-path replace/append/prepend, identical-content
+empty-diff semantics, content + post-edit size caps,
+existence and shape refusals, and the
+lazy-mkdir-on-first-call property).
+
+**Two-layer safety guardrail.** Per the NEXT_WORK
+sub-checkbox text ("applies it under a sandboxed root
+… Refuses paths outside the sandbox") plus the
+OBJECTIVE.md imperative ("safe (no shell-out, no
+network)"), the tool ships TWO independent refusal
+layers so a regression in either is still caught by the
+other — mirroring the `sql_query` two-layer pattern
+locked in iteration 65:
+
+  *Layer 1 — operation enum.* The `operation` argument
+  must be one of `replace`/`append`/`prepend` (frozenset
+  `OPERATIONS`); anything else returns
+  `ERROR: unknown operation <op> (expected one of
+  ['append', 'prepend', 'replace'])` BEFORE any file work
+  is attempted. The enum is case-sensitive on purpose —
+  `Replace` and `REPLACE` both fail — so a creative
+  attempt to smuggle a write past the enum via
+  case-folding (the dual to `sql_query`'s case-
+  insensitive denylist) is impossible. The Anthropic
+  SDK's tool-input validation enforces the same enum at
+  the schema layer via
+  `input_schema.properties.operation.enum`.
+
+  *Layer 2 — sandbox-root resolve.* The `path` argument
+  is resolved against the fixed sandbox root
+  (`tool-use-agent/sandbox/` under `repo_root`) and
+  `.relative_to(sandbox_root_resolved)` checked. The
+  `.resolve()` call follows symlinks before the
+  `.relative_to` check, so a symlink inside the sandbox
+  pointing outside (e.g.
+  `tool-use-agent/sandbox/shortcut → /etc/passwd`)
+  surfaces as an out-of-sandbox refusal, NOT a sneaky
+  edit. The test suite stages a real symlink under
+  `tmp_path` and confirms the target file is not
+  touched. `..` traversal (`../outside.md`) and absolute
+  paths (`/tmp/elsewhere.md`) both surface as
+  `ERROR: path <p> escapes the sandbox root` via the
+  same code path.
+
+The layered design is the lock. Either layer alone would
+be insufficient: layer 1 alone would allow the agent to
+write to any path under `repo_root` (a write to
+`OBJECTIVE.md` via the `replace` operation would be
+catastrophic); layer 2 alone would allow the agent to
+*attempt* arbitrary write semantics through additional
+operation strings the tool didn't anticipate. Together,
+the layers compose into a hard refusal that fires before
+any file is opened.
+
+**Operation semantics.** Three operations, each well-
+defined against an existing file:
+
+  - `replace`: file's content becomes the new content
+    verbatim. Used for full overwrites.
+  - `append`: new content is suffixed to existing
+    content. `before + content` is the post-edit shape.
+  - `prepend`: new content is prefixed before existing
+    content. `content + before` is the post-edit shape.
+
+All three operations require the target file to already
+exist (the tool refuses missing files via
+`ERROR: no such file in sandbox: <p>`). A future
+`file_create` tool would own the create-new-file surface
+if/when added; `file_rewrite` only rewrites, keeping the
+naming honest. Replace with identical content emits an
+empty diff (`difflib.unified_diff` produces no hunks),
+which is a feature: the agent can use `file_rewrite`
+defensively to confirm a file already has the desired
+shape without producing diff noise.
+
+**Why sandbox-relative paths, not repo-relative.**
+`sql_query` accepts repo-relative paths because the
+fixture lives under `tool-use-agent/fixtures/sample.db`
+and the natural agent reasoning is "the database is at
+`tool-use-agent/fixtures/sample.db`". `file_rewrite`'s
+contract is different — the agent is operating IN the
+sandbox — so accepting sandbox-relative paths
+(`notes.md` → `tool-use-agent/sandbox/notes.md`) is the
+clearer mental model and harder to mistype. A sandbox-
+relative `"notes.md"` cannot accidentally resolve to
+`/Users/.../notes.md` even via path joining quirks
+because the join base is the sandbox root, not the repo
+root.
+
+**Return shape contract.** On success, returns five
+keys, locked:
+
+  - `path`: the sandbox-relative path echoed (string).
+  - `operation`: the operation echoed (string).
+  - `bytes_before`: UTF-8 byte length of the file
+    BEFORE the edit (int).
+  - `bytes_after`: UTF-8 byte length of the file AFTER
+    the edit (int).
+  - `diff`: a unified diff string (`difflib.unified_diff`
+    with 3 lines of context, `a/<path>` and `b/<path>`
+    file labels). Empty string if the edit produced no
+    textual change.
+
+On failure, returns a sentinel `"ERROR: ..."` string
+matching the recovery contract `tools_repo.read_repo_file`
+and `tools_sql.sql_query` established. Failure cases:
+empty path, unknown operation, non-string content,
+content exceeds `MAX_CONTENT_BYTES` (1 MB), path escapes
+sandbox, file missing, target is a directory, file is
+not UTF-8 decodable, post-edit size exceeds
+`MAX_FILE_BYTES` (1 MB).
+
+**Why two distinct size caps.** `MAX_CONTENT_BYTES` and
+`MAX_FILE_BYTES` are both 1 MB but checked independently:
+
+  - `MAX_CONTENT_BYTES` is the input cap on the
+    `content` argument. Rejects a single oversized
+    payload BEFORE reading the existing file.
+  - `MAX_FILE_BYTES` is the post-edit size cap on the
+    file after the operation is applied. Rejects writes
+    that push the existing file over the cap, even when
+    the content itself is under the content cap (the
+    `append`-near-cap scenario).
+
+Without the independent post-edit check, an agent could
+push a near-cap file over the cap via repeated
+small-payload appends — each call passing the content
+cap, the cumulative file size escaping the cap. The two
+caps compose into "no file in the sandbox ever exceeds
+1 MB and no single tool call ever writes more than 1 MB
+of new content," which bounds the worst-case agent
+context-budget impact at 2 MB.
+
+**Why a lazy `mkdir(parents=True, exist_ok=True)` for
+the sandbox root.** The sandbox directory ships with
+seed files committed, so on the committed repo the
+directory always exists at first tool call. But a fresh
+test environment under `tmp_path` does NOT have the
+sandbox staged, and the test suite would have to mkdir
+it before every test — which couples test setup to
+implementation detail. The lazy create lets the test
+fixture stage only the FILES the test cares about; the
+sandbox root mkdir is the tool's job. The cost of the
+defensive mkdir is one stat per tool call (no-op on the
+committed repo). The benefit is hermetic tests with no
+implementation-coupled fixture setup.
+
+**Why the sandbox lives at build-root, not
+`tests/fixtures/`.** NEXT_WORK item 6 sub-checkbox 2
+specifies `tool-use-agent/sandbox/` literally — the
+sandbox is for the tool's *users* (the agent, the CLI,
+the demo invocation), not just for the pytest suite.
+The package's `pyproject.toml` excludes `tests/` from
+the built wheel; the build-root `sandbox/` directory is
+where data the package's runtime demos depend on
+belongs. This mirrors the iteration-65 decision for
+`fixtures/sample.db`, and is now the second build-root
+companion-directory the tool catalog references
+(`fixtures/` for read-only data, `sandbox/` for
+writable scratch).
+
+**Tests use `tmp_path`, not the committed sandbox.**
+Every test in `test_tools_rewrite.py` stages its own
+sandbox tree under `tmp_path` via the `_make_sandbox`
+helper, so the committed
+`tool-use-agent/sandbox/notes.md` and `todos.md` stay
+byte-identical for the agent's demo across pytest runs.
+This is the same isolation discipline `test_tools_sql.py`
+followed (which reads but never writes the committed
+SQLite fixture) — both per-tool test files keep the
+committed build artifacts read-only by design, and the
+suite has zero teardown beyond pytest's `tmp_path`
+auto-cleanup.
+
+**Catalog count bump.** Registering `file_rewrite`
+forced count updates in three sibling test surfaces
+(mechanically required to keep CI green):
+
+  - `tests/test_catalog.py:21–33`: bumped
+    `EXPECTED_TOOL_NAMES` tuple from 7 to 8 entries
+    (appended `"file_rewrite"`); renamed
+    `test_catalog_has_seven_tools_in_locked_order` →
+    `test_catalog_has_eight_tools_in_locked_order`.
+  - `tests/test_main.py:41–49`: renamed
+    `test_cmd_catalog_emits_seven_tools` →
+    `test_cmd_catalog_emits_eight_tools`; bumped
+    `len(payload) == 7` → `== 8`; changed
+    `names[-1] == "sql_query"` →
+    `names[-1] == "file_rewrite"`.
+  - `tests/test_main.py:92`: bumped
+    `"catalog (7 tools"` → `"catalog (8 tools"` in the
+    dry-run prose check.
+  - `tests/test_main.py:187`: bumped
+    `len(payload) == 7` → `== 8` in
+    `test_main_catalog_dispatch`.
+
+The dry-run prose count itself is computed from
+`len(CATALOG)` dynamically in `__main__.py:210`, so no
+source edit was needed there — only the test's
+expected-string literal. This pattern (registration
+housekeeping in THIS slice, schema-shape coverage in
+sub-checkbox 4) follows iteration 65's boundary
+exactly.
+
+**Verification surface.** Four independent checks pin
+the new tool against drift:
+
+  1. `python3 -m pytest tests/test_tools_rewrite.py -v`
+     passes 29 tests covering both guardrail layers and
+     every failure mode. Coverage on
+     `tool_use_agent/tools_rewrite.py` is 100% (55/55
+     statements) via
+     `python3 -m coverage run --source=tool_use_agent.tools_rewrite`.
+  2. `python3 -m pytest tests/ -q` passes 184/184 + 1
+     skipped across the full tool-use-agent suite
+     (no regression in the other 155 tests after the
+     catalog count bump).
+  3. `rag-app/` (66 tests) and `evals-harness/` (183
+     tests) continue to pass — `file_rewrite` is a
+     local-to-tool-use-agent change with no
+     cross-build surface (the CATALOG fingerprint
+     under `corpus_fingerprint` IS a cross-build
+     surface, but it's recomputed at every dry-run
+     call, not pinned at module load, so a new tool
+     surfaces in the next fingerprint and no test
+     pins the old fingerprint).
+  4. Direct CLI dispatch verified manually:
+     `PYTHONPATH=tool-use-agent python3 -m
+     tool_use_agent tool file_rewrite --path notes.md
+     --operation append --content "- new bullet\n"
+     --json` returns the expected
+     `{"path": "notes.md", "operation": "append",
+     "bytes_before": 160, "bytes_after": 173, "diff":
+     "..."}` shape against the committed seed file
+     (manually reverted after the test so the seed
+     stays the committed shape). The same invocation
+     with `--operation hack` is rejected at the
+     argparse layer (`invalid choice: 'hack'`) BEFORE
+     reaching the tool — a third layer of defense for
+     the CLI surface, redundant with the static enum
+     in the tool body and the SDK schema's enum check,
+     all three of which fire on a bad operation. Bad
+     operations reaching the tool body directly (via
+     Python import) return
+     `ERROR: unknown operation 'hack' ...` per the
+     parametrized test in
+     `test_unknown_operation_is_refused`.
+
+**Cross-build invariants that held unchanged.**
+
+  - `REFUSAL_SENTENCE` (rag-app/tool-use-agent
+    byte-equality) — not touched; the rewrite tool has
+    no refusal-sentence surface.
+  - `compute_corpus_fingerprint` for the agent's tool
+    catalog — recomputed at every dry-run call, so the
+    new tool surfaces in the fingerprint automatically;
+    no test pins the prior fingerprint value.
+  - LICENSE four-way byte-equality (iteration 54) —
+    not touched.
+  - CI matrix shape (iteration 60) — the new test file
+    is picked up by the existing `pytest` step
+    automatically; no workflow edit needed.
+
+**Out of scope this slice (deferred to later sub-
+checkboxes / items).**
+
+  - `regex_extract` tool (item 6, sub-checkbox 3): the
+    third and last new tool. Will reuse the
+    `_resolve_inside_repo` pattern from `tools_repo`
+    (regex_extract reads, doesn't write) plus a static
+    match-count cap as the regex-DoS guard.
+  - Tool-catalog test extension to cover the three new
+    tools (item 6, sub-checkbox 4): per-tool schema-
+    shape pins, per-tool example-input validation, and
+    the per-tool Anthropic-SDK-shape check. The count
+    bump from 7 → 8 in this slice (mechanically
+    required) is registration housekeeping; the deeper
+    extension lives in sub-checkbox 4.
+  - Consolidating DECISIONS entry locking the full
+    safety-guardrails contract across all three new
+    tools (item 6, sub-checkbox 5): will reference this
+    entry's two-layer guardrail design (operation enum
+    + sandbox-root resolve), iteration 65's two-layer
+    guardrail design (write-keyword denylist +
+    `mode=ro` URI connection), and `regex_extract`'s
+    match-bound design, in a single lock at the close
+    of item 6.
+  - README / demo-invocation documentation for the new
+    tool: deferred. The `README.md` under `sandbox/`
+    documents the sandbox itself; the package README's
+    tool catalog list does NOT yet name `file_rewrite`,
+    and a README edit is the right home for that
+    addition when sub-checkbox 4 or 5 ships.
+  - Item 5 sub-checkboxes 2/3/4 (corpus selection, demo
+    script, README + DECISIONS): item 5's sub-checkbox
+    1 (iteration 64) shipped the
+    `CORPUS_CANDIDATES.md` ranked-three file with a
+    machine-checkable `Pick: _<user fills…>_` line. As
+    of this iteration the placeholder is unchanged, so
+    per OBJECTIVE.md ("ship a single ranked CANDIDATES
+    file for that sub-item and move to the next
+    unchecked item; do not block the queue"), item 6
+    proceeds. Item 5 remains in a holding pattern until
+    a user pick lands.
+  - Item 7 (interview-prep Q&A bank): untouched. Reached
+    after item 6 closes.
+

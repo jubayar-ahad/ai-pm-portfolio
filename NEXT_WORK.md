@@ -96,7 +96,7 @@ rather than treating this as a separate test deliverable).
   string, executes read-only (parametrized rejection of write keywords), and
   returns rows as JSON. Ship with a tiny fixture DB under
   `tool-use-agent/fixtures/`.
-- [ ] `file_rewrite` — accepts a path + a structured edit operation
+- [x] `file_rewrite` — accepts a path + a structured edit operation
   (replace / append / prepend), applies it under a sandboxed root
   (`tool-use-agent/sandbox/`), and returns the diff. Refuses paths outside
   the sandbox.

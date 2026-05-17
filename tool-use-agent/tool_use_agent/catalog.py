@@ -31,6 +31,8 @@ from tool_use_agent.tools_repo import (
     list_repo_files,
     read_repo_file,
 )
+from tool_use_agent.tools_rewrite import OPERATIONS as REWRITE_OPERATIONS
+from tool_use_agent.tools_rewrite import file_rewrite
 from tool_use_agent.tools_sql import sql_query
 
 
@@ -59,7 +61,7 @@ def _serialize(value: Any) -> Any:
 
 
 def build_catalog() -> dict[str, Tool]:
-    """Construct the v1 catalog: six read-only tools, deterministic order."""
+    """Construct the catalog. Order is deliberate and observable."""
     tools: list[Tool] = [
         Tool(
             name="list_repo_files",
@@ -256,6 +258,46 @@ def build_catalog() -> dict[str, Tool]:
                 "additionalProperties": False,
             },
             impl=sql_query,
+        ),
+        Tool(
+            name="file_rewrite",
+            description=(
+                "Apply a structured edit (replace/append/prepend) to a "
+                "file under tool-use-agent/sandbox/ and return the unified "
+                "diff. Paths are sandbox-relative; anything resolving "
+                "outside the sandbox is refused. The target file must "
+                "already exist."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Sandbox-relative path (e.g. 'notes.md'). "
+                            "Refused if it escapes the sandbox root."
+                        ),
+                    },
+                    "operation": {
+                        "type": "string",
+                        "description": (
+                            "Edit operation: replace (full overwrite), "
+                            "append (suffix), or prepend (prefix)."
+                        ),
+                        "enum": sorted(REWRITE_OPERATIONS),
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "Text to write (full content for replace; "
+                            "suffix for append; prefix for prepend)."
+                        ),
+                    },
+                },
+                "required": ["path", "operation", "content"],
+                "additionalProperties": False,
+            },
+            impl=file_rewrite,
         ),
     ]
     return {tool.name: tool for tool in tools}

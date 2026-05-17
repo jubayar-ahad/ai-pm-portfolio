@@ -38,15 +38,15 @@ def _capture(fn, *args, **kwargs) -> str:
     return buf.getvalue()
 
 
-def test_cmd_catalog_emits_seven_tools(monkeypatch):
+def test_cmd_catalog_emits_eight_tools(monkeypatch):
     args = argparse.Namespace()
     stdout = _capture(cmd_catalog, args)
     payload = json.loads(stdout)
     assert isinstance(payload, list)
-    assert len(payload) == 7
+    assert len(payload) == 8
     names = [entry["name"] for entry in payload]
     assert names[0] == "list_repo_files"
-    assert names[-1] == "sql_query"
+    assert names[-1] == "file_rewrite"
 
 
 def test_cmd_tool_dispatches_to_list_repo_files(monkeypatch, tiny_repo_root: Path):
@@ -89,7 +89,7 @@ def test_cmd_ask_dry_run_no_key(monkeypatch):
     stdout = _capture(cmd_ask, args)
     assert "Mode: dry-run" in stdout
     assert "Question: What is Acme?" in stdout
-    assert "catalog (7 tools" in stdout
+    assert "catalog (8 tools" in stdout
 
 
 def test_cmd_ask_dry_run_json_shape(monkeypatch):
@@ -184,7 +184,7 @@ def test_main_catalog_dispatch(capsys):
     rc = main(["catalog"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert len(payload) == 7
+    assert len(payload) == 8
 
 
 def test_main_ask_dry_run_dispatch(monkeypatch, capsys):
