@@ -64,7 +64,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 - [x] DECISIONS.md entry locking the matrix shape and the lint/type-check
   policy (`mypy` is non-blocking; `ruff check` is blocking).
 
-## 5. Real corpus for rag-app
+## 5. Real corpus for rag-app [x]
 
 Replace the current self-referential corpus with a small, attributable corpus
 that signals **AI-PM relevance** to a portfolio reviewer — not just one that
@@ -140,7 +140,7 @@ makes citation provenance visually meaningful (a chunk path of
 - [x] Update `rag-app/README.md` Status section, demo invocation, and a
   one-line note explaining the corpus choice in portfolio terms (so a
   reviewer understands *why* this corpus, not just what it is).
-- [ ] DECISIONS.md entry locking the corpus pick, the demo-script
+- [x] DECISIONS.md entry locking the corpus pick, the demo-script
   contract, and the fair-use-with-attribution posture — supersedes the
   prior CANDIDATES decision entry.
 
