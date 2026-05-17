@@ -8534,3 +8534,300 @@ checkboxes / items).**
   - Item 7 (interview-prep Q&A bank): untouched. Reached
     after item 6 closes.
 
+## 2026-05-16 — Tool catalog test extended to pin schema + dispatch for sql_query / file_rewrite / regex_extract (NEXT_WORK item 6, sub-checkbox 4 of 5)
+
+- **Slice shape and scope discipline.** Iterations 65/66/67
+  shipped the three new tools (`sql_query`, `file_rewrite`,
+  `regex_extract`) along with their per-tool unit-test
+  modules (`test_tools_sql.py`, `test_tools_rewrite.py`,
+  `test_tools_regex.py`), each carrying its own coverage
+  of the tool's *implementation* (token-scanner internals,
+  sandbox-escape, regex-compile refusals, etc.). Each of
+  those slices also touched `tests/test_catalog.py` for
+  the mechanical bookkeeping (count assertion bumps, the
+  appended `EXPECTED_TOOL_NAMES` entry, and renames of
+  count-bearing test names). That bookkeeping is NOT what
+  sub-checkbox 4 asks for. The bullet's literal text —
+  "Tool catalog test extended to cover the three new
+  tools" — names the *catalog-level* contract: schema
+  shape, enum vocab, default values, integer bounds, the
+  safety-relevant description hints, and dispatch through
+  the live `call_tool` dispatcher (not the impl). This
+  iteration ships exactly those tests and nothing else.
+
+- **What this slice adds.** 13 new tests in
+  `tool-use-agent/tests/test_catalog.py` (file grew from
+  145 to 352 lines), bringing the test_catalog.py count
+  from 16 → 29. The new tests fall in two blocks
+  (boundary marker is a 4-line section banner so a future
+  reader can scan to the right block from the file
+  outline):
+
+  - **Block 1 — per-tool schema-shape (8 tests,
+    test_catalog.py:159-233).** For each of the three new
+    tools, two tests: one pinning the `properties` /
+    `required` / type / default / minimum contract
+    (`test_sql_query_schema_shape` at line 159,
+    `test_file_rewrite_schema_shape` at line 180,
+    `test_regex_extract_schema_shape` at line 207); one
+    pinning the safety-relevant description hints the
+    model sees in its tool prompt
+    (`test_sql_query_description_pins_read_only_layers`
+    at line 171,
+    `test_file_rewrite_description_pins_sandbox_contract`
+    at line 200,
+    `test_regex_extract_description_pins_read_only_and_compile_first`
+    at line 221). Plus one extra
+    enum-vocab-match test for `file_rewrite`
+    (`test_file_rewrite_operation_enum_matches_locked_vocab`
+    at line 190) — analogous to the pre-existing
+    `test_list_pipeline_rows_enum_matches_locked_vocab` at
+    line 79 — which pins
+    `CATALOG["file_rewrite"].input_schema["properties"]["operation"]["enum"]`
+    to `tools_rewrite.OPERATIONS` and additionally
+    verifies the enum is rendered sorted for deterministic
+    schema serialization. The description-pin tests are
+    load-bearing because the model's tool selection
+    decisions depend on the description string — a future
+    silent rewording that dropped "sandbox" from
+    `file_rewrite` or "read-only" from `regex_extract`
+    would slip past schema-shape tests but degrade the
+    model's safety understanding; the description-pin
+    tests catch that drift.
+
+  - **Block 2 — catalog-level dispatch (6 tests,
+    test_catalog.py:236-352).** For each of the three
+    new tools, one happy-path dispatch test and one
+    refusal-path dispatch test, both routing through
+    `call_tool` (not through the tool's impl directly).
+    This block exercises the wiring the per-tool unit
+    test modules cannot reach: name→tool lookup in
+    `CATALOG`, kwarg pass-through, `_serialize` recursion
+    on the return value, and the live `CATALOG` binding
+    being identical to `build_catalog()`'s output.
+    - `test_call_tool_dispatches_sql_query_against_fixture_db`
+      at line 236 — dispatches a SELECT against the
+      build-root `tool-use-agent/fixtures/sample.db` and
+      asserts the locked `{columns, rows, row_count}`
+      return shape and that the three fixture tables
+      (authors / books / book_genres) are visible.
+    - `test_call_tool_sql_query_refuses_write_keyword` at
+      line 252 — passes a non-existent path AND a
+      `DELETE` keyword; the test asserts the static
+      denylist fires FIRST (sentinel string mentions
+      DELETE, not "no such file"), which pins the
+      pre-IO refusal ordering as a guarantee of the
+      catalog-level contract.
+    - `test_call_tool_dispatches_file_rewrite_against_sandbox`
+      at line 267 — uses `tmp_path` as a throwaway repo
+      root so the dispatch test does not mutate the
+      committed `sandbox/notes.md` under git (per
+      iteration 66's "manual CLI verification of a
+      writing tool against the committed seed file
+      mutates the seed" learning), staging a fresh
+      `tool-use-agent/sandbox/scratch.md` and asserting
+      the five-key return shape plus the bytes-after
+      growth invariant.
+    - `test_call_tool_file_rewrite_refuses_sandbox_escape`
+      at line 297 — `../../../etc/passwd` traversal
+      surfaces as a sentinel string from `call_tool`,
+      not a raised exception; pins the uniform
+      recovery contract at the dispatcher boundary.
+    - `test_call_tool_dispatches_regex_extract` at line
+      312 — uses `tiny_repo_root` from conftest (the
+      regex_extract tool reads files under `repo_root`,
+      so it composes cleanly with the existing fixture
+      — distinct from sql_query/file_rewrite which need
+      build-root fixtures), asserts the six-key match
+      record shape (path / line_number / match / groups
+      / span) and the five-key envelope (pattern / path
+      / matches / match_count / truncated).
+    - `test_call_tool_regex_extract_refuses_malformed_pattern`
+      at line 342 — pins the Layer-1 (re.compile)
+      refusal at the dispatcher boundary.
+
+- **Why catalog-level tests must exist alongside the
+  per-tool unit tests.** The per-tool modules
+  (`test_tools_sql.py`, `test_tools_rewrite.py`,
+  `test_tools_regex.py`) import each tool's impl
+  directly and exercise the impl's input handling, side
+  effects, and return value. They do NOT exercise:
+  (1) the schema the model sees (each tool's
+  `input_schema` is constructed inside `build_catalog()`
+  in `catalog.py`, not in the tool's own module);
+  (2) the description string that ships in the tool
+  prompt; (3) the `call_tool` dispatcher's
+  name→impl wiring; (4) the `_serialize` recursion on
+  the return value. A regression in any of (1)–(4)
+  would not surface from the per-tool modules — it
+  would surface in the agent loop at runtime as
+  silent mis-behavior. The catalog-level tests close
+  that gap by treating the catalog itself as the
+  unit under test and the three new tools as
+  observable surface.
+
+- **`REPO_ROOT` / `BUILD_ROOT` helpers at module top.**
+  Added two module-level constants:
+  `BUILD_ROOT = Path(__file__).parent.parent` and
+  `REPO_ROOT = BUILD_ROOT.parent`. The sql_query
+  fixture lives at `tool-use-agent/fixtures/sample.db`
+  (build-root level, per iteration 65's deliberate
+  placement decision), and `sql_query` resolves paths
+  against the passed `repo_root` argument, so the
+  dispatch test passes the real repo root and a
+  repo-relative `path="tool-use-agent/fixtures/sample.db"`.
+  This is the cleanest way to exercise the dispatcher
+  without copying the fixture or adding a new
+  conftest fixture (which would silently grow the
+  fixture surface for all future tests). The
+  `BUILD_ROOT` constant is named but unused in this
+  iteration — kept anyway for the symmetric pair and
+  for future iterations that need build-root-relative
+  paths in catalog tests.
+
+- **`file_rewrite` dispatch test uses `tmp_path`, NOT
+  the committed sandbox.** The earlier iteration 66
+  learning ("manual CLI verification of a writing
+  tool against the committed seed file mutates the
+  seed") translates to a test discipline: every
+  automated dispatch test for `file_rewrite` must
+  pass a throwaway repo root so the committed
+  `tool-use-agent/sandbox/notes.md` and `todos.md`
+  are NEVER modified by the test suite. `tmp_path`
+  is the right pytest fixture for this — the tool's
+  lazy-mkdir behavior creates
+  `<tmp_path>/tool-use-agent/sandbox/` automatically,
+  and the test stages a `scratch.md` file there
+  before invoking. The same `tmp_path` trick is the
+  general pattern for any future writing-tool
+  dispatch test.
+
+- **Description-pin tests use case-insensitive
+  substring matching, not regex.** The three
+  description-pin tests all do
+  `description = CATALOG[name].description.lower()`
+  + `assert "keyword" in description`. This is
+  deliberately lenient on phrasing — a future
+  description edit that rewords "sandbox-only" to
+  "must resolve under the sandbox" still passes,
+  but dropping "sandbox" entirely fails. The
+  alternative (exact-substring match against a
+  hardcoded description) would lock the description
+  too tightly and turn every prose edit into a
+  test edit. The right granularity for
+  description-pin tests is keyword presence, not
+  full phrasing.
+
+- **Test count ripple.** Adding 13 tests to
+  `tests/test_catalog.py` does NOT ripple to
+  `tests/test_main.py` because the catalog payload
+  count (used in `test_cmd_catalog_emits_nine_tools`
+  and the main-dispatch test) is bounded by the
+  number of tools (9), not by the number of tests.
+  This is a separation property worth carrying:
+  adding tests *about* the catalog grows
+  test_catalog.py linearly; adding tests *about*
+  individual tools grows the per-tool test
+  modules; adding tools to the catalog ripples
+  count assertions across both test_catalog.py and
+  test_main.py. This iteration touches only the
+  first axis.
+
+- **Schema-shape tests assert on the live `CATALOG`
+  dict, not on a re-call to `build_catalog()`.** The
+  module-level `CATALOG: dict[str, Tool] = build_catalog()`
+  line in `catalog.py` is the singleton the live agent
+  loop will receive — testing against `CATALOG` rather
+  than a re-built dict pins the singleton's actual
+  contents. The existing
+  `test_build_catalog_returns_fresh_dict_each_call`
+  separately covers the rebuild property; the
+  schema-shape tests intentionally do NOT duplicate
+  that check.
+
+- **Verification surface.**
+  - Four checks proved this slice's contract:
+    1. `python3 -m pytest tests/test_catalog.py -v` —
+       29 passed (16 pre-existing + 13 new).
+    2. `python3 -m pytest` (full tool-use-agent
+       suite) — 224 passed, 1 skipped (211 pre +
+       13 new), ~0.33s wall clock.
+    3. `cd ../rag-app && python3 -m pytest` —
+       66 passed, no regressions.
+    4. `cd ../evals-harness && python3 -m pytest` —
+       183 passed, no regressions.
+  - Total across three builds: 473 passing + 1 skip
+    (was 460 + 1 skip; +13 from this slice).
+  - Ruff is not installed in the local environment
+    (deferred to CI). The new tests follow the same
+    style conventions as the rest of `test_catalog.py`
+    (PEP 8 spacing, docstring-free assert-style
+    pytest tests, type-hinted fixtures, no
+    unused imports), so a CI ruff run on push is
+    expected to pass cleanly.
+
+- **Cross-build invariants honored.** Same four
+  invariants the prior six item-6 slices honored:
+  - REFUSAL_SENTENCE byte-equality unchanged
+    (this slice doesn't touch verify.py in any
+    build).
+  - Six locked stage strings unchanged.
+  - Three locked bucket strings unchanged.
+  - Default max_steps=8 unchanged.
+  None of the four are at risk from a
+  test-file-only change.
+
+- **Out-of-scope and explicitly deferred.**
+  - **The closing DECISIONS consolidator (item 6
+    sub-checkbox 5):** the explicit goal of this
+    slice is one sub-checkbox of progress. The
+    consolidator will recapitulate the
+    two-layer-guardrail pattern across all three
+    new tools, point to the per-tool
+    source-shipping entries (iterations 65 / 66 /
+    67) and this entry, and lock the agent-tool
+    safety contract as a portable pattern. It is
+    a documentation-only iteration, separate from
+    this one. Reasoning: the per-iteration
+    chunk-contribution discipline from prior
+    closures (iterations 50 / 59 / 63) keeps the
+    consolidator honest by giving it a single
+    surface to summarize.
+  - **README / demo-invocation documentation for
+    the three new tools:** the package README's
+    tool catalog list does NOT yet name
+    `sql_query`, `file_rewrite`, or
+    `regex_extract`. The README edit is the right
+    home for that addition when sub-checkbox 5
+    ships, NOT this slice (which is exclusively
+    about the catalog test extension).
+  - **Live-loop integration coverage for the three
+    new tools:** the agent loop's `test_agent.py`
+    module is untouched. Its existing tests cover
+    the loop's bounded-step contract with the
+    pre-item-6 six-tool catalog; extending them to
+    cover live tool-use cycles for the three new
+    tools is a separate concern from the
+    catalog-level dispatch tests this slice adds.
+    A future iteration that wants live-loop
+    integration coverage for the new tools would
+    extend `test_agent.py`, not `test_catalog.py`.
+  - **Item 5 sub-checkboxes 2/3/4 (corpus
+    selection, demo script, README + DECISIONS):**
+    item 5's sub-checkbox 1 (iteration 64)
+    shipped the `CORPUS_CANDIDATES.md` ranked-three
+    file with a machine-checkable
+    `Pick: _<user fills…>_` line. As of this
+    iteration the placeholder is unchanged
+    (verified via
+    `grep -n "^Pick:" rag-app/corpus/CORPUS_CANDIDATES.md`
+    returning the unmodified placeholder), so per
+    OBJECTIVE.md ("ship a single ranked
+    CANDIDATES file for that sub-item and move to
+    the next unchecked item; do not block the
+    queue"), item 6 continues to advance. Item 5
+    remains in a holding pattern until a user pick
+    lands.
+  - **Item 7 (interview-prep Q&A bank):** untouched.
+    Reached after item 6 closes.
+

@@ -103,7 +103,7 @@ rather than treating this as a separate test deliverable).
 - [x] `regex_extract` — accepts a path + a regex, returns matches as JSON
   with line numbers. Useful for the agent's own "find places to change"
   reasoning.
-- [ ] Tool catalog test extended to cover the three new tools.
+- [x] Tool catalog test extended to cover the three new tools.
 - [ ] DECISIONS.md entry locking the safety guardrails (sandbox root,
   write-keyword denylist for SQL, no path traversal).
 
