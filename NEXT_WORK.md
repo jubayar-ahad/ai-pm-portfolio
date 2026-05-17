@@ -231,7 +231,7 @@ observable Linear behavior claim with an inline footnote or end-list URL.
   rule, and three explicit out-of-scope items (most relevantly: no
   second PRD this run).
 
-## 9. Behavioral interview Q&A bank
+## 9. Behavioral interview Q&A bank [x]
 
 The existing `interview-prep/` has Q&A banks for each portfolio piece,
 but iteration-75 DECISIONS explicitly deferred behavioral / culture-fit /
@@ -259,7 +259,7 @@ answer slot stays empty for the user to fill.
   in the index and the prep order. Note explicitly that culture-fit,
   case-prompt, and negotiation prep remain deferred (out of scope) so a
   reader knows the gap is intentional.
-- [ ] DECISIONS.md entry locking the question selection rationale, the
+- [x] DECISIONS.md entry locking the question selection rationale, the
   rubric naming choice (STAR / PARLA / etc), the per-question
   source-anchoring rule (no fabricated stories), and that the three
   remaining deferred buckets stay deferred for this list.
