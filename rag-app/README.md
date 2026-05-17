@@ -22,6 +22,8 @@ incrementally — see [Status](#status) for what currently runs.
 | End-to-end `ask` demo | Shipped (live with `ANTHROPIC_API_KEY`, otherwise auto dry-run) |
 | Refusal + citation hardening | Shipped (BM25 score threshold + `[source#start-end]` citation verifier) |
 | Evaluation hooks (for `evals-harness/`) | Shipped (`ask --json` records carry `schema_version`, `record_id`, `corpus_fingerprint`, `generated_at`) |
+| Multi-source corpus (Cursor docs + Anthropic docs + Willison essays) | Shipped (24 files / 61 chunks under [`corpus/`](corpus/); attribution in [`corpus/SOURCES.md`](corpus/SOURCES.md)) |
+| Cross-corpus demo script | Shipped (`bash make-demo.sh` loads all three subcorpora into one index and runs a dry-run `ask` on a hand-picked cross-corpus question) |
 
 The `ask` subcommand runs in two modes. With `ANTHROPIC_API_KEY` set it
 calls Claude and prints a cited answer. Without a key (or with explicit
@@ -37,17 +39,36 @@ citations.
 
 ## Why this corpus
 
-**Corpus v1:** the repo's own markdown — `OBJECTIVE.md`, `DECISIONS.md`,
-`templates/INTERVIEW_TRACKER.md`, and this README. Small (a few KB), legally
-clean, and self-contained, so the demo runs without a separate dataset
-download or a license footnote. It also eats its own dog food: an interviewer
-can ask the running demo *"What is the Day 20 milestone?"* or *"Why was the
-RAG app built first?"* and get a grounded, cited answer.
+**Portfolio framing (one line):** the multi-source corpus pairs this
+retrieval demo with the repo's [Cursor teardown](../teardown-prd/cursor-teardown.md) and
+signals AI-product fluency — a reviewer reading a chunk path of
+`cursor-docs/skills.md` vs. `anthropic-docs/agent-skills.md` vs.
+`willison/moltbook.md` immediately sees that the demo handles heterogeneous
+sources, not a single curated dataset chosen to flatter BM25.
 
-**Corpus v2 (deferred):** a small set of public AI-PM-relevant documents
-(e.g. a handful of canonical PM blog posts, public PRD examples) added once
-the v1 loop is working. The exact selection is deferred to that iteration to
-avoid speculative scope.
+**Corpus v1 (still the `load` default):** the repo's own markdown —
+`OBJECTIVE.md`, `DECISIONS.md`, `templates/INTERVIEW_TRACKER.md`, and this
+README. Small, legally clean, self-contained; `python -m rag_app load`
+with no flags writes this corpus. Used for the dog-food question
+*"What is the Day 20 milestone?"* and for the rag-app test fixtures.
+
+**Corpus v2 (shipped — used by the demo):** a 61-chunk multi-source corpus
+under [`corpus/`](corpus/) across three subdirectories:
+
+- `cursor-docs/` — 8 pages from cursor.com/docs + a condensed changelog
+  (18 chunks). Ties the demo to the [Cursor teardown](../teardown-prd/cursor-teardown.md)
+  so the two artifacts read as a paired narrative.
+- `anthropic-docs/` — 8 pages from docs.anthropic.com covering API,
+  model cards, prompting, tool use, Agent Skills, and citations
+  (25 chunks). Directly relevant subject matter for a model-lab
+  portfolio.
+- `willison/` — 8 essays from simonwillison.net on agents, prompt
+  injection, and LLM coding tools (18 chunks). High AI-fluency signal.
+
+Per-source attribution, retrieval dates, and the fair-use-for-portfolio /
+permissive-reuse posture per source are recorded in
+[`corpus/SOURCES.md`](corpus/SOURCES.md). The cross-corpus demo
+(`bash make-demo.sh`) is shown under [How to run](#how-to-run).
 
 ## Stack choices
 
@@ -276,6 +297,41 @@ When `ask` runs live, every citation in the answer is parsed and checked
 against the retrieved chunk spans. The CLI prints a one-line summary
 (`citations: N/M resolved — OK|MISMATCH`) and lists any unresolved
 citations; `--json` mirrors this in a structured `verification` block.
+
+### Cross-corpus demo (multi-source corpus)
+
+`make-demo.sh` loads all three subcorpora under
+[`corpus/`](corpus/) — `cursor-docs/`, `anthropic-docs/`, `willison/` —
+into a single 61-chunk index and runs a dry-run `ask` on a hand-picked
+cross-corpus question. No `ANTHROPIC_API_KEY` required; safe to run in
+CI or a sandbox.
+
+```bash
+cd rag-app
+bash make-demo.sh
+# >>> Loading cursor-docs/ + anthropic-docs/ + willison/ into rag-app/.cache/demo-chunks.jsonl
+# Wrote 61 chunks from 24 files to rag-app/.cache/demo-chunks.jsonl
+#   cursor-docs: 18 chunks
+#   anthropic-docs: 25 chunks
+#   willison: 18 chunks
+#
+# >>> Cross-corpus demo question:
+#     What are agent skills, and how do Cursor and Anthropic implement them?
+#
+# Retrieved 5 of 61 chunks:
+#   #1  score=11.545  rag-app/corpus/cursor-docs/skills.md::0     ...
+#   #2  score= 9.982  rag-app/corpus/anthropic-docs/agent-skills.md::0  ...
+#   #3  score= 9.413  rag-app/corpus/cursor-docs/skills.md::3     ...
+#   #4  score= 8.877  rag-app/corpus/anthropic-docs/agent-skills.md::2  ...
+#   #5  score= 8.428  rag-app/corpus/anthropic-docs/agent-skills.md::3  ...
+# ...
+```
+
+Top retrieval surfaces `cursor-docs/skills.md` at #1 and
+`anthropic-docs/agent-skills.md` at #2 against a single index — the
+visual demonstration that citation provenance is meaningful when the
+corpus is heterogeneous. The chunk path itself self-documents which
+source the answer leans on.
 
 ## Design tradeoffs called out for interview discussion
 

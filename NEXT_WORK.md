@@ -137,7 +137,7 @@ makes citation provenance visually meaningful (a chunk path of
   corpora to answer well (e.g., contrast a Cursor design choice with the
   Anthropic recommendation it implements, or with the Willison commentary
   on it). One question is enough — don't pad.
-- [ ] Update `rag-app/README.md` Status section, demo invocation, and a
+- [x] Update `rag-app/README.md` Status section, demo invocation, and a
   one-line note explaining the corpus choice in portfolio terms (so a
   reviewer understands *why* this corpus, not just what it is).
 - [ ] DECISIONS.md entry locking the corpus pick, the demo-script
