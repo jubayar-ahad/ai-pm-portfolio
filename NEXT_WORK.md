@@ -53,7 +53,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 - [x] DECISIONS.md entry locking: pytest as the framework, no network in tests,
   fixture directory convention (`tests/fixtures/`), the coverage floor.
 
-## 4. CI — GitHub Actions workflow
+## 4. CI — GitHub Actions workflow [x]
 
 - [x] `/.github/workflows/ci.yml` at repo root with one matrix job per build
   (3.9 / 3.11 / 3.12 on ubuntu-latest), running: `pip install -e .[dev]`,
@@ -61,7 +61,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 - [x] Each build's `pyproject.toml` declares the dev deps used by CI
   (pytest, mypy, ruff) under `[project.optional-dependencies].dev`.
 - [x] CI status badge added to each build's README and to the top-level README.
-- [ ] DECISIONS.md entry locking the matrix shape and the lint/type-check
+- [x] DECISIONS.md entry locking the matrix shape and the lint/type-check
   policy (`mypy` is non-blocking; `ruff check` is blocking).
 
 ## 5. Real corpus for rag-app
