@@ -120,7 +120,7 @@ weaknesses in the artifacts themselves.
   would you instrument metric X?", "what would you cut?"). Each question
   followed by the strong-answer rubric and a placeholder for the user's
   draft.
-- [ ] `interview-prep/rag-app.md` — 8–10 questions covering: BM25 vs.
+- [x] `interview-prep/rag-app.md` — 8–10 questions covering: BM25 vs.
   dense, evals, when to add a reranker, abstention bar, corpus
   ownership, cost economics, multi-turn extension, failure modes.
 - [ ] `interview-prep/tool-use-agent.md` — 8–10 questions covering: step
