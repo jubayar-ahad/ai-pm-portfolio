@@ -11169,3 +11169,89 @@ Three of the eight WebFetch responses (`rules.md`, `skills.md`, plus a third res
 - Item 5: parent unticked; sub-checkbox 1 unticked (partial — cursor-docs + willison shipped, anthropic-docs pending); sub-checkboxes 2 / 3 / 4 / 5 unticked.
 - Items 8, 9, 10, 11: parent unticked; all sub-checkboxes unticked.
 - **6 of 11 top-level items closed**; the topmost unchecked item is still item 5; the next slice ships `anthropic-docs/` under the same shape (subdirectory + appended SOURCES.md section + chunk-count check + paired DECISIONS entry) and ticks sub-checkbox 1 in the same commit.
+
+## Real corpus for rag-app — `anthropic-docs/` subdirectory shipped, item-5 sub-checkbox 1 closes (8 verbatim-body pages, 25 chunks, NEXT_WORK item 5, sub-checkbox 1 of 5; ticks sub-checkbox 1 only — parent + sub-checkboxes 2/3/4/5 stay open)
+
+Iteration 81 ships `rag-app/corpus/anthropic-docs/` — 8 verbatim-body pages from Anthropic's Claude API documentation, 25 chunks under the default 400-word / 80-word-overlap chunker. This is the third and final per-corpus slice under sub-checkbox 1 of NEXT_WORK item 5 (the conjunctive sub-checkbox text requires `cursor-docs/` + `anthropic-docs/` + `willison/` together); willison shipped at iteration 79 and cursor-docs shipped at iteration 80. With this slice, the literal text of sub-checkbox 1 is satisfied and the checkbox ticks in this commit. Parent item 5 stays open because sub-checkboxes 2 (`SOURCES.md`-completed; SOURCES.md was updated in this slice but the sub-checkbox text also says "every source file ... listed", and that condition is satisfied here too — so 2 ticks alongside 1), 3 (`make-demo.sh`), 4 (`rag-app/README.md` update), and 5 (consolidating DECISIONS entry that supersedes prior CANDIDATES) are not yet shipped. **Two sub-checkboxes tick in this commit: 1 (corpus complete across the three subdirectories) and 2 (SOURCES.md complete across the three subdirectories).** Sub-checkboxes 3, 4, 5 remain open.
+
+### What ships
+
+A new subdirectory `rag-app/corpus/anthropic-docs/` with eight files:
+
+| File | Source page (Anthropic-docs URL) | Topic | Chunks |
+|---|---|---|---|
+| `intro.md` | `docs.anthropic.com/en/docs/intro` | API overview + model family snapshot | 1 |
+| `models-overview.md` | `docs.anthropic.com/en/docs/about-claude/models/overview` | Per-model capability/pricing matrix (Opus 4.7 / Sonnet 4.6 / Haiku 4.5 + legacy table) | 4 |
+| `prompt-engineering.md` | `docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview` | Hub page for the prompting-best-practices guide | 1 |
+| `extended-thinking.md` | `docs.anthropic.com/en/docs/build-with-claude/extended-thinking` | Manual vs adaptive thinking, signature blocks, tool-use interplay | 2 |
+| `prompt-caching.md` | `docs.anthropic.com/en/docs/build-with-claude/prompt-caching` | Automatic + explicit breakpoints, 5m/1h TTL, pricing multipliers, pre-warm | 6 |
+| `tool-use.md` | `docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview` | Client vs server tools, agentic loop, pricing token table | 3 |
+| `agent-skills.md` | `docs.anthropic.com/en/docs/agents-and-tools/agent-skills/overview` | Skills as VM-filesystem progressive disclosure, three loading levels | 4 |
+| `citations.md` | `docs.anthropic.com/en/docs/build-with-claude/citations` | Citations API, three document types, char/page/block indices | 4 |
+| **Total** | | | **25** |
+
+The 25 anthropic-docs chunks sit comfortably in the 10–30 NEXT_WORK target band for a single subcorpus, and the combined corpus across the three subdirectories now lands at `cursor-docs 18 + willison 18 + anthropic-docs 25 = 61 chunks` — inside the 30–80 chunk combined target band the rag-app's default chunker is sized for, with ~19 chunks of headroom under the 80-chunk upper bound.
+
+### Why these 8 pages, not other 8
+
+The NEXT_WORK item 5 candidate text for option (b) names "API docs, model cards, prompting guide" as the three target buckets. The eight pages selected cover all three buckets and extend into the three agentic surfaces (tool use, Agent Skills, citations) that the `tool-use-agent` and `rag-app` builds in this repo demonstrate against, so the rag-app demo can answer cross-corpus questions that the other two builds frame using Anthropic's own documentation as the retrieval source:
+
+- **API docs bucket (1 file)**: `intro.md` is the API overview / quickstart hub page. Smaller than the others (1 chunk) but load-bearing as the canonical "what is this product" page an interviewer will expect retrieval to find for any general "how does Anthropic's API work" question.
+- **Model cards bucket (1 file)**: `models-overview.md` is the per-model capability/pricing matrix. The tool-use-agent's `interview-prep/tool-use-agent.md` Q9 asks about model selection and pricing; the rag-app's `verify.py` and `tool-use-agent/agent_loop.py` both hardcode Claude model IDs — this page lets the rag-app retrieve the canonical "which model to use when" answer.
+- **Prompting guide bucket (1 file, hub page)**: `prompt-engineering.md` is the hub page that points at the per-technique sub-pages. Smaller than the per-technique pages but load-bearing as the discoverability entry point — fetching the entire prompting-best-practices guide (~10 sub-pages) would have overshot the 10–30 chunk target for this subcorpus.
+- **Tool-use / agent surface (3 files)**: `tool-use.md` (overview, client vs server), `agent-skills.md` (Skills as filesystem progressive disclosure), `extended-thinking.md` (reasoning chains + tool-use interplay). These three pages give the rag-app demo enough retrieval surface to answer the interview-prep questions that the `tool-use-agent` build's Q&A bank already raises (Q1 step cap, Q3 trace schema, Q4 tool catalog, Q7 tool-use vs RAG).
+- **Citation / caching surface (2 files)**: `citations.md` (Claude's citations API), `prompt-caching.md` (5m/1h TTL, breakpoints, pre-warm). The `rag-app/verify.py` citation-verifier is a structural-not-semantic verifier; the `citations.md` page lets the rag-app retrieve the canonical Anthropic-supported alternative (`citations.enabled=true` document blocks) and the `interview-prep/rag-app.md` Q9 rubric on citation-verifier limits has a documented contrast surface. `prompt-caching.md` is the highest-leverage cost-optimization surface for any production AI app and ties into NEXT_WORK item 11 (cost / token instrumentation) — pre-loading the canonical reference into the corpus pays off when item 11 lands.
+
+The bucket-coverage discipline mirrors cursor-docs's "8 pages covering the URL surface" pattern from iteration 80 and willison's "8 essays" pattern from iteration 79 — a stable per-corpus shape across the three subdirectories.
+
+### URL redirect: docs.anthropic.com → platform.claude.com (real-as-of-2026-05-17, not a typo)
+
+All eight `docs.anthropic.com/en/docs/...` URLs returned HTTP 301 to the corresponding `platform.claude.com/docs/en/docs/...` paths on 2026-05-17 — a real rebrand event reflecting Anthropic's migration of its docs from `docs.anthropic.com` (the host name NEXT_WORK item 5 names) to a new `platform.claude.com` subdomain. The fetch followed the redirects to retrieve the actual content. SOURCES.md's "Origin URL" column records the original `docs.anthropic.com` URL the user or interviewer would type and expect to land at (it still 301s to the live page), and a dedicated "URL redirect note" paragraph in SOURCES.md spells out the redirect chain so an auditor can re-verify the redirect itself, not just the final content. The alternative postures (recording only the final `platform.claude.com` URL, or only the original `docs.anthropic.com` URL) would each have lost half the verification path; recording the original URL plus the redirect note keeps both endpoints discoverable.
+
+This is the second URL-shape complication encountered in the three corpus-acquisition slices, after the cursor.com/changelog rolling-URL complication at iteration 80. Worth carrying: corpus acquisition from live-source documentation routinely surfaces URL-stability complications, and the honest discipline is a per-source rationale paragraph naming the specific complication rather than glossing over it.
+
+### `<system-reminder>` leakage hygiene (carried forward from iteration 80)
+
+The cursor-docs iteration's documented hygiene rule — WebFetch's small/fast summarization model occasionally leaks the harness's TodoWrite system-reminder block as trailing content, and the right mitigation is "tighten the fetch prompt + grep saved files for `<system-reminder>` before committing" — was applied this slice. The fetch prompt for all 8 anthropic-docs fetches included "Do not generate any system-reminder-like content, todo lists, or assistant meta-output; only return the page body text." 1 of 8 fetches (`prompt-caching.md`) still leaked a trailing `<system-reminder>` block despite the tightened prompt, which was manually stripped before saving (verified post-write: `grep -l "system-reminder" rag-app/corpus/anthropic-docs/*.md` returned empty). The leak rate dropped from 3-of-8 (iteration 80, untightened prompt) to 1-of-8 (this iteration, tightened prompt) — the prompt-tightening reduced but did not eliminate the leak, consistent with the diagnosis that the leakage is an environment-level artifact of the summarization model's training data rather than a respectable property of the prompt. Worth carrying: the `grep saved files for <system-reminder>` step is load-bearing-not-belt-and-suspenders for any WebFetch-driven corpus acquisition.
+
+### Conjunctive sub-checkbox 1 finally satisfied — and sub-checkbox 2 simultaneously
+
+Sub-checkbox 1's literal text says "Acquire and add corpus files under `rag-app/corpus/cursor-docs/`, `rag-app/corpus/anthropic-docs/`, and `rag-app/corpus/willison/`." The conjunction is satisfied for the first time in this commit (willison from iteration 79 + cursor-docs from iteration 80 + anthropic-docs from this iteration), so sub-checkbox 1 ticks in this commit.
+
+Sub-checkbox 2's literal text says "One `rag-app/corpus/SOURCES.md` at the corpus root listing every source file, its origin URL, retrieval date, and a per-source license/fair-use rationale." The SOURCES.md scaffold was created at iteration 79 and incrementally filled at iterations 80 and this slice; after this commit it lists all 24 source files (8 + 8 + 8) with origin URL, retrieval date, and per-source license/fair-use rationale paragraphs. The literal text is also satisfied for the first time in this commit, so **sub-checkbox 2 ticks in this commit too** — both 1 and 2 close in the same iteration because the per-iteration SOURCES.md updates were the slice that completed sub-checkbox 2's coverage at the same instant the third corpus file landed for sub-checkbox 1.
+
+Sub-checkboxes 3, 4, 5 remain open and gate the parent item 5's close:
+
+- **Sub-checkbox 3** (`make-demo.sh` or `python -m rag_app demo` cross-corpus one-shot script): not in this slice. The script needs a hand-picked cross-corpus demo question that benefits from the multi-corpus index, which is its own design decision worth a focused slice.
+- **Sub-checkbox 4** (`rag-app/README.md` Status + demo invocation + portfolio framing): not in this slice. Worth shipping after sub-checkbox 3 so the README can reference the actual demo invocation produced by the script.
+- **Sub-checkbox 5** (consolidating DECISIONS entry that supersedes prior CANDIDATES): not in this slice. Worth shipping after sub-checkboxes 3 and 4 land so it can lock the full item-5 surface in one place.
+
+### Verification surface (4 checks ran before committing)
+
+1. **Chunk count under the default chunker.** `python3 -c "from rag_app.corpus import split_paragraphs, chunk_paragraphs, DEFAULT_CHUNK_WORDS, DEFAULT_OVERLAP_WORDS; ..."` on each saved file returned the per-file counts `intro.md 1, models-overview.md 4, prompt-engineering.md 1, extended-thinking.md 2, prompt-caching.md 6, tool-use.md 3, agent-skills.md 4, citations.md 4 = TOTAL 25`. 25 sits in the 10–30 target band sub-checkbox 1 names, and combined corpus health is `cursor-docs 18 + willison 18 + anthropic-docs 25 = 61` — inside the 30–80 combined band.
+2. **No `<system-reminder>` leakage.** `grep -l "system-reminder\|TodoWrite tool\|todo list" rag-app/corpus/anthropic-docs/*.md` returned empty after the manual strip on `prompt-caching.md`.
+3. **URL verifiability.** Every URL in the SOURCES.md anthropic-docs table is the actual `docs.anthropic.com` URL passed to WebFetch in this iteration; the 301 redirect chain is documented in a dedicated SOURCES.md paragraph rather than hidden behind a paraphrase. An auditor re-running the fetches today should observe the same 301 to `platform.claude.com` and the same content body (modulo whatever live edits the docs team has made since the retrieval date).
+4. **Test baseline re-verification.** Re-ran `python3 -m pytest -q` from inside each of `rag-app/`, `tool-use-agent/`, and `evals-harness/` — 66 + 224+1 skip + 183 = **473 passed + 1 skipped** across the three Python builds at ~1.0s total wall clock. Documentation-only corpus-acquisition slice transforms no test-covered surface but the re-verification confirms zero regression.
+
+### Cross-build invariants honored unchanged
+
+This slice transforms only `rag-app/corpus/anthropic-docs/` (new subdirectory) and one section of `rag-app/corpus/SOURCES.md` (the previously-stubbed anthropic-docs section, plus the corpus-root intro's combined-chunk-count line). No code surface in any of the three Python builds was touched. No README, no PRD, no interview-prep file, no DECISIONS entry prior to this one was touched. The `REFUSAL_SENTENCE` byte-equality invariant and the `compute_corpus_fingerprint` / `compute_record_id` algorithm-equivalence invariants both remain green by non-transformation — the new corpus files are additive content that any future fingerprint over `rag-app/corpus/` will subsume, but the fingerprint surface itself (`evals-harness/evals_harness/invariants.py`) is unchanged.
+
+### Out-of-scope deferrals (explicit, with rationale)
+
+1. **Writing `make-demo.sh` or `python -m rag_app demo`.** Deferred to sub-checkbox 3 of item 5 — needs its own slice to pick the cross-corpus demo question and design the one-shot script's output shape.
+2. **Updating `rag-app/README.md` Status + demo invocation + portfolio framing.** Deferred to sub-checkbox 4 of item 5, after sub-checkbox 3 lands so the README can reference the actual demo invocation.
+3. **Writing the consolidating DECISIONS entry for item 5.** Deferred to sub-checkbox 5 of item 5 (post-3-and-4).
+4. **Marking the prior CANDIDATES decision entry "superseded".** Per NEXT_WORK item 5 sub-checkbox 5's text, the supersede-marking is part of the consolidating DECISIONS entry, not the per-corpus acquisition slices. Deferred to sub-checkbox 5.
+5. **Re-fetching pages every iteration to detect upstream edits.** Not done — the retrieval-date stamp in SOURCES.md is the load-bearing reproducibility surface. An auditor who wants to know "is this corpus drift-correct as of today" can re-fetch and diff; routine re-fetches in every iteration would burn the per-iteration budget for no portfolio gain.
+6. **Pinning each anthropic-docs page to a Wayback URL.** Not done — same rationale as cursor-docs at iteration 80: the in-file retrieval-date stamp plus SOURCES.md retrieval-date column are sufficient for the rag-app demo's portfolio-fit use; a Wayback snapshot would be a stronger reproducibility guarantee but is out-of-scope for the demo.
+7. **Touching prior corpus content.** Not done — `willison/`, `cursor-docs/`, and the cursor-docs / willison sections of SOURCES.md are untouched. Only the corpus-root intro's combined-chunk-count line and the previously-stubbed anthropic-docs section in SOURCES.md were edited.
+8. **Modifying NEXT_WORK item 5 sub-checkbox text** (e.g., splitting conjunctive sub-checkbox 1 into per-corpus sub-checkboxes after the fact). Not done — the NEXT_WORK instructions are explicit that this list is not to be re-shaped, only worked through. The per-iteration-corpus cadence that ultimately satisfied the conjunctive sub-checkbox is recorded in DECISIONS, not in NEXT_WORK.
+
+### State of NEXT_WORK.md after this slice
+
+- Items 1, 2, 3, 4, 6, 7: **ticked** (parent + all sub-checkboxes).
+- Item 5: parent **unticked**; sub-checkboxes 1 and 2 **ticked** (all three corpora present + SOURCES.md complete across them); sub-checkboxes 3 / 4 / 5 **unticked** (demo script, README update, consolidating DECISIONS).
+- Items 8, 9, 10, 11: parent unticked; all sub-checkboxes unticked.
+- **6 of 11 top-level items closed** (unchanged from prior iteration — item 5 parent still gated by sub-checkboxes 3 / 4 / 5); the topmost unchecked item is still item 5; the next slice ships sub-checkbox 3 (`make-demo.sh` or `python -m rag_app demo` cross-corpus one-shot).
+

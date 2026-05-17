@@ -116,7 +116,7 @@ makes citation provenance visually meaningful (a chunk path of
 `cursor-docs/agent.md` vs. `anthropic-docs/tool_use.md` vs.
 `willison/prompt-injection.md` self-explains the system's behavior).
 
-- [ ] Acquire and add corpus files under `rag-app/corpus/cursor-docs/`,
+- [x] Acquire and add corpus files under `rag-app/corpus/cursor-docs/`,
   `rag-app/corpus/anthropic-docs/`, and `rag-app/corpus/willison/`. Aim
   for ~10–30 chunks per corpus (so the combined corpus stays in the
   ~30–80 chunk band the chunker is sized for). If full pages are too
@@ -125,7 +125,7 @@ makes citation provenance visually meaningful (a chunk path of
   cruft. **Do not fabricate URLs or content** — every file must trace to
   a real page on the live source, and the SOURCES.md must record exact
   URLs + retrieval date.
-- [ ] One `rag-app/corpus/SOURCES.md` at the corpus root listing every
+- [x] One `rag-app/corpus/SOURCES.md` at the corpus root listing every
   source file, its origin URL, retrieval date, and a per-source
   license/fair-use rationale (Cursor docs and Anthropic docs: fair-use
   for non-commercial portfolio demo with attribution; Willison: explicit
