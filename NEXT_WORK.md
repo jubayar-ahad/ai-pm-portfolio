@@ -255,7 +255,7 @@ answer slot stays empty for the user to fill.
   about learning from a wrong call. Each with a strong-answer rubric
   (STAR or PARLA structure named, what a good answer covers) and an
   empty user-draft slot.
-- [ ] Update `interview-prep/README.md` to include the behavioral bank
+- [x] Update `interview-prep/README.md` to include the behavioral bank
   in the index and the prep order. Note explicitly that culture-fit,
   case-prompt, and negotiation prep remain deferred (out of scope) so a
   reader knows the gap is intentional.

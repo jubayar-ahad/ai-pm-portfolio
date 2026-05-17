@@ -1,21 +1,29 @@
 # Mock Interview Q&A — Portfolio Index
 
-The index for the four per-artifact mock-interview Q&A banks in this
-directory, plus a "common cross-artifact questions" section for the
-prompts an interviewer will use to range *across* the portfolio rather
-than drill into any single artifact. Nothing in this file is auto-
-populated — the agent does not invent the user's answers. See
-`../DECISIONS.md` for the no-fabrication rule.
+The index for the five mock-interview Q&A banks in this directory —
+four anchored to portfolio artifacts (cursor-teardown / rag-app /
+tool-use-agent / evals-harness) plus a fifth behavioral bank anchored
+to the user's own lived experience — plus a "common cross-artifact
+questions" section for the prompts an interviewer will use to range
+*across* the portfolio rather than drill into any single artifact.
+Nothing in this file is auto-populated — the agent does not invent
+the user's answers, nor does it invent the user's behavioral stories.
+See `../DECISIONS.md` for the no-fabrication rule.
 
 The four per-artifact banks each carry ten questions on their own
 artifact with strong-answer rubrics and `_<your draft>_` italic-marker
-placeholders. This README sits one level above them: it links the
-banks, names the suggested prep order, and owns the cross-artifact
-rubrics each per-artifact file stubs with a pointer back here.
+placeholders. The behavioral bank carries fifteen questions on the
+canonical PM behavioral surface with the same rubric + draft-slot
+grammar, plus a per-question structure name (STAR / PARLA / one of
+five named alternatives) so the user picks the right shape per
+question rather than forcing every answer into STAR. This README sits
+one level above all five: it links the banks, names the suggested
+prep order, and owns the cross-artifact rubrics each per-artifact
+file stubs with a pointer back here.
 
 ---
 
-## The four per-artifact Q&A banks
+## The five Q&A banks
 
 | File | Source of truth | Topics in scope | NEXT_WORK |
 | --- | --- | --- | --- |
@@ -23,18 +31,36 @@ rubrics each per-artifact file stubs with a pointer back here.
 | [`rag-app.md`](rag-app.md) | [`../rag-app/`](../rag-app/) | BM25 vs. dense, reranker tradeoffs, abstention bar, groundedness measurement, corpus ownership, cost ceiling, multi-turn deferral, citation verifier, ship/cut | item 7 sub-checkbox 2 |
 | [`tool-use-agent.md`](tool-use-agent.md) | [`../tool-use-agent/`](../tool-use-agent/) | `max_steps` cap, refusal taxonomy, trace schema, tool catalog design, two-layer safety guardrails, productionization, tool-use vs. RAG, schema-validated function calling | item 7 sub-checkbox 3 |
 | [`evals-harness.md`](evals-harness.md) | [`../evals-harness/`](../evals-harness/) | Rubric selection, per-rubric defense, cost rubric (p50/p95/max), what's missing, cross-build invariants, scaling, deterministic vs. LLM-graded, bad-eval-set diagnostics | item 7 sub-checkbox 4 |
+| [`behavioral.md`](behavioral.md) | The user's own lived experience (no portfolio artifact source) | Tell-me-about-a-time (hard decision / conflict / failure / launch / ambiguity), why-leaving / why-this-role / why-AI-PM, biggest strength / biggest weakness, manager-style fit, influencing without authority, cross-functional conflict, saying no to a stakeholder, wrong call learned from | item 9 sub-checkbox 1 |
 
-Each bank ships ten questions in the 8–10 range NEXT_WORK names. The
-question count is portable across the four banks by deliberate choice
-(see the consolidating DECISIONS entry for item 7 sub-checkbox 6 when
-shipped); the *anchoring* grammar is parameterized by the source
-artifact and differs between banks — the cursor-teardown bank cites
-the teardown's `§n.m`-numbered sections, the three README-based banks
-cite the README's named headings (`Stack choices`, `Refusal threshold
-row`, `Design tradeoffs`, etc.). This is a feature, not drift: a
-rubric that fabricates a `§n.m` citation against an artifact that
-uses named headings would violate the no-fabrication rule at the
-citation level.
+The four per-artifact banks each ship ten questions in the 8–10 range
+item 7 names; the behavioral bank ships fifteen questions in the
+12–15 range item 9 names. The question count is portable across the
+four per-artifact banks by deliberate choice (see the consolidating
+DECISIONS entry for item 7 sub-checkbox 6); the *anchoring* grammar
+is parameterized by the source artifact and differs between banks —
+the cursor-teardown bank cites the teardown's `§n.m`-numbered
+sections, the three README-based banks cite the README's named
+headings (`Stack choices`, `Refusal threshold row`, `Design
+tradeoffs`, etc.). This is a feature, not drift: a rubric that
+fabricates a `§n.m` citation against an artifact that uses named
+headings would violate the no-fabrication rule at the citation level.
+
+The behavioral bank's anchoring grammar shifts again because its
+source is *not* a portfolio artifact: it cites the *evidence type* a
+strong answer would carry (a specific role, a measurable outcome, a
+named cross-functional partner, a dated decision) without naming the
+specifics, which only the user can supply. The most consequential
+no-fabrication violation in that bank is story-level fabrication
+(inventing the user's actual experiences) rather than citation-level
+fabrication against a document — and unlike a `§n.m` citation, that
+violation is unverifiable by any auditor with access to the artifact
+only. The behavioral bank's per-question rubric structure also
+varies: STAR for the seven situational tell-me-about-a-time prompts,
+PARLA for the three reflection-heavy prompts where Learning +
+Application carry the answer, and five named alternative structures
+for the five non-narrative fit/POV/preferences prompts that would
+read as forced under STAR.
 
 ---
 
@@ -72,18 +98,37 @@ different signals.
    of "how do you know your build is good?" and the rubrics lean on
    the rag-app + tool-use-agent prep work above (the harness scores
    *their* outputs, so a candidate who hasn't internalized those
-   builds will struggle to defend the rubric set). Save it for last.
-5. **Then this README's cross-artifact questions.** Once each per-
-   artifact bank's ten questions are drafted, the cross-artifact
-   questions below are the synthesis prompts — they don't admit
-   strong answers without the per-artifact prep first.
+   builds will struggle to defend the rubric set). Save it for last
+   among the *artifact* banks.
+5. **Draft [`behavioral.md`](behavioral.md) alongside the artifact
+   banks, not after.** The behavioral bank is the only one whose
+   drafting *does not* depend on the per-artifact prep — its source
+   is the user's own lived experience, not the portfolio artifacts.
+   That makes it parallelizable: any evening between artifact-bank
+   sessions, draft two or three behavioral answers, because the
+   cost of being caught flat-footed on a behavioral is higher than
+   on a technical question (the technical question lets you reason
+   in real time; the behavioral demands a story you either have or
+   do not). One credible scheduling note: tie the behavioral
+   *failure* and *wrong-call* prompts (Q3, Q15) to the artifact
+   prep — once you've drafted the cursor-teardown bank's "weakest
+   claim" question, you'll have a sharper handle on what a strong
+   "tell me about a wrong call" looks like, because the discipline
+   transfers.
+6. **Then this README's cross-artifact questions.** Once each per-
+   artifact bank's ten questions and the behavioral bank's fifteen
+   are drafted, the cross-artifact questions below are the
+   synthesis prompts — they don't admit strong answers without the
+   per-artifact prep first.
 
 Two minor scheduling notes. If the user's actual interview slate is
 heavier on infrastructure / evaluation than product-strategy, swap
 the order to `evals-harness` first and `cursor-teardown` last. If
 the interview is for a non-AI-PM role that happens to want AI
 literacy, the teardown alone may be enough — skip the build banks
-and skim only the cross-artifact questions here.
+and skim only the cross-artifact questions here. The behavioral
+bank stays in scope for any PM-shaped interview regardless of the
+slate, since the canonical behavioral surface is universal.
 
 ---
 
@@ -205,10 +250,23 @@ applied across the portfolio rather than within one artifact.
    before drafting the per-artifact banks — drafting in a different
    order is fine, but the prep order minimizes the work because each
    bank builds on the prior ones' grounding.
-6. **Behavioral interview prep is deliberately out of scope** for
-   this directory. NEXT_WORK item 7 sub-checkbox 6 explicitly
-   defers behavioral prep to a separate item the user owns; this
-   directory covers the *artifact*-defending questions only.
+6. **Behavioral interview prep is now in scope** via
+   [`behavioral.md`](behavioral.md), which ships under NEXT_WORK
+   item 9 sub-checkbox 1. The fifteen canonical PM behavioral
+   questions cover tell-me-about-a-time / failure / strength-
+   weakness / why-leaving / why-this-role / why-AI-PM / manager-fit
+   / influence-without-authority / cross-functional-conflict /
+   saying-no / wrong-call. Three adjacent buckets remain deferred
+   *out of scope* for this directory: **culture-fit** (interview
+   prep aimed at one company's stated values, which needs a target
+   company to ground the answers honestly), **case-prompt**
+   (whiteboard-shaped "design product X" prompts that reward live
+   structuring practice over written prep), and **negotiation**
+   (compensation-and-offer prep that needs target-company-specific
+   ranges to be useful and is unsafe to scaffold generically). The
+   deferral is intentional and the gap is named here so a reader
+   does not assume incompleteness — the user owns picking up any
+   of the three deferred buckets later under a new NEXT_WORK item.
 
 ---
 
@@ -219,6 +277,13 @@ applied across the portfolio rather than within one artifact.
   [`evals-harness.md`](evals-harness.md). Each has its own "Source of
   truth & cross-links" section pointing back at its underlying
   artifact and the no-fabrication rule.
+- The behavioral bank: [`behavioral.md`](behavioral.md). Its
+  source-of-truth is the user's own lived experience rather than a
+  portfolio artifact, so its no-fabrication rule binds at the
+  story level (the agent does not invent the user's actual
+  experiences) rather than at the citation level. Its rubric
+  structures (STAR / PARLA / five named alternatives) are named
+  per-question in the preamble; ships under NEXT_WORK item 9.
 - The portfolio's top-level index: [`../README.md`](../README.md) —
   carries the milestone map this README's CA1 rubric references.
 - The chronological design log: [`../DECISIONS.md`](../DECISIONS.md) —
