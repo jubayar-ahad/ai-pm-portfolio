@@ -9205,3 +9205,216 @@ helper), not by prompt engineering.
 - 5 of 7 top-level items closed; item 5 on hold awaiting
   user pick; item 7 is the next item to advance.
 
+## 2026-05-16 — `interview-prep/cursor-teardown.md` ships 10-question mock-interview Q&A bank (NEXT_WORK item 7, sub-checkbox 1 of 6)
+
+**Slice substance.** A new top-level directory `interview-prep/`
+and a single 310-line file `interview-prep/cursor-teardown.md`
+containing ten anticipated interviewer questions on the
+`teardown-prd/cursor-teardown.md` artifact, each with the
+strong-answer rubric (what a credible answer covers, naming the
+moves a strong answer makes by §-reference to the teardown) and
+a `_<your draft>_` italic-marker placeholder for the user's own
+draft. No content beyond this file ships this slice; the four
+sibling Q&A files (`rag-app.md`, `tool-use-agent.md`,
+`evals-harness.md`) and the index README belong to sub-checkboxes
+2–5 of item 7, and the consolidating DECISIONS entry belongs to
+sub-checkbox 6.
+
+**Why ten and why these ten.** NEXT_WORK item 7 sub-checkbox 1
+literally names the count ("10 likely questions") and the example
+shape ("why Cursor over Copilot?", "what's your #1 ship-next pick
+and why?", "how would you instrument metric X?", "what would you
+cut?"). The drafted ten honor the example shape — Q1 mirrors the
+"why Cursor over Copilot" example; Q3 mirrors "#1 ship-next pick";
+Q4 mirrors "instrument metric X" pointed at §4.2.2 specifically;
+Q2 mirrors "what would you cut" pointed at the §5 OOS list plus
+the §1 / §2 sub-section cuts. The remaining six (Q5–Q10) extend
+the example pattern into coverage of the teardown's harder
+surfaces: §3.3's stop-aggressive defense (Q5), intellectual
+honesty around the teardown's weakest claim (Q6), handling
+pushback from a Cursor PM on §2.1's framing (Q7), the
+deliberate-posture stance behind §4's no-targets-or-baselines
+discipline (Q8), the §6.5 non-method discipline on pricing-page
+A/B (Q9), and post-hire pragmatism (Q10). Coverage rule honored:
+every numbered teardown section (§1.1–§1.3, §2.1–§2.3, §3.1–§3.3,
+§4 framework + four quadrants, §5 OOS items, §6 methodology
+including the non-method) is reachable from at least one rubric.
+
+**Placeholder grammar locked at `_<your draft>_`.** The italic-
+marker `_<placeholder>_` grammar is the same one used across the
+five populatable templates in `templates/` (RESUME.md, COVER_
+LETTER.md, OUTREACH.md, TARGET_COMPANIES.md, INTERVIEW_TRACKER.md)
+and is named in their per-file headers as the discipline that lets
+*one* regex (`_<.*>_`) find every unfilled slot across the
+portfolio. The interview-prep Q&A banks adopt the same grammar
+deliberately, so the user's "what's left to fill" check is the
+same regex across `templates/` and `interview-prep/`. The
+alternative grammar mentioned in NEXT_WORK's example text
+("`<your answer here>` slot," with angle brackets but no italic
+underscore wrapper) would have orphaned the new directory from
+the existing placeholder regex; the project-internal grammar wins
+over the NEXT_WORK example because the example text predates the
+italic-marker convention's adoption across `templates/`.
+
+**Rubric shape: checklist, not script.** Each rubric block lists
+the moves a credible answer makes — name the trade-off, point at
+the §-reference, defend the cut, concede the weakness — without
+dictating phrasing or stance. The opening "How to use this file"
+explicitly names this discipline (item 3 of the list) so a reader
+who treats the rubric as a script is clearly off the document's
+intended use. Rubrics are study aids; pasting a rubric bullet into
+a live answer reads as recited. The no-fabrication rule from
+OBJECTIVE.md / DECISIONS.md is honored at the *user-answer* level —
+the file ships ten empty `_<your draft>_` slots, never inventing
+the user's own framing or any anecdote the user has not earned the
+right to claim.
+
+**Rubric grounding rule: every claim points at a teardown
+section.** Each rubric block names at least one §-reference to
+the source-of-truth artifact (`../teardown-prd/cursor-teardown.md`)
+so a reader who finds a rubric claim suspect can verify against
+the teardown without leaving the directory. This keeps the
+interview-prep bank from drifting independently of the teardown:
+if the teardown were revised post-shipping and a referenced
+section moved or changed framing, the rubric would either still
+point at the right reference (cleanest case), would surface a
+broken §-reference under a `grep §` audit (acceptable failure
+mode), or — in the worst case — silently misrepresent the teardown
+(the audit failure mode worth carrying for a future iteration's
+consolidating slice).
+
+**Cross-link to sibling Q&A banks and README is forward-
+referenced but not invented.** The "Source of truth & cross-links"
+section at the bottom of `cursor-teardown.md` names the four
+sibling files (`rag-app.md`, `tool-use-agent.md`,
+`evals-harness.md`, `README.md`) by their NEXT_WORK sub-checkbox
+identity and by their relative path inside `interview-prep/`,
+without pretending they exist yet. A reader who follows one of
+those links before the future iterations ship will hit a `404`
+that's transparently their own fault (the link names the
+sub-checkbox), not the document's. The alternative — omitting
+the cross-links until the README slice ships — would have
+required revisiting this file in a future iteration purely to
+add four lines, an avoidable round-trip when the forward
+reference is honest.
+
+**"Walk me through your portfolio" stub explicitly deferred to
+README.** The cross-cutting question that spans all four artifacts
+(walk-me-through-your-portfolio) gets a one-paragraph stub in
+`cursor-teardown.md` naming where its rubric will live
+(`interview-prep/README.md`, sub-checkbox 5 of item 7) so a
+reader of just this file sees the question exists and where to
+find it. The stub is *not* the question itself; the rubric for
+the cross-artifact question belongs in the README per NEXT_WORK
+sub-checkbox 5's literal text ("'common cross-artifact questions'
+section"). Inlining the question into per-artifact files would
+have duplicated the same rubric across four files and forced
+four-way edits on any future revision.
+
+**Out-of-scope deferrals (8 items, named so this slice's closure
+is honest).**
+
+1. The four sibling Q&A files (`rag-app.md`,
+   `tool-use-agent.md`, `evals-harness.md`,
+   `README.md`) — own sub-checkboxes 2/3/4/5 of item 7.
+   Drafting any of them in this slice would have made item 7
+   advance faster than the per-slice cadence the queue locks.
+2. The consolidating DECISIONS entry on Q&A file shape, the
+   no-fabrication rule for answer slots, and the deferral of
+   behavioral interview prep — owns sub-checkbox 6 of item 7
+   (the closer for the whole item). This per-slice DECISIONS
+   entry locks the shape of *one* file; the consolidator locks
+   the shape across all five files in the directory.
+3. Behavioral interview prep (STAR-method questions on prior
+   roles, conflict-with-engineer stories, ambiguity-handling
+   anecdotes). NEXT_WORK sub-checkbox 6 explicitly names this
+   as a deferral target ("the deferral of 'behavioral'
+   interview prep to a separate (not-this-list) item"), so the
+   per-artifact bank is product-craft-shaped, not
+   behavioral-shaped. A future not-this-list item is the right
+   home if the user decides to ship one.
+4. User-supplied draft answers in the `_<your draft>_` slots.
+   The agent ships the slots; the user fills them. The
+   no-fabrication rule from OBJECTIVE.md applies at the slot
+   level — inventing what the user "would say" in any slot
+   would violate the discipline that protects every other
+   populatable artifact in `templates/`.
+5. Updates to `../teardown-prd/cursor-teardown.md` itself. The
+   teardown is interview-ready and the objective explicitly
+   says "Do NOT touch the Cursor teardown." This interview-
+   prep file *anticipates* questions about the teardown without
+   modifying the teardown.
+6. Item 5's holding pattern (`rag-app/corpus/CORPUS_CANDIDATES.md`
+   awaiting user pick). The Pick: placeholder remains unchanged;
+   the queue continues advancing through items 6 and 7 per the
+   OBJECTIVE.md "do not block the queue" rule.
+7. Any change to the existing five populatable scaffolds in
+   `templates/`. The new `interview-prep/` directory sits
+   alongside `templates/` without modifying it; the shared
+   placeholder grammar is honored, not redefined.
+8. Test additions or pyproject changes. The interview-prep
+   files are user-facing markdown documents, not code; they
+   are not in any pytest collection path and need no entry in
+   any pyproject.toml.
+
+**Verification surface (4 checks).**
+
+1. Question count: `grep -c '^## Q' interview-prep/cursor-
+   teardown.md` returns 10 — matches the NEXT_WORK sub-checkbox
+   1 literal "10 likely questions" requirement.
+2. Placeholder count: `grep -c '_<your draft' interview-prep/
+   cursor-teardown.md` returns 14 (10 actual placeholder slots
+   under each Q's "Your draft:" line + 4 in-prose grammar
+   references in the "How to use this file" section and the
+   cross-links footer). The 10-slot count matches one slot per
+   question; the 4 prose references are deliberate and document
+   the grammar.
+3. Source-of-truth pointer: the file's "Source of truth & cross-
+   links" section names `../teardown-prd/cursor-teardown.md` at
+   the top and the file exists at that relative path (verified
+   `ls` returns it).
+4. Test baseline re-verified green: 66 (rag-app) + 224 + 1 skip
+   (tool-use-agent) + 183 (evals-harness) = 473 + 1 skip at
+   ~0.7s wall clock. This slice transforms no test-covered
+   surface — a new directory of user-facing markdown can't
+   regress any code path — but the re-verification confirms
+   that interpretation against the actual baseline.
+
+**Cross-build invariants honored unchanged.**
+
+- REFUSAL_SENTENCE byte-equality between rag_app.verify and
+  tool_use_agent.verify: untouched (no Python edits this slice).
+- Tool catalog tool-count at 9 (sql_query / file_rewrite /
+  regex_extract registered): untouched.
+- LICENSE four-way byte-equality (root + three builds):
+  untouched.
+- CI badge URLs across four READMEs: untouched (no README
+  edits this slice).
+
+**Item 7 closure cadence projection.** Item 7 has 6 sub-
+checkboxes; this slice closed the first. The remaining five are
+each a sibling Q&A file or the consolidating closer:
+sub-checkbox 2 (`rag-app.md`, 8–10 questions on rag-app's BM25 vs
+dense, evals, reranker, abstention, corpus, cost, multi-turn,
+failure modes), sub-checkbox 3 (`tool-use-agent.md`, 8–10 on step
+cap, refusal taxonomy, trace schema, catalog design, safety
+guardrails, productionization), sub-checkbox 4
+(`evals-harness.md`, 8–10 on rubric selection, cost-rubric design,
+what's missing, cross-build invariants, scaling), sub-checkbox 5
+(`README.md`, index + suggested prep order + common cross-
+artifact questions), sub-checkbox 6 (consolidating DECISIONS
+entry on file shape, no-fabrication rule, behavioral deferral).
+That's a six-slice item, the longest in NEXT_WORK after item 1's
+five-slice packaging convention and item 6's five-slice tool
+catalog extension.
+
+**NEXT_WORK state after this slice.**
+
+- Items 1, 2, 3, 4, 6: ticked (parent + all sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 ticked;
+  sub-checkboxes 2 / 3 / 4 unticked (awaiting user pick).
+- Item 7: parent unticked; sub-checkbox 1 ticked;
+  sub-checkboxes 2 / 3 / 4 / 5 / 6 unticked.
+- 5 of 7 top-level items closed; item 5 on hold awaiting user
+  pick; item 7 mid-flight with 1 of 6 sub-checkboxes ticked.
+

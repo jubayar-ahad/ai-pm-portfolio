@@ -115,7 +115,7 @@ write the question, the framing of what a strong answer covers, and a
 `<your answer here>` slot. Goal: cut interview prep time and surface
 weaknesses in the artifacts themselves.
 
-- [ ] `interview-prep/cursor-teardown.md` — 10 likely questions (e.g., "why
+- [x] `interview-prep/cursor-teardown.md` — 10 likely questions (e.g., "why
   Cursor over Copilot?", "what's your #1 ship-next pick and why?", "how
   would you instrument metric X?", "what would you cut?"). Each question
   followed by the strong-answer rubric and a placeholder for the user's
