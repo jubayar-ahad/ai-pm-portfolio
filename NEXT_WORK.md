@@ -66,24 +66,65 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 
 ## 5. Real corpus for rag-app
 
-The current corpus is the repo's own markdown — coherent but a bit ouroboros
-for a demo. Replace with a small, attributable, public-domain text set so the
-retrieval + citation behavior is provable on unfamiliar content.
+Replace the current self-referential corpus with a small, attributable corpus
+that signals **AI-PM relevance** to a portfolio reviewer — not just one that
+flatters BM25. An interviewer opening the demo should think "smart corpus
+choice for this role" rather than wondering why the demo answers questions
+about 18th-century political theory. Fair-use-with-attribution for a
+non-commercial portfolio demo is acceptable; strict US public domain is not
+required and previously over-constrained the choice.
 
-- [x] `rag-app/corpus/CORPUS_CANDIDATES.md` — rank 3 candidate public-domain
-  sources (suggested defaults: selected Federalist Papers, selected Emerson
-  essays, selected Project Gutenberg short stories) with per-candidate
-  rationale: licensing certainty, length, prose style suitability for a Q&A
-  demo, and any concerns. The user picks; subsequent iterations stop the
-  corpus item if no pick is recorded after 1 iteration of waiting.
+The prior CORPUS_CANDIDATES.md (Federalist Papers / Emerson / Gutenberg
+short stories) was written under an over-narrow filter and has been
+removed; the prior agent decision entry is to be marked superseded. Write
+the new CANDIDATES file from scratch — do **not** re-include the prior
+literary candidates.
+
+Revised criteria, all four must clear:
+
+1. **Portfolio fit** — the corpus is something an AI PM hiring manager
+   would recognize as relevant to AI product work. Bonus if it ties
+   narratively to one of the user's other artifacts (the Cursor teardown,
+   the AI PM career objective).
+2. **Permissible reuse** — fair use for a non-commercial portfolio demo
+   with clear attribution in SOURCES.md, OR explicit permissive licensing
+   (CC-BY, MIT, public domain). Avoid CC-BY-NC for prose the reviewer
+   might quote back; flag the license per-candidate.
+3. **Right size for the chunker** — ~20–80 chunks at the default 400-word
+   chunk size with 80-word overlap.
+4. **Prose style that lets BM25 work** — short, topical, noun-phrase-dense
+   sentences with named entities.
+
+Rank these three shortlist candidates (do not invent new ones):
+
+a. **Cursor's public documentation + changelog** (`cursor.com/docs`,
+   `cursor.com/changelog`). Ties directly to the existing Cursor teardown
+   so the rag-app demo and the teardown become a paired narrative.
+   Recommended default unless the ranking disagrees.
+b. **Anthropic's public documentation** (`docs.anthropic.com` — API docs,
+   model cards, prompting guide). Directly relevant subject matter for
+   any model-lab application.
+c. **A 5–10 essay set from Simon Willison's blog** (`simonwillison.net`).
+   Explicit permissive reuse, canonical "thoughtful person using LLMs"
+   prose. Lower product-fit than (a)/(b) but high AI-fluency signal.
+
+- [ ] `rag-app/corpus/CORPUS_CANDIDATES.md` — rewrite from scratch against
+  the revised criteria, ranking the three shortlist candidates a/b/c
+  above with per-candidate license note, sample demo question, and
+  concerns. Same `Pick:` line convention at the bottom. Do not re-include
+  the prior public-domain literary candidates.
 - [ ] Once the user picks (or by default the top-ranked candidate after a
   second iteration): add the chosen corpus files under
-  `rag-app/corpus/<name>/` with a `SOURCES.md` listing exact URLs and
-  retrieval date, and a `make-demo.sh` (or `python -m rag_app demo`)
-  one-shot script that loads, retrieves, and asks a hand-picked question
-  with dry-run output for the README.
-- [ ] Update `rag-app/README.md` Status section and demo invocation.
-- [ ] DECISIONS.md entry locking the corpus pick and the demo-script contract.
+  `rag-app/corpus/<name>/` with a `SOURCES.md` listing exact URLs,
+  retrieval date, and license/fair-use rationale, and a `make-demo.sh`
+  (or `python -m rag_app demo`) one-shot script that loads, retrieves,
+  and asks a hand-picked question with dry-run output for the README.
+- [ ] Update `rag-app/README.md` Status section, demo invocation, and a
+  one-line note explaining the corpus choice in portfolio terms (so a
+  reviewer understands *why* this corpus, not just what it is).
+- [ ] DECISIONS.md entry locking the corpus pick, the demo-script
+  contract, and the fair-use-with-attribution posture — supersedes the
+  prior CANDIDATES decision entry.
 
 ## 6. Three new agent-y tools for tool-use-agent [x]
 
