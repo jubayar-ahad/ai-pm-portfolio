@@ -264,7 +264,7 @@ answer slot stays empty for the user to fill.
   source-anchoring rule (no fabricated stories), and that the three
   remaining deferred buckets stay deferred for this list.
 
-## 10. Personal landing page — single deployable HTML file
+## 10. Personal landing page — single deployable HTML file [x]
 
 There is currently no "front door" for someone Googling the user's name
 or clicking a link from a LinkedIn DM. The repo READMEs serve readers
@@ -295,7 +295,7 @@ Constraints:
 - [x] `landing-page/README.md` — one-paragraph deploy instructions
   (point GitHub Pages at this directory, or copy index.html to a
   personal site root). Note the no-fabrication rule.
-- [ ] DECISIONS.md entry locking the single-file constraint, the
+- [x] DECISIONS.md entry locking the single-file constraint, the
   no-build-tooling posture, the no-fabrication rule, and the editable
   comment convention.
 
