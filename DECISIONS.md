@@ -10206,3 +10206,242 @@ topics count).
   sub-checkboxes 5 / 6 unticked.
 - 5 of 7 top-level items closed; item 5 on hold awaiting user
   pick; item 7 mid-flight with 4 of 6 sub-checkboxes ticked.
+
+## 2026-05-16 — `interview-prep/README.md` ships as the portfolio index (NEXT_WORK item 7, sub-checkbox 5 of 6)
+
+The fifth sub-checkbox of NEXT_WORK item 7 ships the index file the
+four per-artifact Q&A banks have been forward-referencing since
+sub-checkbox 1 — the file that owns the suggested prep order, the
+single canonical home for cross-artifact questions, and the
+mechanical landing pad for the "walk me through your portfolio"
+stub each per-artifact bank pivots into. This entry locks the index
+file's shape, the three-cross-artifact-question count, the prep
+order's underlying reasoning, the load-bearing-vs-signal-bearing
+framing CA3 introduces as portfolio-level taxonomy, and the
+deferrals to sub-checkbox 6 (the consolidating entry that will
+close item 7).
+
+**The index file is index-shaped, not Q&A-bank-shaped.** This is
+the load-bearing structural decision. A per-artifact Q&A bank has
+~10 questions, ~10 placeholders, per-Q strong-answer rubrics, and a
+single-artifact source-of-truth pointer; a portfolio index has 3
+questions, 3 placeholders, three section blocks (the four-bank
+table, the suggested prep order, the cross-artifact rubrics), and
+multiple source-of-truth pointers. The temptation to write
+README.md as a fifth Q&A bank (10 cross-artifact questions, the
+same shape as the other four) was rejected for three reasons:
+first, only ~3 cross-artifact questions are *load-bearing* (the
+walk-through opener, the weakest-artifact question, the cut-one
+question) — padding to ten would dilute the bank with marginal
+ones the interviewer is unlikely to ask; second, sub-checkbox 5's
+literal text names three responsibilities (link the four banks,
+the suggested prep order, the cross-artifact questions section),
+the first two of which are *not* questions — forcing them into a
+Q&A grammar would distort their natural shape; third, the per-
+artifact banks already stub the walk-through with a pointer here
+on the assumption that *this file* owns it once, not that *this
+file* re-hosts ten variants of it. The right shape is
+table-of-contents + prep-order + cross-artifact-rubrics, not a
+fifth bank.
+
+**Three cross-artifact questions, by deliberate count.** CA1 is the
+walk-through stub the four per-artifact banks pivot here for —
+universal opener, every interviewer will use some variant. CA2 is
+the weakest-artifact question — synthesis prompt the interviewer
+uses after the candidate has fielded several per-artifact questions
+and wants to see whether the candidate can prioritize across the
+portfolio under pressure. CA3 is the cut-one question — the senior-
+PM-flavored question that forces a load-bearing-vs-signal-bearing
+distinction across the four artifacts. Each has a strong-answer
+rubric ~1.5× the length of a per-artifact rubric (cross-artifact
+answers require touching multiple artifacts to ground; per-artifact
+answers ground in one) and one `_<your draft>_` placeholder
+matching the project-wide italic-marker grammar. No CA4 was added
+because the marginal next question ("rank the artifacts by hardest
+to easiest" or "what's the through-line theme") doesn't change
+either CA2's or CA3's answer — the interviewer will already have
+the ranking from CA2 and the through-line from CA1's pivot-offer
+move.
+
+**Suggested prep order is a recommendation with named reasoning,
+not a mandate.** The order is cursor-teardown → rag-app →
+tool-use-agent → evals-harness → cross-artifact, and the README
+spells out the reasoning inline so a reader can deviate when their
+interview slate has different signals: cursor-teardown first
+because it stress-tests defending-authored-prose discipline that
+transfers to the other banks; rag-app second because it is the
+most-named build (root README's milestone map lists it first;
+evals-harness consumes its `verify.py`; tool-use-agent's README
+forward-references it); tool-use-agent third because it has the
+largest surface area and builds on rag-app's stack-choice work;
+evals-harness last because it is structurally the most senior-PM-
+flavored bank and leans on the prior three's prep. The README also
+names two valid deviations (swap evals-harness first if the
+interview slate is infrastructure-heavy; skip the build banks
+entirely if the role is non-AI-PM-but-needs-AI-literacy). The
+discipline is: name the order, name the reasoning, name the valid
+deviations — never present an order as the only credible one.
+
+**The load-bearing-vs-signal-bearing taxonomy CA3 introduces is
+portfolio-level vocabulary, not invented for this slice.** The
+distinction comes out of the root README's milestone map (which
+lists three Day-10 builds + one Day-20 teardown + one Day-30
+templates kit as five artifacts) and the evals-harness's startup
+invariants (which assert that the three builds share a
+`REFUSAL_SENTENCE` byte-equality and a
+`compute_corpus_fingerprint`/`compute_record_id` algorithm-
+equivalence). The evals-harness is *structurally* load-bearing
+because cutting it removes the cross-build claim entirely — the
+three builds become "three builds that happen to coexist" instead
+of "three builds that share contracts on purpose." The teardown
+PRD is *signal-bearing* but not structurally load-bearing —
+cutting it loses a PM-craft demo but leaves the runnable demos
+intact. This taxonomy is the move that distinguishes a strong CA3
+answer from a guess, and it generalizes beyond this portfolio
+(any multi-artifact deliverable has a structural-vs-signal axis,
+and naming which artifacts sit where is the senior-PM move).
+Locking this in DECISIONS means future iterations have a name for
+the distinction, not just an instinct for it.
+
+**Three structural rules the four per-artifact banks already
+followed are reaffirmed at the README's level, by the README's
+shape rather than its prose.** First, no fabrication — the README
+has zero auto-populated user answers; every `_<your draft>_` slot
+is for the user. Second, every cross-link is verified to exist —
+the four bank links, the teardown link, the corpus-candidates
+link, the invariants-file link, the per-build `verify.py` /
+`trace.py` links, the root README, and `DECISIONS.md` are all
+real files at the time of this slice (the `invariants.py`
+reference was corrected from an initial `ingest.py` draft when the
+verification step caught the typo — drift between rubric prose
+and code-path reality is the failure mode the verification step
+exists to prevent). Third, anchoring grammar matches the source
+artifact — the README anchors on per-artifact heading names and
+NEXT_WORK sub-checkbox identities, NOT on `§n.m`-numbered teardown
+sections (which only exist in cursor-teardown.md). The README
+mirrors the rag-app / tool-use-agent / evals-harness bank
+convention (heading-name anchoring, 3-of-4 majority).
+
+**The verification step that caught the `ingest.py`-vs-
+`invariants.py` typo is now the canonical pattern for any file
+that names code paths in prose.** The initial draft of the
+"Source of truth & cross-links" section pointed at
+`evals-harness/evals_harness/ingest.py` as the home of the
+cross-build invariants, because that's where the bulk of the
+ingestion work lives — but the invariants themselves live in
+`invariants.py`, a sibling module, by deliberate separation (the
+`ingest.py`-vs-`invariants.py` split is itself a Q5 evals-harness-
+bank rubric topic). The verification step (`grep -n
+"REFUSAL_SENTENCE" evals-harness/evals_harness/ingest.py` returned
+empty, `grep -rn` of the parent dir surfaced `invariants.py`)
+caught the drift in roughly two minutes; without it, the README
+would have shipped a fabricated path, violating the no-fabrication
+rule at the citation level. Worth carrying for sub-checkbox 6 and
+any future README-shaped slice: when a rubric or index file names a
+code path in prose, run a `grep -n` against the named path
+*before* committing — if the grep is empty, the path is wrong, and
+the right fix is finding the real path, not weakening the prose to
+something vague enough to not need verification.
+
+**Per-Q cross-link grouping convention from tool-use-agent.md /
+evals-harness.md does not apply to the README** because the
+README's three cross-artifact questions span all four artifacts
+by definition — there's no Q to group on a specific sibling
+artifact, since every CA rubric touches multiple artifacts. The
+README's source-of-truth section instead groups by *responsibility*
+(the four banks, the portfolio index, the design log, the
+corpus-pick bottleneck, the cross-build invariants in code, the
+no-fabrication rule) — six bullet groups, no per-Q binding. This
+is a structural difference between per-artifact and index files:
+per-artifact files have per-Q groupings because each Q anchors
+on one artifact slice; index files have responsibility-bullet
+groupings because each link plays a different role (a sibling
+bank link != a code-path link != a design-log link != a rule
+link). Worth carrying for any future portfolio-shaped index file:
+cross-link organization is *per-Q* for per-artifact banks and
+*per-responsibility* for index files.
+
+**The forward-referenced cross-links discipline pays its final
+dividend at this slice.** Iterations 70-73 each named
+`interview-prep/README.md` (this file) by its NEXT_WORK sub-
+checkbox 5 identity in their per-artifact bank's "Source of truth
+& cross-links" section. That forward-reference cost was paid four
+times in advance; the savings here is zero back-fill edits to the
+four banks when this file ships — the link target now exists, the
+href is unchanged, no per-bank file needs touching. This compounds
+the pattern noted in iteration 73's notes: the forward-reference
+convention's payoff is most visible at the LAST artifact in a
+series to ship; in a 5-artifact series with N=5, the savings is
+4 + 3 + 2 + 1 + 0 = 10 back-fill edits avoided across the series
+relative to a back-fill convention that adds cross-links only
+when their targets exist. This is the second-to-last item in the
+item-7 series (sub-checkbox 6 is the consolidating DECISIONS
+entry, which doesn't ship a per-artifact file), so the README is
+the final beneficiary of the forward-reference discipline before
+the series closes.
+
+**Four-check verification surface for this slice.** (1) `wc -l
+interview-prep/README.md` reports 250 lines (200-350 target band;
+sister files are 310/355/440/466 — index file is correctly the
+shortest because it does index work, not Q&A work). (2) `grep -cE
+'_<.*>_' interview-prep/README.md` reports 7 matches (3 real
+`_<your draft>_` placeholders + 4 grammar-reference matches in
+prose; the per-artifact banks ran 10 actual + ~4 grammar — index
+shape correctly halves the actual placeholders to 3). (3) `grep
+-cE '^### CA[0-9]'` reports 3 (CA1 walk-through, CA2 weakest, CA3
+cut-one). (4) All cross-link targets verified to exist via a
+shell loop over the 9 referenced files (the 4 banks, the
+teardown, the corpus-candidates file, the invariants module, the
+root README, the design log) — every target is a real file at
+this slice's commit point. The 473-tests-plus-1-skip Python
+baseline across the three builds re-verifies green; this is a
+documentation-only slice and transforms no test-covered surface.
+
+**Five cross-build invariants honored, unchanged.** (1) Placeholder
+grammar matches the rest of `templates/` (one regex `_<.*>_`
+audits every unfilled slot across the entire portfolio). (2) No
+fabrication — the README ships zero auto-populated answers and
+references the no-fabrication rule explicitly twice (in the intro
+and in the source-of-truth section). (3) Forward-referenced cross-
+links by NEXT_WORK sub-checkbox identity — the README's four-bank
+table names each bank by its sub-checkbox number (1 / 2 / 3 / 4),
+mirroring the convention each per-artifact bank used to reference
+the others. (4) Anchoring grammar matches the source artifact —
+the README anchors on heading names and sub-checkbox identities
+(the per-artifact-README majority convention), not on
+`§n.m`-numbered references. (5) The Python test baseline is
+unchanged: rag-app 66, tool-use-agent 224 + 1 skip, evals-harness
+183 = 473 + 1 skip at ~0.7s.
+
+**Six out-of-scope deferrals, named.** (1) The consolidating
+DECISIONS entry for the item-7 series goes to sub-checkbox 6 of
+item 7 — that entry will lock the portable shape across all five
+files (four per-artifact banks + this index) and tick the parent
+item-7 heading. (2) Behavioral interview prep is explicitly out
+of scope per NEXT_WORK item 7 sub-checkbox 6's text — this
+directory ships artifact-defending questions only; behavioral
+prep is a separate user-owned item not on this list. (3) User-
+supplied answers — the no-fabrication rule binds at the slot
+level; the agent never drafts the three `_<your draft>_` slots in
+this file. (4) The four per-artifact banks themselves stay
+untouched by this slice — the README does index work, it does
+not re-edit the banks (no back-fill cross-links are needed
+because the forward-reference discipline made them unnecessary).
+(5) Item 5's holding pattern (`CORPUS_CANDIDATES.md` awaiting
+user pick) is referenced by CA2 as a known bottleneck but is not
+advanced by this slice — item 5 remains independent of item 7's
+queue. (6) The teardown PRD itself stays untouched (objective
+explicitly forbids touching the Cursor teardown; the README
+references it as a source-of-truth pointer only).
+
+**NEXT_WORK state after this slice.**
+
+- Items 1, 2, 3, 4, 6: ticked (parent + all sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 ticked; sub-checkboxes
+  2 / 3 / 4 unticked (awaiting user pick).
+- Item 7: parent unticked; sub-checkboxes 1 / 2 / 3 / 4 / 5
+  ticked; sub-checkbox 6 (consolidating DECISIONS entry that
+  closes item 7) unticked.
+- 5 of 7 top-level items closed; item 5 on hold awaiting user
+  pick; item 7 one sub-checkbox away from closing (the
+  consolidating DECISIONS entry).
