@@ -217,7 +217,7 @@ roadmap.** Where a number is needed and unknown, state the source the
 user (or interviewer) would consult to fill it in. Source-anchor every
 observable Linear behavior claim with an inline footnote or end-list URL.
 
-- [ ] `prds/linear-ai-retro-summarization.md` — single PRD with the
+- [x] `prds/linear-ai-retro-summarization.md` — single PRD with the
   standard sections: problem / users + JTBD / goals / non-goals / proposed
   experience (with two or three sketches in markdown, not images) /
   proposed metrics (leading + lagging) / risks + mitigations / open
