@@ -223,7 +223,7 @@ observable Linear behavior claim with an inline footnote or end-list URL.
   proposed metrics (leading + lagging) / risks + mitigations / open
   questions / phased rollout plan. Length: 4–6 pages rendered. Cite the
   observable Linear behavior the proposal builds on.
-- [ ] `prds/README.md` — short index file explaining the prds directory's
+- [x] `prds/README.md` — short index file explaining the prds directory's
   purpose, listing this PRD with a one-line product framing, and noting
   the no-fabrication rule binding any future PRDs.
 - [ ] DECISIONS.md entry locking the product+feature pick rationale, the
