@@ -1,0 +1,76 @@
+# CI — per-build pytest + mypy (best-effort) + ruff (blocking) matrix.
+#
+# Shape locked by NEXT_WORK item 4 sub-checkbox 1:
+#   * One matrix job per build (rag-app / tool-use-agent / evals-harness)
+#   * Python versions 3.9 / 3.11 / 3.12 (matching the requires-python = ">=3.9"
+#     floor declared in each pyproject + the Python 3.9/3.10/3.11/3.12
+#     classifiers list locked by NEXT_WORK item 1's packaging convention)
+#   * runs-on: ubuntu-latest
+#   * Steps: `pip install -e .[dev]`, `pytest`, `python -m mypy <package>`
+#     (best-effort, non-blocking), `ruff check` (blocking)
+#
+# The `package` axis is sourced from `include` entries that match each build,
+# adding the underscored import-name (rag_app / tool_use_agent /
+# evals_harness) to each matrix combination — this avoids a separate
+# build-to-package shell-script lookup inside the job steps.
+#
+# fail-fast: false so a single python-version failure doesn't mask the others
+# (e.g. a 3.9-only typing issue should not cancel the 3.11/3.12 jobs that
+# would still surface their own failures independently).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.build }} / py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - rag-app
+          - tool-use-agent
+          - evals-harness
+        python-version: ["3.9", "3.11", "3.12"]
+        include:
+          - build: rag-app
+            package: rag_app
+          - build: tool-use-agent
+            package: tool_use_agent
+          - build: evals-harness
+            package: evals_harness
+    defaults:
+      run:
+        working-directory: ${{ matrix.build }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install build with dev extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run pytest
+        run: pytest
+
+      - name: Run mypy (best-effort, non-blocking)
+        run: python -m mypy ${{ matrix.package }}
+        continue-on-error: true
+
+      - name: Run ruff check (blocking)
+        run: ruff check .

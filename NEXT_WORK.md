@@ -55,7 +55,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 
 ## 4. CI — GitHub Actions workflow
 
-- [ ] `/.github/workflows/ci.yml` at repo root with one matrix job per build
+- [x] `/.github/workflows/ci.yml` at repo root with one matrix job per build
   (3.9 / 3.11 / 3.12 on ubuntu-latest), running: `pip install -e .[dev]`,
   `pytest`, `python -m mypy <package>` (best-effort), `ruff check`.
 - [ ] Each build's `pyproject.toml` declares the dev deps used by CI
