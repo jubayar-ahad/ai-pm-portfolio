@@ -92,7 +92,7 @@ agent-loop behavior. All must be safe (no shell-out, no network), and each
 must come with a unit test in item 3's pytest suite (extend that test file
 rather than treating this as a separate test deliverable).
 
-- [ ] `sql_query` — accepts an in-memory SQLite file (path argument) + a SQL
+- [x] `sql_query` — accepts an in-memory SQLite file (path argument) + a SQL
   string, executes read-only (parametrized rejection of write keywords), and
   returns rows as JSON. Ship with a tiny fixture DB under
   `tool-use-agent/fixtures/`.

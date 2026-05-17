@@ -7547,3 +7547,382 @@ through this iteration unchanged — appending a new file
 under `rag-app/corpus/` and a paired DECISIONS entry is
 purely additive, outside any package source, and doesn't
 transform any model-facing surface in any build.
+
+## 2026-05-16 — `sql_query` tool shipped with sample SQLite fixture (NEXT_WORK item 6, sub-checkbox 1 of 5)
+
+**What shipped.** A new read-only SQL query tool —
+`tool_use_agent.tools_sql.sql_query` — registered as the
+seventh entry in the locked catalog at
+`tool_use_agent/catalog.py:212` (deterministic order:
+`list_repo_files`, `read_repo_file`, `grep_repo`,
+`list_pipeline_rows`, `count_by_stage`, `count_by_bucket`,
+`sql_query`). Paired with a 20480-byte committed SQLite
+fixture at `tool-use-agent/fixtures/sample.db` and a
+reproducible generator script at
+`tool-use-agent/fixtures/make_sample_db.py` that builds
+the fixture from a stable schema + row pin. Per-tool unit
+test file added at `tool-use-agent/tests/test_tools_sql.py`
+(37 new tests covering token-scanner internals, happy-path
+SELECT shapes, write-keyword rejection across 12
+parametrized patterns, multi-statement rejection,
+string-literal/quoted-identifier false-positive
+prevention, all path-resolution failure modes, and
+fixture-identity confirmation via
+`PRAGMA application_id`).
+
+**Two-layer safety guardrail.** Per the NEXT_WORK
+sub-checkbox text ("executes read-only (parametrized
+rejection of write keywords)") plus the OBJECTIVE.md
+imperative ("safe (no shell-out, no network)"), the tool
+ships TWO independent refusal layers so a regression in
+either is still caught by the other:
+
+  *Layer 1 — static write-keyword denylist
+  (`WRITE_KEYWORDS`).* A frozenset of 20 keywords —
+  INSERT, UPDATE, DELETE, REPLACE, MERGE, DROP, TRUNCATE,
+  ALTER, CREATE, RENAME, ATTACH, DETACH, PRAGMA, VACUUM,
+  REINDEX, BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE —
+  pre-screened against the uppercased token stream of the
+  incoming SQL AFTER stripping string literals, double-
+  quoted identifiers, `--` line comments, and `/* */`
+  block comments via `_strip_sql_noise`. Rejection
+  happens BEFORE the database is opened, so a write
+  request cannot even reach SQLite. False-positive
+  prevention is non-trivial: `SELECT * FROM books WHERE
+  title = 'DROP it'` and `SELECT "DELETE" FROM books`
+  must both be allowed because `DROP` and `DELETE` live
+  inside a value / identifier, not the SQL skeleton; the
+  strip pass replaces these with whitespace so the token
+  scanner sees only the executable shape.
+
+  *Layer 2 — `mode=ro` URI connection.* Even if a write
+  keyword slipped past layer 1 (e.g. via an exotic
+  quoting trick the strip pass didn't catch), SQLite
+  itself refuses to mutate state because the connection
+  is opened via
+  `sqlite3.connect(f"file:{path}?mode=ro", uri=True)`.
+  The URI parameter forces SQLite to refuse any
+  write/DDL at the connection level. The test suite
+  pins the literal presence of `mode=ro` in
+  `tools_sql.py`'s source via
+  `test_sql_query_ro_mode_refuses_writes_via_function_invocation`
+  so a regression that drops the URI layer surfaces
+  loudly.
+
+The layered design is the lock. Either layer alone would
+be insufficient: layer 1 alone could be bypassed by a
+hypothetical SQL construct the strip pass mis-handles;
+layer 2 alone would allow the agent to *attempt* the
+write (consuming a tool turn and exposing the model to
+SQLite's error text). Together, the layers compose into a
+single hard refusal that fires before either layer needs
+to do real work.
+
+**Why a single-statement cap.** `_statement_count` parses
+the post-strip SQL skeleton for top-level `;` separators
+and returns the number of non-empty statements. The tool
+refuses anything with >1 statement
+(`ERROR: multiple statements rejected (one SELECT per
+call)`). Two reasons:
+
+  - SQLite's `cursor.execute(sql)` only executes the
+    first statement and ignores the rest — the agent
+    would silently lose the second statement's effect.
+    Returning a hard error makes that loss explicit.
+  - A multi-statement batch is the canonical bypass shape
+    for keyword denylists in the wild: `BEGIN; SELECT 1;
+    DROP TABLE x; COMMIT` smuggles a `DROP` into what
+    looks like a transactional SELECT. The single-
+    statement cap pre-empts the entire category.
+
+**Return shape contract.** On success, returns
+`{"columns": list[str], "rows": list[dict], "row_count":
+int}` — three keys, locked. `columns` is taken from
+`cursor.description` (the canonical SQLite column-name
+list, which respects `AS` aliases). `rows` are
+`sqlite3.Row` objects normalized to dicts via the
+`row_factory = sqlite3.Row` knob. `row_count` is the
+length of `rows` AFTER the `max_rows` cap, not the total
+matching rows in the database — this is the agent's
+cost-of-current-call, not a hypothetical total. On
+failure, returns a sentinel `"ERROR: ..."` string (NOT an
+exception), matching the recovery contract that
+`tools_repo.read_repo_file` established for this catalog
+(tested in
+`test_sql_query_path_outside_root_returns_error`,
+`test_sql_query_missing_file_returns_error`, and seven
+sibling tests).
+
+**`max_rows` cap with a hard ceiling.** Caller-supplied
+`max_rows` defaults to 100 and is bounded to
+[1, ROW_CEILING=1000] inclusive. The ceiling is the
+tool's worst-case response-size budget for the agent's
+context — 1000 rows of typical SQLite content (~100
+bytes/row at the wire) is ~100 KB, which is the right
+order of magnitude for a single tool-result block in the
+agent's loop. A caller that wants more rows than 1000
+should issue multiple SELECTs with `LIMIT … OFFSET …`
+rather than asking the tool to return an oversized blob
+in one call.
+
+**Path resolution reuses `_resolve_inside_repo`.** The
+fixture DB lives under `tool-use-agent/fixtures/sample.db`
+— inside the `tool-use-agent/` build tree, which is
+inside the repo root. The tool accepts repo-relative
+paths and refuses anything that resolves outside the
+repo, reusing the `tools_repo._resolve_inside_repo`
+helper that the other six catalog tools already
+depend on. This means the path-traversal guard is
+mechanized in one place across the catalog rather than
+duplicated per tool. Test:
+`test_sql_query_path_outside_root_returns_error` covers
+the `../../../etc/passwd` shape.
+
+**Why the fixture lives at build-root `fixtures/`, NOT
+`tests/fixtures/`.** NEXT_WORK item 6 sub-checkbox 1
+explicitly names `tool-use-agent/fixtures/` (build-root,
+no `tests/` prefix). The decision is honest: the fixture
+DB is for the tool's *callers* — the agent, the CLI, the
+demo invocation — not just the pytest suite. Three
+consequences:
+
+  - The committed `sample.db` ships with the package's
+    distributable surface (it's in the `tool-use-agent/`
+    source tree). A fresh checkout can `python -m
+    tool_use_agent tool sql_query --path tool-use-agent/
+    fixtures/sample.db --sql "SELECT …"` without first
+    running any generator.
+  - `pyproject.toml`'s `[tool.setuptools.packages.find]`
+    excludes `tests*` but not `fixtures*`, so if the
+    build is ever published as a wheel, the fixture
+    would NOT be inside the importable `tool_use_agent`
+    package (the find rule uses `include =
+    ["tool_use_agent*"]`). This is intentional: the
+    fixture is a development / demo artifact, not part
+    of the importable package. A consumer of the
+    installed wheel cannot import it; they reference it
+    by path. This is the right scope for a 20 KB binary
+    used by the CLI's demo path.
+  - The test suite's `BUILD_ROOT` constant in
+    `test_tools_sql.py` anchors on `Path(__file__).parent.
+    parent` — the `tool-use-agent/` directory — so the
+    tests run correctly from inside that build directory
+    AND from CI's `working-directory: tool-use-agent`
+    posture. The tests don't depend on the wider repo
+    layout (e.g. whether `OBJECTIVE.md` exists or where
+    the repo root happens to be).
+
+**Reproducibility of the binary fixture.** A SQLite file
+is binary; reviewing a diff is impractical. The
+companion `make_sample_db.py` is the source-of-truth:
+the schema (three tables — `authors`, `books`,
+`book_genres`), the row pin (4 authors, 7 books, 8
+genre rows), and the `PRAGMA application_id =
+0x54554153` ("TUAS" — Tool-Use-Agent Sample)
+identifier are all expressed in Python so a code
+review can read the fixture's intent without opening
+SQLite. The committed binary IS the script's output,
+and CI / local tests can regenerate it with
+`python3 tool-use-agent/fixtures/make_sample_db.py` if
+the schema drifts. A `PRAGMA application_id` sentinel
+test
+(`test_fixture_db_exists_and_has_expected_application_id`)
+catches the case where someone hand-edits the binary or
+commits a different DB by mistake.
+
+**Catalog registration discipline.** Adding `sql_query`
+extended `EXPECTED_TOOL_NAMES` from 6 entries to 7 in
+`tests/test_catalog.py`. The test name itself was also
+updated from `test_catalog_has_six_tools_in_locked_order`
+to `test_catalog_has_seven_tools_in_locked_order` to
+keep the count assertion legible at the test-name
+level. Three sibling tests in `test_main.py` also
+needed the count bump
+(`test_cmd_catalog_emits_six_tools` →
+`_seven_tools`, `test_main_catalog_dispatch`, and the
+"catalog (N tools…)" prose check in
+`test_cmd_ask_dry_run_no_key`). These edits are
+nominally in the territory of sub-checkbox 4 ("Tool
+catalog test extended to cover the three new tools"),
+BUT they are also strictly required to keep CI green
+after this slice — without the count bump, the catalog
+test would fail the next CI run on a hard count
+assertion. The decision is: the COUNT update lives in
+this slice (mechanically required to keep CI green); the
+SCHEMA-LEVEL TESTS (per-tool schema validation,
+JSON-roundtrip pin, the Anthropic SDK shape check for
+each new tool's `input_schema`) live in sub-checkbox 4's
+slice as the locked extension. The boundary is: count
+updates are "registration housekeeping"; schema-shape
+tests are "extension coverage."
+
+**Schema contract for the new tool.** The
+`input_schema` registered in the catalog declares:
+`path` (string, required), `sql` (string, required),
+`max_rows` (integer, optional, default 100, minimum 1).
+`additionalProperties: false` matches the catalog-wide
+convention (test
+`test_every_tool_schema_is_an_object_with_additional_properties_false`
+pins this for ALL tools, including the new one — no
+extra wiring needed). The
+`_add_tool_argparse_flags` helper in `__main__.py`
+already supports `string`, `integer`, `["string",
+"null"]`, and `["integer", "null"]`; `sql_query`'s
+schema uses only `string` and `integer` (no nullable
+types), so the CLI dispatch works without any
+`__main__.py` edits. Verified end-to-end:
+`PYTHONPATH=. python3 -m tool_use_agent tool sql_query
+--path tool-use-agent/fixtures/sample.db --sql "SELECT
+title, year FROM books ORDER BY year LIMIT 3"` returns
+the expected three rows.
+
+**Verification surface — three independent checks.**
+
+  - *Per-tool behavior:* 37 new tests in
+    `test_tools_sql.py` covering token-scanner internals
+    (`_strip_sql_noise` removes comments, string
+    literals, quoted identifiers; `_tokens` uppercases
+    and splits; `_statement_count` counts top-level
+    semicolons and ignores in-literal semicolons),
+    happy-path SELECT shapes (full table, WHERE filter,
+    JOIN with aggregation, `max_rows` cap), write-keyword
+    rejection (12-pattern parametrized test covering
+    INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE/
+    REPLACE/PRAGMA/VACUUM/ATTACH/BEGIN-COMMIT-batch),
+    case-insensitivity of the denylist, string-literal /
+    quoted-identifier false-positive prevention,
+    multi-statement rejection, layer-2 (`mode=ro`)
+    source-presence pin, path escape, missing file,
+    directory-as-path, empty SQL, `max_rows` below
+    floor, `max_rows` above ceiling, malformed SQL,
+    non-database file as path, and a fixture-identity
+    `PRAGMA application_id` sanity check.
+
+  - *Catalog-level invariants honored automatically:*
+    the catalog's existing tests
+    (`test_every_tool_has_required_fields`,
+    `test_every_tool_schema_is_an_object_with_additional_properties_false`,
+    `test_required_fields_are_subset_of_properties`,
+    `test_catalog_as_anthropic_tools_is_json_serializable`)
+    all iterate over `CATALOG.values()` and so they
+    cover `sql_query` automatically the moment it joins
+    the catalog. The single mechanical assertion that
+    needed updating was the count + name-order pin
+    (`test_catalog_has_seven_tools_in_locked_order`).
+
+  - *CLI dispatch end-to-end:* the existing argparse-
+    materialization helper in `__main__.py` handles the
+    new tool with no per-tool wiring; verified by
+    invoking `python -m tool_use_agent tool sql_query
+    --path …  --sql …` and confirming the dict-shape
+    result is printed by the `cmd_tool` adapter. A write-
+    keyword call (`DROP TABLE books`) cleanly returns
+    `ERROR: write keyword(s) rejected: ['DROP']` from
+    the same dispatch path.
+
+**Cross-build invariants honored.** This slice extends a
+single build (`tool-use-agent`) and touches no other
+build. All four cross-build invariants tracked through
+iterations 60-64 continue to hold unchanged:
+
+  - REFUSAL_SENTENCE byte-equality across rag-app +
+    tool-use-agent + evals-harness: untouched (no edit
+    to `verify.py` in either build).
+  - LICENSE four-way byte-equality (repo-root + three
+    builds): untouched (no LICENSE edits).
+  - Dev-extras byte-identity across three pyprojects:
+    untouched (no `pyproject.toml` edits — the new tool
+    needs no new runtime dep; `sqlite3` is stdlib).
+  - CI matrix 9-combination shape: untouched (no
+    workflow edits).
+
+**Per-build test sums after this slice.**
+
+  - `rag-app/tests/`: 66 passed (unchanged).
+  - `tool-use-agent/tests/`: 154 passed, 1 skipped (was
+    117 passed + 1 skipped; +37 tests from the new
+    `test_tools_sql.py` plus 0 net from the count-update
+    edits in `test_catalog.py` / `test_main.py`).
+  - `evals-harness/tests/`: 183 passed (unchanged).
+  - Combined: 403 passed + 1 conditional skip (was 366 +
+    1).
+
+**Per-iteration DECISIONS drift category.** This is a
+source-shipping entry for sub-checkbox 1 of item 6,
+matching the iterations 46-48 / 56-58 / 64 pattern (one
+entry per source-shipping slice). Chunk contribution is
+on the larger end of the source-shipping bracket because
+item 6 has more independent dimensions to lock per-slice
+than items 1-5 did (a safety guardrail with two layers,
+a binary fixture with a reproducibility script, schema
+contract for a new tool, and the catalog-registration
+mechanics). Future iterations for sub-checkboxes 2-4 of
+item 6 will follow the same shape; the consolidating
+sub-checkbox 5 entry (item 6 closure) will pull these
+into a single lock by reference rather than re-deriving
+each contract from scratch.
+
+**Out of scope for this slice — explicit deferrals.**
+
+  - `file_rewrite` tool (item 6, sub-checkbox 2): the
+    write-side counterpart to `sql_query`, scoped to a
+    sandbox root. Distinct safety surface (path-
+    traversal guard + structured edit operation +
+    diff return), distinct fixture (an actual sandbox
+    directory).
+  - `regex_extract` tool (item 6, sub-checkbox 3): a
+    read-only tool for matching against file content;
+    different return shape (match records with line
+    numbers) and different schema axis (regex pattern
+    instead of SQL string).
+  - Tool-catalog-level extension tests for the three new
+    tools (item 6, sub-checkbox 4): per-tool schema-
+    shape pins, per-tool example-input validation, and
+    the per-tool Anthropic-SDK-shape check. The count
+    bump from 6 → 7 in `test_catalog.py` and
+    `test_main.py` is in THIS slice (mechanically
+    required); the deeper extension lives in sub-
+    checkbox 4.
+  - Consolidating DECISIONS entry locking the full
+    safety-guardrails contract across all three new
+    tools (item 6, sub-checkbox 5): will reference this
+    entry's two-layer guardrail design, plus
+    `file_rewrite`'s sandbox-root design and
+    `regex_extract`'s match-bound design, in a single
+    lock at the close of item 6.
+  - README / demo-invocation documentation for the new
+    tool: deferred. The `README.md` under `fixtures/`
+    documents the fixture itself; the package README's
+    tool catalog list does NOT yet name `sql_query`, and
+    a README edit is the right home for that addition
+    when sub-checkbox 4 or 5 ships.
+  - Item 5 sub-checkboxes 2/3/4 (corpus selection, demo
+    script, README + DECISIONS): item 5's sub-checkbox
+    1 (iteration 64) shipped the
+    `CORPUS_CANDIDATES.md` ranked-three file with a
+    machine-checkable `Pick: _<user fills…>_` line. As
+    of this iteration the placeholder is unchanged, so
+    per OBJECTIVE.md ("ship a single ranked CANDIDATES
+    file for that sub-item and move to the next
+    unchecked item; do not block the queue"), item 6
+    proceeds. Item 5 remains in a holding pattern until
+    a user pick lands.
+  - Item 7 (interview-prep Q&A bank): untouched. Reached
+    after item 6 closes.
+
+**Verification log.** `python3 -m pytest -q` in each of
+the three build directories passes:
+`rag-app/`: 66/66; `tool-use-agent/`: 154/154 + 1 skipped;
+`evals-harness/`: 183/183. The new fixture binary is
+20480 bytes; the generator script is reproducible (re-
+running `make_sample_db.py` produces the same byte-
+identical content modulo SQLite's internal page-write
+timestamps, which is why the test pins
+`PRAGMA application_id` and ROW CONTENT rather than file
+md5). Direct CLI dispatch verified:
+`PYTHONPATH=. python3 -m tool_use_agent tool sql_query
+--path tool-use-agent/fixtures/sample.db --sql "SELECT
+title, year FROM books ORDER BY year LIMIT 3"` returns
+the expected three earliest books; the same path with
+`--sql "DROP TABLE books"` returns
+`ERROR: write keyword(s) rejected: ['DROP']`.

@@ -31,6 +31,7 @@ from tool_use_agent.tools_repo import (
     list_repo_files,
     read_repo_file,
 )
+from tool_use_agent.tools_sql import sql_query
 
 
 @dataclass(frozen=True)
@@ -216,6 +217,45 @@ def build_catalog() -> dict[str, Tool]:
                 "additionalProperties": False,
             },
             impl=count_by_bucket,
+        ),
+        Tool(
+            name="sql_query",
+            description=(
+                "Execute a read-only SQL SELECT against a repo-relative "
+                "SQLite database file and return rows as JSON. Write "
+                "keywords (INSERT/UPDATE/DELETE/DDL) are rejected before "
+                "the database is opened; the connection itself is opened "
+                "in URI read-only mode (`mode=ro`) as a redundant layer."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Repo-relative path to a SQLite database file."
+                        ),
+                    },
+                    "sql": {
+                        "type": "string",
+                        "description": (
+                            "Single SELECT statement to execute. Multiple "
+                            "statements separated by `;` are rejected."
+                        ),
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": (
+                            "Cap on returned rows (1–1000). Defaults to 100."
+                        ),
+                        "minimum": 1,
+                        "default": 100,
+                    },
+                },
+                "required": ["path", "sql"],
+                "additionalProperties": False,
+            },
+            impl=sql_query,
         ),
     ]
     return {tool.name: tool for tool in tools}

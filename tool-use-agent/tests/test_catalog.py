@@ -25,10 +25,11 @@ EXPECTED_TOOL_NAMES: tuple[str, ...] = (
     "list_pipeline_rows",
     "count_by_stage",
     "count_by_bucket",
+    "sql_query",
 )
 
 
-def test_catalog_has_six_tools_in_locked_order():
+def test_catalog_has_seven_tools_in_locked_order():
     assert list(CATALOG.keys()) == list(EXPECTED_TOOL_NAMES)
 
 
