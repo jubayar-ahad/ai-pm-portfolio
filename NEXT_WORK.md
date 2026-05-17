@@ -107,7 +107,7 @@ rather than treating this as a separate test deliverable).
 - [x] DECISIONS.md entry locking the safety guardrails (sandbox root,
   write-keyword denylist for SQL, no path traversal).
 
-## 7. Mock-interview Q&A bank — one per portfolio piece
+## 7. Mock-interview Q&A bank — one per portfolio piece [x]
 
 One markdown file per artifact, anticipating the obvious interviewer
 questions and your honest answers. Don't fabricate the user's answers —
@@ -132,7 +132,7 @@ weaknesses in the artifacts themselves.
 - [x] `interview-prep/README.md` — index file linking the four Q&A banks,
   the suggested prep order, and a "common cross-artifact questions"
   section (e.g., "walk me through your portfolio").
-- [ ] DECISIONS.md entry locking the Q&A file shape, the no-fabrication
+- [x] DECISIONS.md entry locking the Q&A file shape, the no-fabrication
   rule for the user's answer slots, and the deferral of "behavioral"
   interview prep to a separate (not-this-list) item.
 

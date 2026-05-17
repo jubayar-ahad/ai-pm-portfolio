@@ -10445,3 +10445,429 @@ references it as a source-of-truth pointer only).
 - 5 of 7 top-level items closed; item 5 on hold awaiting user
   pick; item 7 one sub-checkbox away from closing (the
   consolidating DECISIONS entry).
+
+## 2026-05-16 — Mock-interview Q&A bank shape locked across the five `interview-prep/` files (NEXT_WORK item 7, sub-checkbox 6 of 6; closes item 7)
+
+**Decision.** This entry is the canonical single-place record
+of the file-shape contract for the `interview-prep/` directory
+— the four per-artifact mock-interview Q&A banks plus the
+portfolio index — shipped under NEXT_WORK item 7. NEXT_WORK
+item 7 sub-checkbox 6's literal text names three properties to
+lock — **(a) the Q&A file shape**, **(b) the no-fabrication
+rule for the user's answer slots**, **(c) the deferral of
+"behavioral" interview prep to a separate (not-this-list)
+item** — and this entry locks all three in one place alongside
+the cross-cutting conventions the five files already share:
+the placeholder grammar, the per-source anchoring rule, the
+forward-referenced cross-link discipline, the per-Q vs. per-
+responsibility cross-link grouping split, the rubric-as-
+checklist-not-script rule, and the walk-through pivot-into-two
+convention. The substance has already been recorded across
+five prior entries (iteration 70 — `cursor-teardown.md`;
+iteration 71 — `rag-app.md`; iteration 72 —
+`tool-use-agent.md`; iteration 73 — `evals-harness.md`;
+iteration 74 — `interview-prep/README.md`), but NEXT_WORK
+item 7's sixth sub-checkbox explicitly asks for a
+*consolidating* entry that names the contract once so a future
+reader does not have to reconstruct it by reading five entries
+plus five interview-prep files. That is what this entry is. No
+file in this repo changes in this iteration's slice except
+`NEXT_WORK.md` (sub-checkbox 6 tick + parent item 7 tick) and
+`DECISIONS.md` (this entry). This is a documentation-only
+consolidating slice, matching iterations 50 / 59 / 63 / 69's
+shape for closing items 1 / 3 / 4 / 6 respectively.
+
+**The locked Q&A file shape, in one place.**
+
+| File                       | Role          | Q count | Placeholder count | Anchoring grammar                                | Source-of-truth artifact                  | Locked by    |
+|----------------------------|---------------|---------|-------------------|--------------------------------------------------|-------------------------------------------|--------------|
+| `cursor-teardown.md`       | per-artifact  | 10      | 10 `_<your draft>_` slots | `§n.m`-numbered (PRD convention)              | `teardown-prd/cursor-teardown.md`         | Iteration 70 |
+| `rag-app.md`               | per-artifact  | 10      | 10 `_<your draft>_` slots | heading-name (README convention)             | `rag-app/README.md` + module surfaces     | Iteration 71 |
+| `tool-use-agent.md`        | per-artifact  | 10      | 10 `_<your draft>_` slots | heading-name (README convention)             | `tool-use-agent/README.md` + tool catalog | Iteration 72 |
+| `evals-harness.md`         | per-artifact  | 10      | 10 `_<your draft>_` slots | heading-name (README convention)             | `evals-harness/README.md` + rubric code   | Iteration 73 |
+| `interview-prep/README.md` | portfolio idx | 3 cross-artifact (CA1/CA2/CA3) | 3 `_<your draft>_` slots | heading-name + sub-checkbox identity     | the four per-artifact banks + root README | Iteration 74 |
+
+**The per-artifact bank shape, locked.** Each per-artifact
+file ships **ten** questions in NEXT_WORK's literal 8–10 band
+— a deliberate ceiling-of-the-band choice, not 8 or 9 —
+because the count is portable across the four banks and the
+extra slots above the named-topic count are filled with
+high-signal extensions drawn from the source artifact's own
+sections, never invented. The structural rules each per-
+artifact bank already follows:
+
+- **Question count is universally 10.** No bank ships 8 or 9.
+  This is portable convention, not per-artifact tuning. The
+  rationale: the 8–10 range NEXT_WORK names is intentionally
+  open, but a portable 10 across all four banks makes
+  per-bank comparison mechanical (a reader can spot a
+  missing-Q or a duplicate-Q by mismatched count) and gives
+  enough room for two-to-four extension questions beyond the
+  named-topic count without forcing topic-merging.
+- **The named-topic-to-extension split varies.** `rag-app.md`
+  has 8 named topics and 2 extension slots; the other three
+  banks have 6 named topics and 4 extension slots. The split
+  is determined by the named-topic count in NEXT_WORK item 7,
+  not by per-bank choice. Extensions are sourced from the
+  artifact's own Design-tradeoffs / Failure-modes /
+  Productization-questions sections (the rag-app and
+  evals-harness READMEs both ship explicit
+  Productization-question lists; the tool-use-agent README
+  ships a Design-tradeoffs section; the teardown PRD ships
+  §6.5 craft-discipline + the §3.3 stop-aggressive defense).
+  Inventing extension topics from outside the source
+  artifact would violate the no-fabrication rule at the
+  question-selection level.
+- **Each question carries a strong-answer rubric.** Rubrics
+  describe what *a credible answer covers* — the moves
+  (name the trade-off, cite the section, defend the cut)
+  — without dictating phrasing or stance. Rubrics are
+  *checklists*, not *scripts*; the candidate is free to
+  disagree with the source artifact's call as long as the
+  disagreement is reasoned and grounds in something the
+  candidate can name as the load-bearing claim that would
+  have to be true for the original call to be wrong.
+- **Each question carries exactly one `_<your draft>_`
+  placeholder.** The placeholder grammar is the project-
+  wide italic-marker convention (`_<…>_`), and the contents
+  of the angle brackets are a *hint* about the answer's
+  expected shape (e.g. `_<your draft answer here — 90–180
+  seconds spoken, cite §scope decision and the source
+  posture from the masthead>_` for cursor-teardown Q1).
+  The hint never includes a draft of the user's answer; it
+  describes the slot, not its contents.
+- **Each rubric cites the source artifact by its own
+  labeling convention.** This is the per-source anchoring
+  rule: the cursor-teardown PRD uses `§n.m` numbered
+  sections, so cursor-teardown.md cites `§2.1`, `§4.2.2`,
+  `§6.5`; the three build READMEs use named headings, so
+  rag-app.md / tool-use-agent.md / evals-harness.md cite
+  heading text (`Stack choices`, `Refusal threshold row`,
+  `Design tradeoffs`, `Productization questions`). The
+  anchoring grammar is *parameterized by the source
+  artifact's labeling convention*, not picked top-down.
+- **Each bank stubs the cross-cutting walk-me-through-the-
+  portfolio question with a pivot-into-two pointer.** The
+  walk-through question is structurally cross-artifact — its
+  rubric spans all four artifacts — so each per-artifact
+  bank stubs it at the bottom with one paragraph naming the
+  question, naming two suggested pivot Qs from that bank
+  (e.g. cursor-teardown.md pivots to its Q1 + Q2;
+  rag-app.md pivots to its Q1 + Q3; tool-use-agent.md
+  pivots to its Q1 + Q4; evals-harness.md pivots to its Q1
+  + Q5), and pointing at `interview-prep/README.md` as the
+  canonical home of the cross-artifact rubric.
+
+**The portfolio-index shape, locked.** The
+`interview-prep/README.md` file is *index*-shaped, not Q&A-
+bank-shaped. Three structural rules differentiate it from a
+per-artifact bank:
+
+- **Three cross-artifact questions, by deliberate count.**
+  CA1 (walk-me-through opener), CA2 (weakest-artifact),
+  CA3 (cut-one). Each carries a strong-answer rubric
+  ~1.5× the length of a per-artifact rubric because cross-
+  artifact answers require touching multiple artifacts to
+  ground. No CA4 was added because the marginal next
+  question doesn't change the substance of CA2's
+  load-bearing-vs-signal-bearing prioritization or CA1's
+  through-line story.
+- **Cross-link organization is per-responsibility, not
+  per-Q.** Per-artifact banks group cross-links by Q index
+  (e.g. tool-use-agent.md's Source-of-truth section
+  groups Q3 / Q6 / Q8 on evals-harness, Q7 on rag-app)
+  because each Q anchors on one artifact slice. The index
+  file groups cross-links by *responsibility* (the four
+  banks, the portfolio index, the design log, the
+  corpus-pick bottleneck, the cross-build invariants in
+  code, the no-fabrication rule) because every CA rubric
+  touches multiple artifacts. This is a structural
+  difference between per-artifact and index files, not a
+  per-file choice; future portfolio-index-shaped slices
+  should use per-responsibility grouping.
+- **A suggested prep order with named reasoning and valid
+  deviations.** The README spells out
+  cursor-teardown → rag-app → tool-use-agent →
+  evals-harness → cross-artifact and names two valid
+  deviations (swap evals-harness first if the slate is
+  infrastructure-heavy; skip the build banks for non-AI-PM
+  roles). The discipline is: name the order, name the
+  reasoning, name the valid deviations — never present an
+  order as the only credible one.
+
+**The no-fabrication rule for the user's answer slots, in
+one place.** Five orthogonal properties together compose the
+no-fabrication contract; locking any subset would leave the
+rule fragile:
+
+- **Slot-level binding.** The agent ships every
+  `_<your draft>_` placeholder *empty* — the contents of
+  the angle brackets are a hint about the slot's expected
+  shape (length range, citation requirements, posture
+  guidance), never a draft of the user's answer. A reader
+  grep'ing `_<.*>_` across the five files finds 43
+  placeholders (40 per-artifact + 3 cross-artifact) and
+  every one is unfilled at this slice's commit point.
+- **Citation-level binding.** Every rubric citation to a
+  source-of-truth artifact (a teardown `§n.m`, a README
+  heading name, a module path) must reference a real
+  surface the user can `grep` to. The iteration-74
+  README's `invariants.py` typo (corrected from an initial
+  `ingest.py` draft when the verification step caught the
+  empty grep) is the canonical proof that the rule binds
+  on *citations* and not just on answers; a fabricated
+  citation would invent the user's grounding work, which
+  is the same failure mode at one level of indirection.
+- **Question-selection-level binding.** Extension
+  questions (the four-or-two slots above NEXT_WORK's
+  named-topic count) must come from the source artifact's
+  own sections (Design-tradeoffs, Failure-modes,
+  Productization-questions, §6.5 craft discipline), never
+  invented. Inventing a Q topic the source artifact
+  doesn't address would put the user in a position of
+  having to defend a posture they never authored — which
+  is the same fabrication failure mode at the question
+  level.
+- **Anchoring-grammar-level binding.** The per-source
+  anchoring rule (cite `§n.m` for the PRD, cite heading
+  text for the READMEs) is itself a no-fabrication
+  expression: inventing `§n.m`-numbered citations against
+  an artifact that uses named headings would manufacture
+  a numbering scheme that doesn't exist. The drift-
+  detection move parameterizes by source: `grep §`
+  against cursor-teardown.md must find real teardown
+  sections; `grep` against rag-app / tool-use-agent /
+  evals-harness banks must find real README heading text.
+- **Rubric-as-checklist binding.** Rubrics describe *moves*,
+  not phrasings. A rubric that wrote "Say: 'I chose Cursor
+  because…'" would fabricate the user's voice; a rubric
+  that writes "names the criteria that drove the pick
+  (live AI product the candidate uses daily, publicly
+  observable surface, …) and applies them honestly" describes
+  the answer's shape without dictating its words. This is
+  the discipline that lets a reader use the rubric without
+  having their answer read as recited.
+
+**The deferral of "behavioral" interview prep, in one
+place.** NEXT_WORK item 7 sub-checkbox 6's literal text says
+"the deferral of 'behavioral' interview prep to a separate
+(not-this-list) item." The `interview-prep/` directory ships
+**artifact-defending questions only** — questions an
+interviewer asks to probe the candidate's defense of work
+they've shipped, where the right grounding is in the
+artifact's own claims. The directory does not ship:
+
+- **Behavioral / STAR-format prompts** ("tell me about a
+  time when…", "describe a conflict you resolved…",
+  "what's a project you led that failed…"). These probe
+  the candidate's *history*, not a shipped artifact's
+  defense; their right grounding is in the candidate's
+  career, not in a portfolio piece.
+- **Culture-fit / motivation prompts** ("why this
+  company?", "what are you looking for in your next
+  role?", "where do you see yourself in three years?").
+  These are role-and-employer-specific and rotate per
+  interview; baking them into a portfolio scaffold would
+  freeze a specific employer's questions into the
+  artifact.
+- **Take-home / case prompts** ("design metric for X",
+  "build a 30-60-90 day plan for Y"). These overlap with
+  the templates kit (`templates/SAMPLES.md` is the right
+  home for case work), not with artifact-defending Q&A.
+- **Salary / negotiation prompts**. These are off-list by
+  the same logic as culture-fit prompts — employer-and-
+  offer-specific, not portfolio-defending.
+
+The deferral is **not** a claim that behavioral prep is
+unimportant or that it shouldn't be done — only that it is
+out of scope for the `interview-prep/` directory as defined
+by NEXT_WORK item 7. A future not-this-list iteration (the
+user's call) could ship a sibling `behavioral-prep/`
+directory with a different shape (no rubric-cites-artifact-
+section discipline, no `_<your draft>_` slot grammar, no
+per-artifact organization) — that future work is explicitly
+user-owned, not agent-initiated.
+
+**Cross-cutting conventions held across all five files.**
+
+- **Placeholder grammar.** The italic-marker `_<…>_` spans
+  match the project-wide regex `_<.*>_`. One grep audits
+  every unfilled slot across `templates/` + `interview-
+  prep/` + any future populatable scaffolds. This grammar
+  was chosen over the literal NEXT_WORK example text
+  (`<your answer here>`) because the angle-bracket-only
+  form would not match the templates/ convention, and
+  NEXT_WORK's example predates the italic-marker
+  convention's adoption (iteration 70's note).
+- **Forward-referenced cross-link discipline.** Iterations
+  70-73 each named the unbuilt sibling files
+  (`rag-app.md`, `tool-use-agent.md`, `evals-harness.md`,
+  `README.md`) by their NEXT_WORK sub-checkbox identity
+  before they existed. This trades a transparently-its-
+  own-fault 404 (the link names the sub-checkbox)
+  for avoiding 10 back-fill edits across the 5-artifact
+  series (4 + 3 + 2 + 1 + 0); the savings was most
+  visible at the LAST artifact in the series — the
+  README — which shipped with all four cross-links
+  already in place.
+- **Compounding-savings property.** The forward-reference
+  discipline's payoff scales as `N*(N-1)/2` back-fill
+  edits avoided in an N-artifact series. For
+  `interview-prep/` (N=5), the savings is 10 back-fill
+  edits across the series. Worth carrying for any future
+  multi-artifact scaffold where the filenames are fixed
+  before content lands.
+- **Rubric-cites-the-section discipline.** Every rubric in
+  every per-artifact bank names a specific section of the
+  source artifact by its own labeling convention. This is
+  the drift-detection mechanism: a future revision of the
+  source artifact that silently moves a section would make
+  the rubric's reference stale, surfacing via `grep §` (or
+  `grep "heading text"`) audits. Without this discipline,
+  rubrics could drift independently of the source and
+  become misleading.
+- **Walk-through stub pivots into two questions per bank.**
+  Each of the four per-artifact banks ends with a stub
+  pointing at the README's CA1 and naming two of its own
+  questions as suggested pivots. The pivot-into-two
+  pattern is structurally consistent across the four banks
+  (cursor-teardown Q1 + Q2; rag-app Q1 + Q3; tool-use-
+  agent Q1 + Q4; evals-harness Q1 + Q5) because two
+  pivots are enough to demonstrate the bank-to-bank
+  threading without forcing the reader through the bank's
+  full ten.
+
+**Verification surface (mechanical, no API key, no
+network).**
+
+1. **`grep -cE '^## Q' interview-prep/*.md`** reports 10
+   per per-artifact bank (40 total). Any future drift —
+   adding an 11th question, deleting one, mis-numbering —
+   surfaces as a count mismatch against this entry.
+2. **`grep -cE '^### CA[0-9]' interview-prep/README.md`**
+   reports 3 (CA1 / CA2 / CA3). Any future drift — adding
+   a 4th cross-artifact question, deleting one — surfaces
+   the same way.
+3. **`grep -cE '_<.*>_' interview-prep/*.md`** finds 67
+   matches across the 5 files (43 actual `_<your draft>_`
+   slots + 24 grammar-reference matches in prose). The
+   grep is loose by design — it counts both actual slots
+   and prose references to the grammar — because the
+   load-bearing audit question is "is every actual slot
+   unfilled?" rather than "is the count exactly 43?",
+   and the loose grep surfaces both for inspection.
+4. **Cross-link integrity.** All inter-bank cross-links
+   resolve (the four banks reference each other and the
+   README; the README references all four banks; the
+   README references the root README, the design log,
+   the corpus-candidates file, and the per-build
+   `verify.py` / `trace.py` / `invariants.py` files; the
+   iteration-74 typo correction (`ingest.py` →
+   `invariants.py`) was caught by exactly this kind of
+   verification step).
+5. **Build re-verification baseline.** As of this slice:
+   - `rag-app/`: 66 passed in ~0.09s
+   - `tool-use-agent/`: 224 passed + 1 skipped in ~0.34s
+   - `evals-harness/`: 183 passed in ~0.29s
+   - Total: **473 passed + 1 skipped** across the three
+     build directories at ~0.7s wall clock combined,
+     unchanged from iterations 68 / 69 / 70 / 71 / 72 /
+     73 / 74. Documentation-only consolidating slice does
+     not transform any test-covered surface.
+
+**Cross-build invariants honored by this slice.**
+
+- **REFUSAL_SENTENCE byte-equality** between
+  `rag_app.verify.REFUSAL_SENTENCE` and
+  `tool_use_agent.verify.REFUSAL_SENTENCE` continues to
+  hold; locked by the evals-harness invariants suite
+  plus the rag-app and tool-use-agent suites.
+- **No-network / no-API-key** posture in tests is
+  preserved; this entry adds no new imports anywhere
+  and `interview-prep/` is documentation-only, never
+  imported by any test or production module.
+- **Forward-referenced cross-links by NEXT_WORK sub-
+  checkbox identity** remain the standing convention for
+  any future multi-artifact scaffold; this entry locks
+  the convention by name so a future scaffold-builder
+  can find it via DECISIONS grep.
+- **No `pyproject.toml` edits.** The interview-prep
+  directory ships nothing executable — no Python
+  modules, no entry points, no test surface — so the
+  packaging contract locked at item 1 sub-checkbox 5 is
+  unaffected.
+
+**Out-of-scope deferrals (explicit).**
+
+1. **Behavioral / culture-fit / case-prompt / negotiation
+   interview prep** is deferred per the literal NEXT_WORK
+   item 7 sub-checkbox 6 text. A future not-this-list
+   iteration (the user's call) could ship a sibling
+   `behavioral-prep/` directory; that work is not part
+   of any NEXT_WORK item.
+2. **User-supplied answers in the 43 `_<your draft>_`
+   slots.** The no-fabrication rule binds at the slot
+   level; the agent never drafts the slots. Filling them
+   is user-owned work outside the NEXT_WORK list.
+3. **Item 5 (real corpus for rag-app)** stays in holding
+   pattern. `rag-app/corpus/CORPUS_CANDIDATES.md`'s
+   `Pick: _<user fills with 1, 2, or 3>_` line is
+   unchanged. Per OBJECTIVE.md, item 5 stays on hold
+   until the user records a pick; the queue does not
+   block on it.
+4. **No new questions added to the four per-artifact
+   banks.** A future revision of any source artifact
+   (the teardown PRD or one of the three build READMEs)
+   might justify adding or replacing a Q-slot, but that
+   is per-artifact maintenance work, not item-7
+   territory.
+5. **No back-edits to the five per-file DECISIONS
+   entries** (iterations 70 / 71 / 72 / 73 / 74). This
+   consolidator references them by date + iteration
+   number; the canonical per-file record stays where it
+   was originally written.
+6. **No edits to the source-of-truth artifacts.** The
+   teardown PRD is explicitly off-limits per OBJECTIVE.md
+   ("Do NOT touch the Cursor teardown — it is marked
+   interview-ready"); the three build READMEs and their
+   module surfaces stay unchanged by this slice. The
+   interview-prep banks anchor *on* those artifacts; they
+   do not edit them.
+7. **No templates/ edits.** The italic-marker placeholder
+   grammar (`_<…>_`) was already locked across the five
+   `templates/` scaffolds at iteration 35-and-prior; this
+   entry references the convention but does not re-lock
+   it. Future scaffolds — including a hypothetical
+   `behavioral-prep/` — should adopt the same grammar.
+8. **No code or test surfaces touched.** The
+   interview-prep directory ships documentation only;
+   the 473-tests-plus-1-skip baseline re-verifies green
+   exactly because nothing executable changed.
+
+**State of NEXT_WORK.md after this slice.**
+
+- Items 1, 2, 3, 4, 6, 7: **ticked** (parent + all
+  sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 ticked;
+  sub-checkboxes 2 / 3 / 4 unticked (awaiting user pick).
+- **6 of 7 top-level items closed**; item 5 on hold
+  awaiting user pick.
+- The done-criteria-for-the-whole-list section in
+  NEXT_WORK.md asks for "All seven top-level checkboxes
+  ticked" plus a final DECISIONS entry marking the list
+  complete. This slice closes item 7 but does not close
+  the list — item 5 remains the single unticked
+  top-level item, and the list's terminal closer is
+  itself blocked on item 5's user pick. Per OBJECTIVE.md
+  ("If a sub-item requires user input … ship a single
+  ranked CANDIDATES file for that sub-item and move to
+  the next unchecked item; do not block the queue"),
+  item 5 stays in holding pattern; the loop's stop
+  condition is "all NEXT_WORK.md top-level checkboxes
+  complete," which is not yet satisfied. The next
+  iteration after this slice has no unblocked
+  unchecked item to advance and should report
+  success=false with the summary mandated by the
+  OBJECTIVE ("NEXT_WORK.md complete" in spirit, with
+  the literal exception that item 5 awaits user input
+  and is structurally outside the agent's reach).
