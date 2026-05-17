@@ -6,7 +6,8 @@ An AI Product Manager job-search portfolio, built incrementally to back the
 90-day plan in [OBJECTIVE.md](OBJECTIVE.md). Every artifact in this repo is a
 deliberate, PM-framed deliverable an interviewer can poke at — three working
 LLM builds, a single high-quality teardown PRD, and a fill-in template kit for
-the search itself.
+the search itself, plus a career-transition package for positioning the whole
+search honestly.
 
 This top-level README is the index. Each subdirectory has its own README with
 its design contract; this file is the map from the
@@ -31,6 +32,7 @@ resume → tracker) the user populates against the actual search.
 | Day 10 — Build 3 (Evals harness) | [`evals-harness/`](evals-harness/) | Shipped |
 | Day 20 — Teardown PRD (Cursor) | [`teardown-prd/cursor-teardown.md`](teardown-prd/cursor-teardown.md) | Shipped (interview-ready, 2026-05-16) |
 | Day 30 — Five funnel scaffolds (sourcing → outreach → cover letter → resume → tracker) | [`templates/`](templates/) | Shipped (scaffolds; user-populated) |
+| Career transition package | [`career-transition/`](career-transition/) | Shipped (AI PM positioning, portfolio, interview, LinkedIn) |
 
 The three Day-10 builds are real coding work in their own subdirectories with
 working demos and PM-framed READMEs, per the operating guardrails in
@@ -180,7 +182,8 @@ all dry-run / non-LLM subcommands are stdlib-only.
 ├── tool-use-agent/        # Day-10 Build 2: tool-using agent
 ├── evals-harness/         # Day-10 Build 3: cross-build evals
 ├── teardown-prd/          # Day-20: Cursor teardown + the shortlist that preceded it
-└── templates/             # Day-30: sourcing, outreach, cover-letter, resume, tracker scaffolds
+├── templates/             # Day-30: sourcing, outreach, cover-letter, resume, tracker scaffolds
+└── career-transition/     # AI PM positioning, portfolio ideas, interview stories, LinkedIn draft
 ```
 
 ## On scope and honesty
