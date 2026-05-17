@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jubayar Ahad — AI PM portfolio</title>
+<meta name="description" content="Portfolio of AI product-management artifacts: a teardown PRD, three Python builds, a hypothetical AI feature PRD, and interview-prep notes.">
+<style>
+  :root {
+    --fg: #1b1d22;
+    --fg-dim: #4a4f57;
+    --fg-mute: #6b7280;
+    --bg: #ffffff;
+    --bg-soft: #f7f7f5;
+    --rule: #e3e3df;
+    --accent: #1f3a5f;
+    --accent-soft: #eef2f8;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+  a:hover { color: #0f2440; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 0.94em; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { padding-bottom: 28px; border-bottom: 1px solid var(--rule); }
+  h1 { font-size: 1.75rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .role { color: var(--fg-mute); font-size: 0.98rem; margin: 0 0 14px; }
+  .intro { font-size: 1.04rem; color: var(--fg-dim); margin: 0; max-width: 60ch; }
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-mute);
+    margin: 0 0 16px;
+    font-weight: 600;
+  }
+  .grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+  .card {
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px 20px;
+    background: var(--bg);
+  }
+  .card h3 {
+    margin: 0 0 6px;
+    font-size: 1.02rem;
+    font-weight: 600;
+  }
+  .card h3 a { border-bottom: none; }
+  .card h3 a:hover { text-decoration: underline; }
+  .card .meta {
+    font-size: 0.82rem;
+    color: var(--fg-mute);
+    margin: 0 0 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .card p {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--fg-dim);
+  }
+  .card .scaffold-note {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--fg-mute);
+    background: var(--bg-soft);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.88rem;
+    color: var(--fg-mute);
+  }
+  footer p { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Jubayar Ahad</h1>
+    <p class="role">Transitioning to AI Product Management</p>
+    <!-- USER: rewrite this intro -->
+    <p class="intro">This site is the in-progress portfolio I'm building during a focused 90-day push toward an AI PM role — a teardown PRD, three shipped Python builds, and a hypothetical AI feature PRD, with interview-prep notes alongside.</p>
+    <!-- /USER: rewrite this intro -->
+  </header>
+
+  <section aria-labelledby="teardown-h">
+    <h2 id="teardown-h">Teardown PRD</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><a href="../teardown-prd/cursor-teardown.md">Cursor — analysis of a shipped AI coding product</a></h3>
+        <p class="meta">teardown-prd/cursor-teardown.md</p>
+        <p>What's working, what's broken, what I'd ship next, with proposed metrics. Source-anchored to publicly observable Cursor behavior.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="builds-h">
+    <h2 id="builds-h">Python builds</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><a href="../rag-app/README.md">rag-app — retrieval-augmented Q&amp;A</a></h3>
+        <p class="meta">rag-app/README.md</p>
+        <p>BM25 retrieval over a multi-source corpus (Cursor docs + Anthropic docs + Simon Willison essays) with abstention, citation-verification, and dry-run output.</p>
+      </div>
+      <div class="card">
+        <h3><a href="../tool-use-agent/README.md">tool-use-agent — bounded-step agent loop</a></h3>
+        <p class="meta">tool-use-agent/README.md</p>
+        <p>Nine-tool catalog (six read-only + sql_query, file_rewrite, regex_extract), refusal taxonomy across four buckets, JSON trace records, sandboxed file writes.</p>
+      </div>
+      <div class="card">
+        <h3><a href="../evals-harness/README.md">evals-harness — five-rubric evaluation pipeline</a></h3>
+        <p class="meta">evals-harness/README.md</p>
+        <p>Refusal / groundedness / first-call-tool / termination / cost rubrics over labelled traces, with markdown report aggregation.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="prd-h">
+    <h2 id="prd-h">Hypothetical AI feature PRD</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><a href="../prds/linear-ai-retro-summarization.md">Linear — AI weekly retro auto-summarization</a></h3>
+        <p class="meta">prds/linear-ai-retro-summarization.md</p>
+        <p>Cycle Recap: an AI surface firing at cycle close, complementary to Linear's existing Pulse rollups. Goals, non-goals, leading + lagging + counter metrics, risks, phased rollout.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="prep-h">
+    <h2 id="prep-h">Interview prep &amp; resume</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><a href="../interview-prep/README.md">Mock-interview Q&amp;A banks</a></h3>
+        <p class="meta">interview-prep/README.md</p>
+        <p>Five banks: per-artifact (teardown, rag-app, tool-use-agent, evals-harness) plus a behavioral bank. Each question carries a rubric and an empty draft slot — answers are written by me, not the agent.</p>
+      </div>
+      <div class="card">
+        <h3><a href="../templates/RESUME.md">Resume scaffold</a></h3>
+        <p class="meta">templates/RESUME.md</p>
+        <p>An empty resume template I fill with my own employment history and credentials.</p>
+        <span class="scaffold-note">scaffold — fill with your specifics</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>This portfolio is built in the open as a 90-day project; see <a href="../OBJECTIVE.md">OBJECTIVE.md</a> for the goal statement and <a href="../README.md">README.md</a> for the repo guide.</p>
+    <p>Source: <a href="../">repository root</a>.</p>
+  </footer>
+
+</div>
+</body>
+</html>

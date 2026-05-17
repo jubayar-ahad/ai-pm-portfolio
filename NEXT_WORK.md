@@ -287,7 +287,7 @@ Constraints:
    intro must be flagged as user-editable with an HTML comment, so the
    user knows where to make it their own.
 
-- [ ] `landing-page/index.html` — single self-contained file meeting
+- [x] `landing-page/index.html` — single self-contained file meeting
   the constraints above. Mobile-responsive single column on narrow
   viewports, two-column on wide. Light theme; no dark-mode toggle for
   scope. Include a `<!-- USER: rewrite this intro -->` comment around
