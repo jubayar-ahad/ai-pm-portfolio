@@ -123,7 +123,7 @@ weaknesses in the artifacts themselves.
 - [x] `interview-prep/rag-app.md` — 8–10 questions covering: BM25 vs.
   dense, evals, when to add a reranker, abstention bar, corpus
   ownership, cost economics, multi-turn extension, failure modes.
-- [ ] `interview-prep/tool-use-agent.md` — 8–10 questions covering: step
+- [x] `interview-prep/tool-use-agent.md` — 8–10 questions covering: step
   cap rationale, refusal taxonomy, observability (trace schema), tool
   catalog design, safety guardrails, how you'd productionize it.
 - [ ] `interview-prep/evals-harness.md` — 8–10 questions covering: rubric

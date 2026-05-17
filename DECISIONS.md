@@ -9639,3 +9639,286 @@ closer is one iteration. Five more iterations close item 7.
 - 5 of 7 top-level items closed; item 5 on hold awaiting user
   pick; item 7 mid-flight with 2 of 6 sub-checkboxes ticked.
 
+## 2026-05-16 — `interview-prep/tool-use-agent.md` ships 10-question mock-interview Q&A bank (NEXT_WORK item 7, sub-checkbox 3 of 6)
+
+**Slice substance.** A single 466-line file
+`interview-prep/tool-use-agent.md` containing ten anticipated
+interviewer questions on the `tool-use-agent/` build, each with the
+strong-answer rubric and a `_<your draft>_` italic-marker placeholder
+for the user's own draft. No content beyond this file ships this
+slice; the remaining sibling Q&A file (`evals-harness.md`) belongs to
+sub-checkbox 4, the index README to sub-checkbox 5, and the
+consolidating DECISIONS entry to sub-checkbox 6.
+
+**Why ten and why these ten.** NEXT_WORK item 7 sub-checkbox 3
+literally names the count range ("8–10 questions") and lists six
+topics: step cap rationale, refusal taxonomy, observability (trace
+schema), tool catalog design, safety guardrails, productionization.
+The drafted ten cover all six named topics with one question each —
+Q1 (step cap rationale), Q2 (refusal taxonomy), Q3 (observability /
+trace schema), Q4 (tool catalog design), Q5 (safety guardrails), Q6
+(productionization) — plus four extensions the README and the
+broader portfolio surface demand: Q7 (tool-use vs. RAG, the
+cross-build counterpart question the README's "Why an agent and not
+RAG" section sets up); Q8 (failure-mode prioritization across the
+five README-named failure modes); Q9 (schema-validated vs. free-form
+function calling, named in the Design-tradeoffs section); Q10
+(post-hire ship-one / cut-one, the portable closer mirroring
+cursor-teardown.md's Q10 and rag-app.md's Q10). Six named topics
+naturally use six of the ten slots, leaving four for extensions —
+the same shape as rag-app.md's eight-named-plus-two-extensions
+ratio, scaled to this sub-checkbox's six-named count. The
+cursor-teardown.md and rag-app.md 10-Q precedents are honored; the
+question-count discipline is now portable across three of the four
+Q&A banks.
+
+**Anchoring grammar is README heading names, not §-numbers (same as
+rag-app.md).** The `tool-use-agent/README.md` uses *named* section
+headings ("Status", "Tool catalog (v1)", "Stack choices", "Failure
+modes worth designing around", "Productization questions a PM should
+ask before shipping this for real", "Design tradeoffs called out for
+interview discussion") and per-row table labels ("Agent loop row",
+"Refusal contract row", "Eval trace row"). Forcing §-numbers onto
+the README would have either required renumbering the README (out
+of scope — this slice does not touch `../tool-use-agent/README.md`)
+or inventing §-numbers in the rubrics that don't exist in the
+source — a fabricated citation the no-fabrication rule prohibits.
+The right call is to anchor rubrics by *what the README actually
+labels*: heading text plus table-row labels. A `grep "Tool catalog
+(v1)"` or `grep "Failure modes worth designing around"` from any
+rubric in this file lands on a real section of the README; the
+drift-detection move is the same as rag-app.md's, just parameterized
+by the tool-use-agent README's specific heading text. The
+sub-checkbox 6 consolidating entry can lock heading-name anchoring
+as the dominant convention across three of the four Q&A banks
+(rag-app.md, tool-use-agent.md, evals-harness.md) with
+cursor-teardown.md as the §-anchored outlier driven by the source
+PRD's numbered-section convention.
+
+**Placeholder grammar at `_<your draft>_`, matching the project-wide
+convention.** The italic-marker `_<placeholder>_` grammar (used
+across `templates/RESUME.md`, `templates/COVER_LETTER.md`,
+`templates/OUTREACH.md`, `templates/TARGET_COMPANIES.md`,
+`templates/INTERVIEW_TRACKER.md`, and the two prior
+`interview-prep/*.md` files) is honored here too — every rubric ends
+with a `**Your draft:** _<your draft answer here — hint about what
+to cover>_` line. The literal-text hint after the em-dash is
+load-bearing: it reminds the user of the specific moves the rubric
+named without forcing them to re-read the whole rubric to draft. The
+single regex `_<.*>_` finds every unfilled slot across this file (10
+actual draft slots) and across every other populatable scaffold in
+the repo — one project-wide grammar, one project-wide audit move.
+The 15 total `_<.*>_` patterns in this file decompose as 10 actual
+draft slots + 5 grammar references in the intro / how-to-use /
+cross-link sections (the placeholder grammar is referenced as text,
+not used as a slot, in those 5 places) — the same 10-vs-15 split as
+rag-app.md.
+
+**Why the four extension questions earn their slots.**
+
+- **Q7 (tool-use vs. RAG):** The README's "Why an agent and not RAG"
+  section is the cross-build question that an interviewer will almost
+  certainly probe — the portfolio ships both builds deliberately, so
+  the candidate must be able to articulate when to reach for each
+  *without* falling into tool-use-evangelical framing. Q7's rubric
+  forces the answer through question-shape ("find me the passage" vs.
+  "compute structured"), the migration story (a tool-using surface
+  adds a `retrieve` tool; a RAG surface adds a planner step), and
+  the per-query cost contrast. Mirrors rag-app.md's Q1 (BM25 vs.
+  dense) on the same cross-build axis.
+- **Q8 (failure-mode prioritization):** The README's "Failure modes
+  worth designing around" section names five failure modes with
+  current mitigations. The interviewer-shaped question is which to
+  fix first — and the rubric explicitly *names which two to
+  not-pick* (tool-name halluc and parameter halluc, both already
+  cheap-mitigated by SDK schema enforcement) so the candidate
+  doesn't waste a 90-second answer on the easy ones. Mirrors
+  rag-app.md's Q8 (failure modes — pick which to ship-first) on
+  the same PM-craft-signal axis.
+- **Q9 (schema-validated vs. free-form):** The README's "Design
+  tradeoffs called out for interview discussion" section names this
+  one explicitly. It's a craft signal — does the candidate
+  understand that schema validation is not about working-vs-not but
+  about cheap-vs-expensive failure recovery? The rubric forces the
+  answer through the cheap-to-catch property, the free-form
+  alternative's failure-path cost, the gaps schemas *don't* cover
+  (semantic correctness, cross-tool coherence), and the compound
+  with the Q5 safety guardrails.
+- **Q10 (ship-one / cut-one):** Portable across all four artifact
+  Q&A banks. Every artifact in this portfolio is a current-best-
+  guess that should be held provisionally; the ability to name a
+  specific ship and a specific cut, with the data that would justify
+  each, is the same PM-craft signal regardless of which artifact the
+  interview is probing. Including Q10 in `tool-use-agent.md` (after
+  `cursor-teardown.md` and `rag-app.md`) creates a consistent
+  final-question shape across three of the four Q&A banks — the
+  sub-checkbox 6 consolidating entry will lock this as a load-bearing
+  portability property.
+
+**Q5 is structurally distinct from rag-app.md's Q5 and
+cursor-teardown.md's Q5.** Q5 in this file walks the *two-layer
+guardrail pattern* the NEXT_WORK item 6 sub-checkbox 5 DECISIONS
+entry locks for `sql_query`, `file_rewrite`, `regex_extract`. This
+is the *only* Q&A bank where the safety story is a load-bearing
+rubric — `cursor-teardown.md` has no analogous safety surface (it's
+a teardown PRD, not a build), and `rag-app.md`'s safety surface is
+limited to the citation-verification rubric (which is honesty about
+the agent's claims, not safety against agent-initiated harm). The
+rubric walks all three new tools through their Layer 1 / Layer 2
+mechanisms, names the cross-cutting invariants (no network, no
+shell-out, no API keys, no global state, bounded output on every
+read path), and concedes that two-layer guardrails are defense in
+depth, not formal verification — exactly the honesty posture the
+NEXT_WORK item 6 sub-checkbox 5 DECISIONS entry locks. This is the
+highest-value question in the file for a safety-engineering-flavored
+interviewer; the rubric explicitly forward-references the
+"Agent-tool safety guardrails locked" DECISIONS entry by string
+match, so a candidate practicing answers can find the canonical
+safety surface in one grep.
+
+**Cross-cutting walk-through question deferred to README, with stub
+here.** The "walk me through your portfolio" question is not in
+this file's ten questions because its rubric spans all four
+artifacts and belongs in `interview-prep/README.md` under the
+common-cross-artifact-questions section (NEXT_WORK item 7
+sub-checkbox 5). The stub paragraph in this file (and in
+`cursor-teardown.md`, and in `rag-app.md`) tells a reader of *just*
+this file that the question exists and where to find its rubric; a
+tool-use-agent-flavored walk-through naturally pivots into Q1 (step
+cap rationale — the first cost-discipline signal) or Q5 (safety
+guardrails — the first PM-craft signal on agent-y tools), and the
+stub flags those two for extra-care prep. The pivot-into-two
+pattern is now consistent across all three shipped Q&A banks (each
+flags two prep-with-extra-care questions in its walk-through stub),
+which sub-checkbox 5's README design can lock in as the suggested
+prep order's pivot mechanism.
+
+**Forward-referenced cross-links to artifacts not yet shipped.** This
+file names `evals-harness.md` (in the Source-of-truth section) and
+the cross-cutting README before they exist, by their NEXT_WORK
+sub-checkbox identity. The alternative — omitting the cross-links
+until the README slice ships — would force a back-fill edit on each
+of the three currently-shipped Q&A files at sub-checkbox 5, an
+avoidable per-slice cost. The 404 cost of a forward reference
+followed today is self-explanatory ("subsequent iteration" tells the
+reader why the link doesn't resolve yet); the round-trip cost of
+back-fill is structurally worse. Same precedent as cursor-teardown.md
+set in iteration 70 and rag-app.md set in iteration 71. The pattern
+is now portable across three of the four Q&A banks, and the
+back-fill cost saved compounds: each new Q&A file shipped honoring
+this discipline saves N-1 back-fill edits at the README-index slice.
+
+**Cross-link grouping for shared concerns.** The Source-of-truth
+section names two related portfolio pieces by rubric-Q index — Q3,
+Q6, Q8 share a cross-link to `evals-harness/` (per-record aggregation
++ groundedness + cost rubric), and Q7 has a cross-link to `rag-app/`
+(the same-data-different-access-pattern counterpart). This is the
+first Q&A bank that has *two* such cross-link groupings — rag-app.md
+had one (`evals-harness/` for Q4 and Q6) and cursor-teardown.md had
+broader (`rag-app/`, `tool-use-agent/`, `evals-harness/` mentioned
+in the how-to-use section without per-Q binding). The per-Q
+grouping at the cross-link granularity is a useful shape for the
+sub-checkbox 6 consolidating entry to consider locking: rubrics that
+reach for the same sibling artifact should name that artifact in the
+cross-link section *and* identify which Q indices use it, so a
+reader practicing one specific question can find the related
+artifact in one place.
+
+**Verification surface (4 checks).**
+
+1. Question count = 10: `grep -c '^## Q' interview-prep/tool-use-
+   agent.md` returns 10. Matches both the NEXT_WORK sub-checkbox
+   text ("8–10 questions") at the upper bound and the two prior
+   Q&A banks' question count exactly.
+2. Placeholder slot count: `grep -c '_<your draft answer here'
+   interview-prep/tool-use-agent.md` returns 10 — one per question.
+   `grep -oE '_<[^>]*>_' | wc -l` returns 15 total `_<.*>_`
+   patterns; the additional 5 are the grammar references in the
+   file's introduction and how-to-use sections (the placeholder
+   grammar is referenced as text, not used as a slot, in those 5
+   places). Same 10-vs-15 split as rag-app.md.
+3. Source-of-truth pointer: the file's "Source of truth & cross-
+   links" section names `../tool-use-agent/` at the top and the
+   build's `README.md` is the design contract; the path resolves.
+4. Test baseline re-verified green: 66 (rag-app) + 224 + 1 skip
+   (tool-use-agent) + 183 (evals-harness) = 473 + 1 skip at ~0.7s
+   total wall clock. Doc-only slice transforms no test-covered
+   surface — a new file under `interview-prep/` can't regress any
+   code path — but the re-verification confirms that interpretation
+   against the actual baseline.
+
+**Cross-build invariants honored unchanged.**
+
+- REFUSAL_SENTENCE byte-equality between `rag_app.verify` and
+  `tool_use_agent.verify`: untouched (no Python edits this slice).
+- Tool catalog tool-count at 9 (`sql_query` / `file_rewrite` /
+  `regex_extract` registered): untouched.
+- LICENSE four-way byte-equality (root + three builds): untouched.
+- CI badge URLs across four READMEs: untouched (no README edits
+  this slice).
+
+**Out of scope this slice (deferred to subsequent sub-checkboxes or
+other items).**
+
+1. `interview-prep/evals-harness.md` (sub-checkbox 4 of item 7) —
+   same 8–10-question shape on rubric selection, why-these-five,
+   cost rubric design, what's missing, cross-build invariants,
+   scaling to a larger eval set.
+2. `interview-prep/README.md` (sub-checkbox 5 of item 7) — index
+   file linking the four Q&A banks, suggested prep order, and the
+   common cross-artifact questions section that will own the "walk
+   me through your portfolio" question stubbed in this file and in
+   `cursor-teardown.md` and `rag-app.md`.
+3. Consolidating DECISIONS entry locking the Q&A file shape, the
+   no-fabrication rule for `_<your draft>_` slots, the behavioral-
+   prep deferral, the heading-name-vs-§-number anchoring discipline
+   (3 vs 1 split across the four Q&A banks), the per-Q cross-link
+   grouping convention, the walk-through pivot-into-two pattern,
+   and any other portable shape worth pinning (sub-checkbox 6 of
+   item 7).
+4. User-supplied draft answers — every `_<your draft>_` slot is
+   intentionally empty; the no-fabrication rule at the slot level
+   says the agent does not invent the user's answers, the user
+   fills them.
+5. The `tool-use-agent` README itself — this slice does NOT touch
+   `../tool-use-agent/README.md`. The Q&A bank is a derivative
+   companion artifact; the README is the design contract. Any
+   rubric that found a real weakness in the README would surface
+   upstream as a separate slice, not via this file.
+6. Item 5's holding pattern — the corpus pick is still open
+   (`Pick: _<user fills with 1, 2, or 3>_` is unchanged in
+   `rag-app/corpus/CORPUS_CANDIDATES.md`). This slice neither
+   advances item 5 nor blocks on it.
+7. Templates directory — no edits to `templates/*.md`. The
+   `_<your draft>_` grammar is borrowed from templates but no
+   template files are touched.
+8. Behavioral interview prep — NEXT_WORK item 7's masthead
+   explicitly defers behavioral-question prep to a separate (not-
+   this-list) item. The ten questions in this file are all
+   *artifact-anchored* (anticipate questions the README's content
+   demands), not behavioral.
+
+**Item 7 closure cadence projection (updated).** Item 7 has 6 sub-
+checkboxes; this slice closed the third. The remaining three are:
+sub-checkbox 4 (`evals-harness.md`), sub-checkbox 5 (`README.md`
+index), and sub-checkbox 6 (consolidating DECISIONS entry on file
+shape + no-fabrication rule + behavioral-prep deferral). The Q&A
+bank for `evals-harness.md` is one iteration; the README index is
+one iteration; the consolidating closer is one iteration. Three
+more iterations close item 7. The three shipped Q&A banks already
+demonstrate the portable shape the consolidating entry will lock
+(question count, placeholder grammar, anchoring grammar with the
+3-named-headings-vs-1-§-numbered split, forward-referenced cross-
+links, walk-through stub with pivot-into-two, per-Q cross-link
+groupings).
+
+**NEXT_WORK state after this slice.**
+
+- Items 1, 2, 3, 4, 6: ticked (parent + all sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 ticked; sub-checkboxes
+  2 / 3 / 4 unticked (awaiting user pick).
+- Item 7: parent unticked; sub-checkboxes 1 / 2 / 3 ticked;
+  sub-checkboxes 4 / 5 / 6 unticked.
+- 5 of 7 top-level items closed; item 5 on hold awaiting user
+  pick; item 7 mid-flight with 3 of 6 sub-checkboxes ticked.
+
