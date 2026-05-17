@@ -130,7 +130,7 @@ makes citation provenance visually meaningful (a chunk path of
   license/fair-use rationale (Cursor docs and Anthropic docs: fair-use
   for non-commercial portfolio demo with attribution; Willison: explicit
   permissive reuse — link to his stated reuse policy).
-- [ ] A `make-demo.sh` (or `python -m rag_app demo`) one-shot script
+- [x] A `make-demo.sh` (or `python -m rag_app demo`) one-shot script
   that loads all three corpora into one index, retrieves on a hand-picked
   cross-corpus demo question, and produces dry-run output suitable for
   pasting into the README. Pick a demo question that *needs* multiple

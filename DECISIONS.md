@@ -11255,3 +11255,76 @@ This slice transforms only `rag-app/corpus/anthropic-docs/` (new subdirectory) a
 - Items 8, 9, 10, 11: parent unticked; all sub-checkboxes unticked.
 - **6 of 11 top-level items closed** (unchanged from prior iteration — item 5 parent still gated by sub-checkboxes 3 / 4 / 5); the topmost unchecked item is still item 5; the next slice ships sub-checkbox 3 (`make-demo.sh` or `python -m rag_app demo` cross-corpus one-shot).
 
+## 2026-05-17 — `rag-app/make-demo.sh` one-shot cross-corpus demo script shipped (NEXT_WORK item 5, sub-checkbox 3 of 5)
+
+**Iteration 82.** Ships the third of five sub-checkboxes under NEXT_WORK item 5. Parent item 5 stays unticked with sub-checkboxes 4 (`rag-app/README.md` Status + demo invocation + portfolio framing) and 5 (consolidating DECISIONS entry that supersedes the prior CANDIDATES decision) still open.
+
+### What landed
+
+A single new file `rag-app/make-demo.sh` (~50 lines including the heredoc) plus the sub-checkbox tick in NEXT_WORK.md and this paired DECISIONS entry. The script discovers the 24 markdown files under the three already-shipped corpus subdirectories, calls `load_and_chunk()` programmatically to write a `.cache/demo-chunks.jsonl` covering all 61 chunks, and runs `python -m rag_app ask --dry-run --chunks rag-app/.cache/demo-chunks.jsonl --top-k 5 "<demo question>"` against a hand-picked cross-corpus question. No source code was added or modified; the script is a pure orchestration layer on top of the existing `rag_app.corpus` API and the existing `ask` CLI.
+
+### Sub-checkbox text being satisfied (verbatim)
+
+> A `make-demo.sh` (or `python -m rag_app demo`) one-shot script that loads all three corpora into one index, retrieves on a hand-picked cross-corpus demo question, and produces dry-run output suitable for pasting into the README. Pick a demo question that *needs* multiple corpora to answer well (e.g., contrast a Cursor design choice with the Anthropic recommendation it implements, or with the Willison commentary on it). One question is enough — don't pad.
+
+Each of the five literal-text obligations is satisfied: (1) `make-demo.sh` — the script ships at `rag-app/make-demo.sh`, executable bit set, the script-form alternative the sub-checkbox names rather than the CLI-subcommand alternative; (2) one-shot — a single `./make-demo.sh` invocation loads + retrieves + prints in one shell command, no intermediate user steps; (3) all three corpora into one index — the discovered file list is the union of `cursor-docs/*.md` + `anthropic-docs/*.md` + `willison/*.md` and produces a single `chunks.jsonl` artifact; (4) hand-picked cross-corpus question — `"What are agent skills, and how do Cursor and Anthropic implement them?"`, chosen because *skill* is the lone term appearing in three corpus files across three subdirectories (`cursor-docs/skills.md`, `anthropic-docs/agent-skills.md`, `willison/moltbook.md`), verified by a corpus-level grep before commit; (5) dry-run output suitable for pasting into the README — the `--dry-run` flag forces the no-API-key path that prints retrieved chunks + the constructed system + user prompts, the exact text shape the sub-checkbox 4 README update will paste under a "Demo" section.
+
+### Why this question, not another
+
+The sub-checkbox text gives two example-question shapes (contrast a Cursor design choice with the Anthropic recommendation it implements; or with the Willison commentary on it). A demo question that activates the cross-corpus retrieval property at *top-k* must have lexical overlap across the corpora — BM25 will rank a chunk that shares the question's terms higher than one that doesn't, so the demo's cross-corpus signal lives in question/chunk vocabulary overlap, not in the question's prose elegance.
+
+The grep `grep -l -i "skill\|skills" rag-app/corpus/*/{*}.md` returns exactly 4 files across the three corpora — `cursor-docs/skills.md`, `cursor-docs/changelog-recent.md`, `anthropic-docs/agent-skills.md`, `willison/moltbook.md`. No other named-topic candidate (permission, prompt injection, tool use, MCP, citation) cleanly spans all three subdirectories with topic-page-level mass:
+
+- *permission* — hits `cursor-docs/mcp.md` (one paragraph) + three `willison/` essays, but zero `anthropic-docs/` files. Two-of-three.
+- *prompt injection* — hits seven `willison/` essays + zero `cursor-docs/` + zero `anthropic-docs/`. One-of-three.
+- *tool use* — hits `anthropic-docs/tool-use.md` + scattered Cursor references, but no Willison essay is *about* tool use. Two-of-three.
+- *skills* — hits one topic-page file in each of the three subdirectories. Three-of-three, the only pristine cross-corpus signal.
+
+Running `./make-demo.sh` end-to-end confirms BM25 ranks `cursor-docs/skills.md::0` at #1 (score 11.545) and `anthropic-docs/agent-skills.md::0` at #2 (score 9.982) — the cross-corpus top-2 is the visible demonstration the sub-checkbox text asks for, and the question is the minimum question shape that elicits it. Adding more corpus question phrasing (e.g., "What does Willison say about agent skills in the Moltbook essay?") would be padding — the sub-checkbox text is explicit: "One question is enough — don't pad."
+
+### Why a shell script + embedded `python -` heredoc, not a new CLI subcommand
+
+The sub-checkbox text offers two alternatives: `make-demo.sh` OR `python -m rag_app demo`. Both would satisfy the literal text. The script alternative wins on three grounds:
+
+1. **Smaller diff surface.** The script is one new file, no Python source touched, no CLI surface widened, no new argparse subparser, no new tests required to cover an added subcommand. The existing 66-test rag-app suite continues to pass unchanged (verified post-script-creation; baseline preserved at 473+1-skip across the three Python builds).
+2. **No production-code edit for a demo-only artifact.** A `demo` subcommand would put demo-specific filesystem assumptions (glob the three subdirectories under `corpus/`) into the production CLI surface. The script keeps those assumptions in the orchestration layer where they belong; the production CLI keeps the same `load` / `retrieve` / `ask` shape it has had since iteration 5.
+3. **The corpus file list is *discovered*, not enumerated.** A `demo` subcommand would either bake the file glob into `cmd_demo` (still production-code surface) or accept a new `--corpus-glob` flag (a new CLI surface and a new test target). The script's `python - <<'PY' ... PY` heredoc does the glob in shell-context Python, runs once at demo time, and writes the result. The heredoc is short, well-bounded, and visibly the orchestration layer — not production code masquerading as a script.
+
+The trade is reviewability vs. testability: a CLI subcommand would be unit-testable through the existing `test_main.py` patterns, while a shell script is harder to unit-test directly. The mitigation is that the script's only logic is "discover files + call `load_and_chunk` + invoke `ask --dry-run`" — every primitive it calls is already covered by the existing 66 rag-app tests (corpus loader determinism in `test_corpus.py`, ask --dry-run JSON contract in `test_main.py`). The script-vs-subcommand decision is locked at the shipped script; if a future iteration wants a `demo` subcommand for any reason, the existing script remains as the no-API-key demo path.
+
+### Python interpreter portability
+
+The script tries `python` first, falls back to `python3` if `python` is unavailable. This was driven by a verification-time observation: on this development machine `python` is not on `PATH` (only `python3` is, via Homebrew and `/usr/bin`), but the `rag-app/README.md` uses `python -m rag_app load` as its canonical invocation. Hard-coding either would break one of two environments: hard-coded `python` breaks the macOS dev machine, hard-coded `python3` would diverge from README convention. The two-line `command -v python || command -v python3 || exit 1` block is the minimum portability cost and is explicit enough that a reader can adjust it in seconds. Worth carrying for any future shell script in this repo that invokes the Python CLI: prefer `python` (the README convention), fall back to `python3`, fail with a clear message if neither exists.
+
+### Output shape that's "suitable for pasting into the README"
+
+The script emits, in order: a `>>> Loading ...` progress line, a chunk-count summary table (`cursor-docs: 18`, `anthropic-docs: 25`, `willison: 18`, totalling 61), an empty line, a `>>> Cross-corpus demo question:` block with the question on its own line, a `>>> python -m rag_app ask --dry-run ...` invocation echo so a reader can reproduce, and then the unmodified output of `ask --dry-run` (Question / Mode / Retrieved-N-of-M / per-chunk score+id+span lines / `--- prompt.system ---` / system prompt body / `--- prompt.user ---` / user prompt body). The `>>> ` prefix on the orchestration lines is the convention that distinguishes orchestration output from the underlying CLI output, so the README author can decide to paste the orchestration block + CLI output verbatim, or strip the orchestration prefix lines and paste only the CLI output. Both are valid README excerpt shapes; the script doesn't force a choice.
+
+### Verification surface (3 checks)
+
+1. **End-to-end execution.** `cd rag-app && ./make-demo.sh` returns exit 0, prints the expected chunk-count summary (61 chunks: cursor-docs 18 + anthropic-docs 25 + willison 18, matching the per-corpus counts locked in iterations 79 / 80 / 81), retrieves 5 chunks at top-k, and prints the constructed prompt. Verified once at script creation.
+2. **Cross-corpus retrieval property.** Top-5 retrieved set under the demo question includes chunks from at least 2 of the 3 subdirectories — verified at script-creation time the top-2 are `cursor-docs/skills.md::0` (score 11.545) and `anthropic-docs/agent-skills.md::0` (score 9.982), with three additional anthropic-docs / cursor-docs chunks at ranks 3-5. The willison/moltbook.md chunk that also mentions skills doesn't break into top-5 — it's two-of-three at top-5, three-of-three at top-N for large N. The two-of-three at top-5 is sufficient demonstration of the cross-corpus property and is what the sub-checkbox text asks for ("loads all three corpora into one index" and "retrieves on a hand-picked cross-corpus demo question"; the demo retrieves *into* an index that holds all three, the question doesn't have to surface a chunk from each corpus at top-5).
+3. **Test baseline preservation.** `python3 -m pytest -q` from inside each of `rag-app/`, `tool-use-agent/`, and `evals-harness/` returns 66 + 224+1-skip + 183 = **473 passed + 1 skipped** at ~0.7s total wall clock. The slice ships a new orchestration script and one NEXT_WORK tick — no source surface is transformed, and the baseline is preserved unchanged from iterations 75 / 81.
+
+### Cross-build invariants honored unchanged
+
+This slice transforms one new file (`rag-app/make-demo.sh`), one NEXT_WORK sub-checkbox tick, and this paired DECISIONS entry. No code surface in any of the three Python builds was touched; no test file added or modified; no README updated yet (that's sub-checkbox 4). The `REFUSAL_SENTENCE` byte-equality invariant and the `compute_corpus_fingerprint` / `compute_record_id` algorithm-equivalence invariants both remain green by non-transformation. The script writes its chunks artifact to `rag-app/.cache/demo-chunks.jsonl`, a path already gitignored at the `rag-app/.gitignore` level (`.cache/` line), so the demo doesn't pollute the repo.
+
+### Out-of-scope deferrals (explicit, with rationale)
+
+1. **Updating `rag-app/README.md` Status section + demo invocation + portfolio framing.** Deferred to sub-checkbox 4 of item 5. The script exists now and produces stable output, so sub-checkbox 4 can paste a captured `./make-demo.sh` run into the README in one slice.
+2. **Writing the consolidating DECISIONS entry for item 5.** Deferred to sub-checkbox 5. That entry will lock the cross-corpus design across all five sub-checkboxes (corpus subdirectories + SOURCES.md + demo script + README + supersession), supersede the prior CANDIDATES decision entry by name, and close parent item 5.
+3. **Adding a `demo` subcommand to `python -m rag_app`.** Not done — the script alternative was selected per the rationale above. A future iteration can add the subcommand if it wants, but it's not required and would expand the CLI surface for a demo-only artifact.
+4. **Unit-testing the shell script directly.** Not done — the script's logic decomposes into already-tested primitives (`load_and_chunk` in `test_corpus.py`, `ask --dry-run` JSON contract in `test_main.py`). Adding shell-script-level tests would be net-new test infrastructure (bash test runner, fixture-managed `chunks.jsonl` cleanup, exit-code assertions) for a 50-line orchestration script — the cost/benefit doesn't justify it for a portfolio demo.
+5. **Generalizing the corpus discovery to walk any depth under `corpus/`.** Not done — the script's hardcoded three-subdirectory list (`cursor-docs`, `anthropic-docs`, `willison`) mirrors the locked corpus shape from iterations 79-81 exactly. A recursive walk would be more general but would silently pick up any future subdirectory anyone added under `corpus/`, breaking the demo's "exactly these three corpora" property. The hardcoded list is the load-bearing surface that locks the demo to the specific corpus set the rest of NEXT_WORK item 5 names.
+6. **Capturing the demo output to a tracked artifact (e.g., `rag-app/DEMO_OUTPUT.md`).** Not done — the demo output is meant to be pasted into the README under sub-checkbox 4, not maintained as a separate tracked artifact. Capturing it to a tracked file would create a second source of truth that could drift from the live `./make-demo.sh` output as the corpus or the chunker evolves.
+7. **Running the script in `--live` mode (with `ANTHROPIC_API_KEY`).** Not done — the sub-checkbox text says "produces dry-run output suitable for pasting into the README," not "produces a live answer." The dry-run output is what the README needs; the live answer would be model-version-dependent and not stably reproducible across runs.
+8. **Touching prior sub-checkbox surfaces.** Not done — `rag-app/corpus/{cursor-docs,anthropic-docs,willison}/` and `rag-app/corpus/SOURCES.md` are untouched. Only the new script and the NEXT_WORK tick + this DECISIONS entry land in this slice.
+
+### State of NEXT_WORK.md after this slice
+
+- Items 1, 2, 3, 4, 6, 7: **ticked** (parent + all sub-checkboxes).
+- Item 5: parent **unticked**; sub-checkboxes 1, 2, 3 **ticked** (all three corpora present + SOURCES.md complete + cross-corpus demo script); sub-checkboxes 4 / 5 **unticked** (README update, consolidating DECISIONS that supersedes prior CANDIDATES).
+- Items 8, 9, 10, 11: parent unticked; all sub-checkboxes unticked.
+- **6 of 11 top-level items closed** (unchanged from prior iteration — item 5 parent still gated by sub-checkboxes 4 and 5); the topmost unchecked item is still item 5; the next slice ships sub-checkbox 4 (`rag-app/README.md` update with the demo invocation + portfolio framing).
+
