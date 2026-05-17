@@ -58,7 +58,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
 - [x] `/.github/workflows/ci.yml` at repo root with one matrix job per build
   (3.9 / 3.11 / 3.12 on ubuntu-latest), running: `pip install -e .[dev]`,
   `pytest`, `python -m mypy <package>` (best-effort), `ruff check`.
-- [ ] Each build's `pyproject.toml` declares the dev deps used by CI
+- [x] Each build's `pyproject.toml` declares the dev deps used by CI
   (pytest, mypy, ruff) under `[project.optional-dependencies].dev`.
 - [ ] CI status badge added to each build's README and to the top-level README.
 - [ ] DECISIONS.md entry locking the matrix shape and the lint/type-check
