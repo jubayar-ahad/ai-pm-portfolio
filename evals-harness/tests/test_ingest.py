@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from evals_harness import ingest as ing
 from evals_harness.ingest import (
     IngestError,
     IngestResult,

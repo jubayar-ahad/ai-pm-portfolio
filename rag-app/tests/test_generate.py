@@ -15,7 +15,6 @@ import json
 from contextlib import redirect_stdout
 from pathlib import Path
 
-import pytest
 
 from rag_app.__main__ import DEFAULT_CHUNKS_PATH, cmd_ask
 from rag_app.corpus import load_and_chunk, write_chunks

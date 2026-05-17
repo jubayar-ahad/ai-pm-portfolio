@@ -26,11 +26,6 @@ from evals_harness.report import (
 )
 from evals_harness.score import (
     cmd_score,
-    score_cost,
-    score_first_call_tool,
-    score_groundedness,
-    score_refusal,
-    score_termination,
 )
 
 _repo.ensure_build_imports_on_path()

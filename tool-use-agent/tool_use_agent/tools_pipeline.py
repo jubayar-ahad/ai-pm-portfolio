@@ -15,7 +15,7 @@ the intended state until the user fills it in.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 TRACKER_RELATIVE_PATH = "templates/INTERVIEW_TRACKER.md"

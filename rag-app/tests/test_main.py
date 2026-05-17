@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 
 from rag_app.__main__ import (
-    DEFAULT_CHUNKS_PATH,
     cmd_load,
     cmd_retrieve,
     main,

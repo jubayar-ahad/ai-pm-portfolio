@@ -8,7 +8,6 @@ and confirm the InvariantError path fires.
 
 from __future__ import annotations
 
-import sys
 
 import pytest
 

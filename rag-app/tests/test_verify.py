@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from rag_app.retrieve import RetrievedChunk
 from rag_app.verify import (

@@ -9,7 +9,6 @@ Markdown report.
 from __future__ import annotations
 
 import argparse
-import sys
 
 from .ingest import cmd_ingest
 from .report import cmd_report

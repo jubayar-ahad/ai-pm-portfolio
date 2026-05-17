@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from tool_use_agent.tools_pipeline import (
     ACTIVE_STAGES,
