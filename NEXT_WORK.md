@@ -30,7 +30,7 @@ Ordered first because tests + CI depend on clean packaging.
 - [x] `/evals-harness/LICENSE`
 - [x] Reference the license in each `pyproject.toml`'s `license` field and in each build's README
 
-## 3. Tests — `pytest` suites per build
+## 3. Tests — `pytest` suites per build [x]
 
 Highest-signal item on this list. Each build gets its own `tests/` directory.
 Tests should be runnable with plain `pytest` from inside the build directory,
@@ -50,7 +50,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
   first-call-tool, termination, cost) with at least one positive + one
   negative fixture per rubric, `report` aggregation against a tiny synthetic
   scored.jsonl set.
-- [ ] DECISIONS.md entry locking: pytest as the framework, no network in tests,
+- [x] DECISIONS.md entry locking: pytest as the framework, no network in tests,
   fixture directory convention (`tests/fixtures/`), the coverage floor.
 
 ## 4. CI — GitHub Actions workflow

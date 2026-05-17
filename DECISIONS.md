@@ -6172,3 +6172,274 @@ the monkeypatch would silently no-op. Worth carrying as the
 canonical failure-injection pattern for any cross-build
 invariant: monkeypatch the source-of-truth module, and the
 re-importing consumer will see the drift.
+
+## 2026-05-16 — Pytest harness convention locked across all three Python builds (NEXT_WORK item 3, sub-checkbox 4 of 4; closes item 3)
+
+**Decision.** This entry is the canonical single-place record of the
+test-harness convention shared across `rag-app/tests/`,
+`tool-use-agent/tests/`, and `evals-harness/tests/`. The substance has
+already been recorded across three prior entries (iterations 56 / 57 /
+58 — the three per-build pytest suites), but NEXT_WORK item 3's
+fourth sub-checkbox explicitly asks for a *convention-locking* entry
+that names the contract once so a future reader does not have to
+reconstruct it by reading three entries. That is what this entry is.
+The three `tests/` directories themselves remain unmodified by this
+slice; this is purely a documentation-layer discharge, matching
+iteration 50's shape for closing NEXT_WORK item 1 (where the fifth
+sub-checkbox was a dedicated consolidator).
+
+**The locked test convention, in one place.**
+
+| Surface                              | Value                                                                                                                                  | Locked by                                                                                                  |
+|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| Test framework                       | `pytest` (>=7)                                                                                                                         | All three builds; already declared in `[project.optional-dependencies].dev` per iteration 50's lock        |
+| Test directory                       | `<build>/tests/` per build (sibling of the package directory)                                                                          | All three builds; iterations 56 / 57 / 58                                                                  |
+| Test module discovery                | Default pytest auto-discovery: `test_*.py` modules with `test_*` functions, root-anchored at the build directory                       | All three builds                                                                                           |
+| Fixture directory                    | `<build>/tests/fixtures/` per build (NEXT_WORK item 3's named convention)                                                              | All three builds; iterations 56 / 57 / 58                                                                  |
+| Conftest                             | `<build>/tests/conftest.py` exposing two fixtures per build: `fixtures_dir` (Path → `tests/fixtures`) and a build-specific anchor      | All three builds; rag-app uses `tiny_corpus_root`, tool-use-agent uses `tiny_repo_root`, evals-harness has no anchor fixture (its `find_repo_root` walks to the real repo) |
+| Coverage tool                        | `coverage.py` 7.10+ (`python3 -m coverage run --source=<pkg> -m pytest tests/` → `python3 -m coverage report`)                          | All three builds; not yet wired into dev extras (deferred to item 4 — CI)                                  |
+| Coverage floor                       | ≥80% line coverage on the package under test                                                                                           | NEXT_WORK item 3 explicitly names "Target: ≥80% line coverage on the package" for rag-app and the same target carries forward implicitly to the other two |
+| Achieved coverage                    | 94% (rag-app, 418 stmts) / 94% (tool-use-agent, 509 stmts) / 99% (evals-harness, 999 stmts)                                            | iterations 56 / 57 / 58; combined 1926 stmts × ~97% across the three packages                              |
+| Network policy                       | **No network in any test.** No HTTP, no socket, no DNS, no API key, no subprocess that could reach out                                  | All three builds; the harnesses' dry-run/key-free code paths are exercised exclusively                     |
+| API-key policy                       | **No API key required.** A fresh checkout with no `ANTHROPIC_API_KEY` set must pass all three suites                                   | All three builds; the lazy-import SDK stub pattern (see below) closes the rag-app/tool-use-agent gap       |
+| Dispatch pattern                     | **Direct dispatch** via `argparse.Namespace` + `contextlib.redirect_stdout`/`redirect_stderr` against `cmd_*` functions                | All three builds; subprocess-based CLI tests are explicitly out-of-pattern (see "Carried forward" below)   |
+| SDK stub pattern                     | `sys.modules['anthropic'] = types.SimpleNamespace(Anthropic=Stub)` injected before lazy import; needed for rag-app and tool-use-agent; **not needed** for evals-harness (stdlib-only build) | iterations 56 / 57 / 58 |
+| Anchor-fixture pattern               | Stub `OBJECTIVE.md` under `tests/fixtures/<name>/` only when the module under test calls `find_repo_root`; otherwise the real repo OBJECTIVE.md is the right anchor | iterations 56 / 57 / 58 |
+| Cross-build pin mechanization        | `REFUSAL_SENTENCE` byte-equality + `compute_corpus_fingerprint` + `compute_record_id` exercised in all three suites; failure-injection via monkeypatch in evals-harness | iterations 57 / 58 |
+| Test counts                          | 66 (rag-app) + 117 (tool-use-agent, +1 conditional skip) + 183 (evals-harness) = **366 tests** total, ~0.6s wall clock for the full set | iterations 56 / 57 / 58 |
+
+**Pytest as the framework.** All three builds use `pytest` (the
+existing dev-extras-locked `pytest>=7`) rather than `unittest`,
+`nose`, or a homegrown harness. Reasoning: (1) pytest's plain
+`assert` is significantly less syntactically heavy than
+`unittest.TestCase.assertEqual` for the volume of small-fact
+assertions the three suites accumulate (366 tests, average ~6
+assertions per test). (2) pytest's fixture model is what
+`conftest.py`'s `fixtures_dir`/`tiny_*_root` rely on; replicating
+the equivalent in `unittest` would require either `setUp`/`tearDown`
+boilerplate per test class or a custom decorator. (3) pytest is the
+GitHub Actions / CI ecosystem default — NEXT_WORK item 4 will wire
+`pytest` into the CI matrix without an adapter. (4) pytest's
+`tmp_path` builtin is what the evals-harness suite uses for
+synthetic-JSONL edge-case writes; the equivalent in `unittest`
+requires `tempfile.TemporaryDirectory()` + cleanup. The choice is
+deliberate-but-uncontroversial — there is no scenario where
+`unittest` would have been a better fit for the existing test
+volume and shape.
+
+**No network in tests; no API key required.** This is the
+load-bearing testability invariant: every test in all three suites
+must pass on a fresh checkout with no `ANTHROPIC_API_KEY`
+environment variable and with the network unplugged. The mechanism
+that makes this work is per-build: (a) **evals-harness** is
+stdlib-only by deliberate design (iteration 48's empty-dependencies
+packaging lock) — the harness emits zero LLM calls itself, so every
+code path in the package is reachable from offline tests with
+synthetic dicts and no SDK to stub. (b) **rag-app** and
+**tool-use-agent** both lazy-import `anthropic` inside their
+respective `cmd_ask` / `run_agent` function bodies (rather than at
+module load), which lets the test suites inject a
+`types.SimpleNamespace(Anthropic=Stub)` into `sys.modules['anthropic']`
+before the first call — the real loop body then runs against a
+stub whose `.messages.create()` returns canned response objects.
+The 30-ish lines of dataclass stubs per build cover every refusal
+bucket plus the happy path; the stub surface is the same shape as
+the real SDK (`.content` blocks with `.type`/`.text`/`.name`/`.input`/`.id`,
+`.usage.input_tokens`/`output_tokens`, `.stop_reason`, `.model`),
+so the exercised code is the exact code that would run in
+production. This is the canonical pattern for testing any
+lazy-import SDK-consuming build offline; the SDK-stub pattern is
+unnecessary when the build is stdlib-only.
+
+**Fixture directory convention.** `<build>/tests/fixtures/` is the
+named home for static fixture data. Concrete shapes per build:
+**rag-app** ships `tiny_corpus/` with a stub `OBJECTIVE.md`
+(anchor) + `animals.md` + `sub/cities.md` (domain-disjoint files so
+BM25 top-result-by-source assertions are stable). **tool-use-agent**
+ships `tiny_repo/` with a stub `OBJECTIVE.md` (anchor) + the same
+animals + cities files + a populated `templates/INTERVIEW_TRACKER.md`
+carrying 4 real rows across B1/B2/B3 + 4 stages + 1 placeholder row
+for filter-exclusion testing. **evals-harness** ships three flat
+JSONL files (`queries_tiny.jsonl`, `traces_rag.jsonl`,
+`traces_tua.jsonl`) and writes per-test synthetic JSONLs to
+`tmp_path` for edge-case branches. The anchor-stub-only-when-needed
+rule (iteration 58's discovery) is the load-bearing distinction:
+stage a stub `OBJECTIVE.md` only when the module under test calls
+`find_repo_root`; otherwise the real repo OBJECTIVE.md is the right
+anchor.
+
+**Coverage floor.** NEXT_WORK item 3 names "Target: ≥80% line
+coverage on the package" for rag-app specifically; this entry locks
+the same floor for all three builds for consistency. Achieved:
+94% / 94% / 99% — every build exceeds the floor by ≥14 points.
+The floor is a *floor*, not a target: a 94-99% coverage profile is
+the natural consequence of writing tests against each public CLI
+subcommand + each pure helper + each cross-build invariant, not the
+consequence of chasing a number. The remaining 6% / 6% / 1% misses
+are (per the three per-build entries) lazy-import SDK call sites
+(rag-app/tool-use-agent), defensive early-return branches behind a
+validating ingest frontier (evals-harness), and `if __name__ ==
+"__main__":` guards (all three). Reaching 100% would require either
+test-only code (bypassing the SDK or smuggling unknown schemas
+through private writers) or live network calls — both strictly
+weaker signals than the current 94/94/99 profile. The 80% floor is
+a discipline for future test additions: new code in any of the
+three packages must not drop the per-build coverage below 80%.
+
+**Test-design patterns carried across all three builds.** Four
+patterns the per-build entries surfaced are worth locking
+here in one place. (1) **Direct dispatch over subprocess** — every
+CLI test in all three suites builds an `argparse.Namespace`,
+calls the `cmd_*` function under
+`contextlib.redirect_stdout(io.StringIO())`, and asserts against
+the captured JSON / text output. No test spawns
+`python -m <package> ...` via `subprocess.run`. Reasoning:
+subprocess tests are slower (process startup overhead per test),
+have weaker error-propagation (a `KeyError` in the loop body
+becomes a `subprocess.CalledProcessError` with the traceback in
+stderr-string form), and coverage.py sees nothing through the
+process boundary. Direct dispatch exercises the same function
+bodies, attributes coverage correctly, and runs ~10× faster.
+(2) **SDK-stub-at-import-boundary** — `sys.modules['anthropic']`
+is monkeypatched *before* the lazy `from anthropic import Anthropic`
+inside `run_agent` / `cmd_ask` runs. The stub is the minimum
+surface the loop body touches (~30 lines of dataclasses); no
+attempt to mock the entire SDK. Worth carrying for any future
+build that lazy-imports an external SDK. (3) **Anchor-stub
+fixture only when needed** — see the fixture directory section
+above; the rule is "stage a stub `OBJECTIVE.md` only when the
+module under test reads files relative to a `find_repo_root`
+anchor". (4) **Monkeypatch the source-of-truth module for
+cross-build failure-injection** — `evals-harness/tests/`
+monkeypatches `tool_use_agent.verify.REFUSAL_SENTENCE` (and
+sibling source-of-truth attributes), not the consumer
+`evals_harness.invariants.REFUSAL_SENTENCE` — because the
+invariants helpers re-import the constants at call time inside
+each `assert_*` function rather than caching them at module
+load. The cross-build pin is now mechanized in three places
+(all three suites) so a drift in any one build's constant would
+surface in at least two of the three test runs.
+
+**Verification surface.** The canonical re-verification path for
+this convention is, from the repo root: `cd rag-app &&
+python3 -m pytest tests/ -q` (66 passed in ~0.08s), then `cd
+../tool-use-agent && python3 -m pytest tests/ -q` (117 passed
++ 1 skipped in ~0.16s), then `cd ../evals-harness &&
+python3 -m pytest tests/ -q` (183 passed in ~0.29s). Total
+wall clock: ~0.6s for the full 366-test set across the three
+builds. Coverage re-verification adds `python3 -m coverage
+run --source=<package> -m pytest tests/ && python3 -m coverage
+report` per build; this remains a manual `pip install --user
+coverage` step until item 4 wires it into dev extras.
+
+**Cross-build invariants mechanized in tests.** Three
+cross-build invariants now have test-level mechanizations in
+all three suites: (a) `REFUSAL_SENTENCE` byte-equality between
+`rag_app.verify` and `tool_use_agent.verify` — exercised in
+the tool-use-agent suite (conditional import + skip when
+rag-app is not on `sys.path`) and in the evals-harness
+`test_invariants.py` (against the real sibling builds plus
+failure-injection via monkeypatch); the rag-app suite exercises
+the rag-app side by direct constant equality against its own
+module. (b) `compute_corpus_fingerprint` and
+`compute_record_id` cross-build agreement — exercised in
+`evals-harness/tests/test_invariants.py` with failure-injection
+on drifted constants firing the expected `InvariantError`. (c)
+The tool-use-agent six-tool catalog order — exercised in
+`tool-use-agent/tests/test_catalog.py` against the canonical
+order locked at iteration 19. Worth recognizing: a drift in any
+cross-build invariant now surfaces in at least two of the three
+test suites simultaneously before the eval pipeline can produce
+a silently-wrong report.
+
+**Why a documentation-only consolidating slice (no pyproject
+edits, no `.gitignore` edits, no test-suite edits).** NEXT_WORK
+item 3 has four sub-checkboxes: three per-build test-suite
+slices (sub-checkboxes 1 / 2 / 3) plus one consolidating
+DECISIONS-entry slice (sub-checkbox 4). The bullet text for
+sub-checkbox 4 is literally "DECISIONS.md entry locking: pytest
+as the framework, no network in tests, fixture directory
+convention (tests/fixtures/), the coverage floor." — no
+mention of pyproject changes, no mention of `.gitignore`
+changes, no mention of test-suite edits. Bundling pyproject
+`coverage` extras (or a `[tool.pytest.ini_options]` block, or
+a `.coverage`/`htmlcov/` `.gitignore` line) into this slice
+would silently widen the sub-checkbox 4 scope and roll item-4
+work (CI dev-deps) into item-3's closure. The documentation-
+only shape matches iteration 50's closure of item 1
+(consolidating-only) more closely than iteration 55's closure
+of item 2 (which had to wire two surfaces because the
+sub-checkbox said "AND in each build's README"); the
+sub-checkbox shape always determines the cadence, not the
+precedent.
+
+**Item 3 status after this slice.** Sub-checkbox 4 of 4 is now
+ticked; the parent item 3 is now ticked in the same commit.
+NEXT_WORK item 3 ("Tests — `pytest` suites per build") is
+complete: all three builds have a `tests/` directory with
+pytest-discoverable modules + a conftest + a `fixtures/`
+subdirectory; all three builds run their suites green offline
+with no API key; all three packages exceed the ≥80% line
+coverage floor (94% / 94% / 99%); this convention-locking
+entry is one of the seven DECISIONS entries the Done-criteria
+section of NEXT_WORK.md requires (one per top-level item plus
+a final list-complete entry).
+
+**Out of scope for this iteration.** (1) **No code change to any
+test module, conftest, or fixture file** — the three per-build
+test suites are unmodified by this slice. (2) **No change to
+any pyproject.toml** — adding `coverage` (or `pytest-cov`) to
+`[project.optional-dependencies].dev` is properly NEXT_WORK
+item 4's work (sub-checkbox: "Each build's pyproject.toml
+declares the dev deps used by CI"), and pinning a
+`[tool.pytest.ini_options]` block is also item-4-shaped because
+CI is where the explicit `testpaths` / `addopts` block
+matters. The existing implicit pytest config
+(rootdir=`<build>`, testpaths=`tests`) works for both local
+and CI runs. (3) **No change to any `.gitignore`** — adding
+`.coverage` (the per-run coverage data file) and `htmlcov/`
+(the optional HTML report directory) is a housekeeping concern
+that rides along with the coverage-tool wiring in item 4's
+slice, not in this consolidating documentation slice.
+(4) **No CI workflow created** — NEXT_WORK item 4 owns
+`/.github/workflows/ci.yml`, the matrix shape, the
+status-badge wiring, and the consolidating CI DECISIONS entry.
+(5) **No edit to any build's README to mention the test
+suite** — adding a "Tests" section to each README would be a
+six-line documentation pass across three READMEs, deliberately
+not done here because (a) the test directories speak for
+themselves via standard `pytest` discovery, and (b) the
+README-pass shape would silently bundle a documentation
+reconciliation into the consolidating-DECISIONS slice. A future
+README-pass (or item 4's CI-badge slice) is the natural place
+to mention tests in the build READMEs. (6) **No
+re-verification of the iteration-49 build-matrix wheels
+against the new test directories** — the
+`[tool.setuptools.packages.find].exclude = ["tests*", ".cache*"]`
+pattern locked at iteration 50 already excludes `tests/`
+from wheel-bundling, so the wheels built at iteration 55
+remain byte-identical to wheels that would be built now;
+re-verifying that is busywork without a triggering change.
+(7) **No new sub-items added to NEXT_WORK.md** — the
+"do NOT add new items to NEXT_WORK.md" rule the objective
+re-states each iteration is honored here; this slice only
+ticks the existing fourth sub-checkbox and the parent.
+(8) **No work on NEXT_WORK item 4 (CI) in this iteration** —
+opening item 4 in the same commit would silently bundle two
+NEXT_WORK items into one commit, breaking the topmost-
+unchecked-first discipline the objective names. Item 4's
+first slice (the workflow YAML) will be the next iteration's
+job.
+
+**Per-iteration DECISIONS drift held exactly.** rag-app
+DECISIONS.md is now ~145 chunks (corpus chunk count rotated
+upward by the standard +4-5 per-iteration drift pattern intact
+since iteration 16; this consolidating entry's chunk
+contribution is the standard documentation-slice contribution,
+not the per-build-suite contribution). Cross-build invariants
+(tool-use-agent 6-tool catalog order; evals-harness
+16-labels-2-invariants ingest pass; REFUSAL_SENTENCE
+byte-equality across all three builds) all held through this
+iteration unchanged — appending a consolidating DECISIONS entry
+is purely additive, outside any package source, and doesn't
+transform any model-facing surface in any build.
