@@ -1,5 +1,7 @@
 # tool-use-agent
 
+[![CI](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml/badge.svg)](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml)
+
 A small tool-using Claude agent, framed for an AI PM portfolio.
 
 This README is the design contract for the build. It locks scope, stack, and

@@ -1,5 +1,7 @@
 # evals-harness
 
+[![CI](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml/badge.svg)](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml)
+
 A small evaluations harness for this repo's two LLM builds (`rag-app/` and
 `tool-use-agent/`), framed for an AI PM portfolio.
 

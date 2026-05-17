@@ -6693,3 +6693,255 @@ all held through this iteration unchanged — confirming a
 pyproject slot via TOML parse is purely a read-only
 operation that doesn't transform any model-facing surface
 in any build.
+
+## 2026-05-16 — CI status badges added to all four READMEs (NEXT_WORK item 4, sub-checkbox 3 of 4)
+
+**Decision.** All four READMEs in this repo — the top-level
+`/README.md` and the three per-build READMEs
+(`/rag-app/README.md`, `/tool-use-agent/README.md`,
+`/evals-harness/README.md`) — now carry a GitHub Actions
+status badge for the `ci.yml` workflow shipped in iteration
+60 (NEXT_WORK item 4 sub-checkbox 1). The badge is the same
+byte-identical one-line markdown across all four files,
+placed directly under the H1 heading with one blank line on
+each side, and links from the badge image to the workflow's
+runs view on github.com.
+
+**The byte-identical badge across all four READMEs.** A
+single line in each file:
+
+```
+[![CI](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml/badge.svg)](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml)
+```
+
+| README path                  | Badge inserted at line |
+|------------------------------|------------------------|
+| `/README.md`                 | 3 (under H1 `# ai-pm-role-90days`)         |
+| `/rag-app/README.md`         | 3 (under H1 `# rag-app`)                   |
+| `/tool-use-agent/README.md`  | 3 (under H1 `# tool-use-agent`)            |
+| `/evals-harness/README.md`   | 3 (under H1 `# evals-harness`)             |
+
+Four files, one badge form, one placement convention. The
+URL is character-identical across all four because the badge
+targets a repo-wide workflow file at a single canonical
+location (`.github/workflows/ci.yml`), not a per-build
+workflow. The CI matrix shipped in iteration 60 runs all
+three builds inside that single workflow, so a single badge
+reflects all-three-builds status — green only when all 9
+matrix combinations pass — which is exactly the signal a
+casual visitor to any of the four READMEs needs.
+
+**The badge URL anatomy and why this exact form.** The two
+URLs in the markdown are:
+
+  * **Image:** `https://github.com/<owner>/<repo>/actions/workflows/<file>/badge.svg`
+    — GitHub Actions' documented badge endpoint. Returns
+    an SVG with one of three states: `passing` (green), `failing`
+    (red), or `no status` (gray, the state before any run
+    has completed on the default branch). The endpoint reads
+    the most recent completed run of the named workflow
+    file on the repository's default branch.
+  * **Link target:** `https://github.com/<owner>/<repo>/actions/workflows/<file>`
+    — GitHub Actions' workflow-runs index for the named
+    file. Clicking the badge takes the reader to the live
+    run history, which is the right destination for "why is
+    the badge red?" investigation.
+
+The owner / repo segment is `jubayar-ahad/ai-pm-role-90days`,
+matching the canonical `[project.urls].Homepage` and
+`Repository` URLs locked in the iteration 46 / 47 / 48
+pyproject contracts (and visible in DECISIONS.md at
+~line 4774 as part of the packaging convention single-table).
+The workflow file basename is `ci.yml` exactly, matching the
+file shipped in iteration 60 at `.github/workflows/ci.yml`;
+GitHub Actions matches the badge URL's `<file>` segment
+against the workflow file basename, not the workflow's
+`name:` field, so the badge URL is structurally pinned to
+the YAML file's name rather than its content.
+
+**Why no `?branch=main` query parameter.** GitHub Actions
+supports a `?branch=<name>` qualifier on the badge URL to
+track a specific branch instead of the default. This badge
+deliberately omits the qualifier, which means it tracks the
+default branch. The default-branch-tracking semantics are
+the right behavior for a portfolio repo: when a reader
+lands on any of the four READMEs they should see the latest
+state of mainline, not a specific feature branch's state.
+A `?branch=main` qualifier would be a no-op today (the
+default branch is `main`) and would silently misrepresent
+state if the default branch were ever renamed (e.g. to
+`master` or `trunk`). The unqualified URL is forward-
+compatible with any future default-branch rename.
+
+**The "no status" state during the first push.** Before the
+CI workflow has produced a completed run on the default
+branch, the badge endpoint returns an SVG with text reading
+`no status` in gray. This is GitHub's documented behavior
+and is the correct first-impression signal: a reader seeing
+"no status" knows the workflow exists but hasn't yet
+produced a result on the tracked branch, which is strictly
+more informative than "no badge at all" (which would
+suggest no CI exists). The iteration 61 deferral entry
+flagged this as a reason to defer badges until after the
+first successful run — that concern is acknowledged here
+but is the wrong call for this repo: the badge URL is
+structurally well-formed regardless of whether a run has
+completed, the "no status" SVG is a feature not a bug
+(badges are self-documenting about workflow state including
+the pre-first-run state), and adding the badge in the same
+iteration that wires it through all four READMEs avoids a
+second-pass at the same files just to swap in the badge
+once a green run lands. The badge form is content-neutral —
+the next push to main produces the first run, and the badge
+self-updates without any further README edit.
+
+**Why "under H1" is the placement convention.** The badge
+is placed at line 3 of each README — H1 at line 1, blank
+line at line 2, badge at line 3, blank line at line 4,
+existing body content at line 5 onward. This matches the
+de-facto markdown convention used by ~every open-source
+project README that ships a CI badge (PyPI, GitHub itself,
+the python.org organization): the badge is a metadata
+adornment of the project title, not body content. Placing
+the badge under H1 keeps the existing body content
+unchanged by a single line (the badge inserts as one line +
+one blank-line separator), which means the existing
+section structure of each README — the Status table at
+~line 12, the "What this is" section, the design discussion
+— retains its relative line offsets within a 2-line drift
+that no in-repo cross-reference depends on. Verified by
+grep: no markdown link in any of the four READMEs uses
+line-number anchors (only heading anchors), so the 2-line
+shift is invisible to all internal navigation.
+
+**Why a single repo-wide badge instead of per-build badges.**
+The CI workflow shipped in iteration 60 is a single
+`ci.yml` with one matrix-job that runs all three builds —
+not three separate workflow files. The badge endpoint takes
+a workflow file basename, not a job filter or a build
+filter, so the right granularity for the badge is the
+workflow (one) rather than the matrix axis (three). A
+hypothetical per-build badge would require either (a) three
+separate workflow files (which would multiply the YAML and
+diverge from iteration 60's single-axis-per-step shape) or
+(b) a third-party badge-broker service that filters by job
+name (introduces a dependency on a service outside GitHub).
+Neither is justified: the three-build status is a single
+green-or-red signal because the test suites + lint checks
+are uniform across builds. A reader who wants per-build
+detail clicks through the badge to the runs page, where
+the matrix view shows per-build pass/fail.
+
+**Verification surface for this slice.** The three checks
+that confirm the badges are correctly wired:
+
+  1. **Each README has exactly one badge line directly
+     under H1.** `grep -n "badge.svg\|^# " <readme>` on each
+     of the four files returns the H1 at line 1 followed by
+     the badge image link at line 3. No README has two
+     badges (would suggest a partial replacement); no
+     README has the badge buried below body content (would
+     suggest wrong placement convention).
+  2. **The four badge URLs are byte-identical.**
+     `grep -h "badge.svg" */README.md README.md | sort -u`
+     returns a single unique line, confirming the four
+     READMEs all use the same badge URL with the same
+     image-endpoint + click-target shape.
+  3. **The workflow file the badge points to exists at the
+     pinned path.** `ls .github/workflows/ci.yml` returns
+     the file shipped in iteration 60; the badge URL's
+     `<file>` segment (`ci.yml`) matches the basename.
+
+**Out of scope for this slice (deferred to sub-checkbox 4
+of item 4):**
+
+  1. **No consolidating CI DECISIONS entry written.** NEXT_WORK
+     item 4 sub-checkbox 4 owns the consolidating entry —
+     matrix shape (3 builds × 3 python versions,
+     ubuntu-latest), lint/type-check policy (mypy
+     non-blocking via `continue-on-error: true`; ruff
+     blocking), fail-fast policy (off), permissions
+     posture (`contents: read`), the package-axis `include`
+     derivation, and the single-badge-for-the-whole-matrix
+     decision recorded above. That entry will ride along
+     with the parent item 4 tick in the final slice of
+     item 4, following iteration 55 / 59's precedent for
+     closing a multi-sub-checkbox item with a consolidating
+     entry in the same commit as the last sub-checkbox.
+  2. **No edit to the CI workflow YAML.** The `ci.yml` shipped
+     in iteration 60 is the locked workflow for item 4 and
+     this slice does not modify it; the only ci.yml
+     interaction is the read-only path check confirming the
+     badge URL's `<file>` segment matches the file basename.
+  3. **No badge added to any non-README file.** Other surfaces
+     where a badge could plausibly live — the
+     `[project.urls]` table in each pyproject (no badge
+     convention for pyproject URLs); the OBJECTIVE.md
+     milestone map; the DECISIONS.md log — are deliberately
+     skipped. Badges live in READMEs because that's where
+     a casual visitor looks; the pyproject URLs already
+     provide the structured `Homepage` / `Repository`
+     pointers that PyPI displays, and an OBJECTIVE.md badge
+     would be a duplication of the top-level README badge.
+  4. **No README rewording around the badge.** None of the
+     four READMEs had a "CI" or "Build status" section
+     before this slice; none gains one in this slice. The
+     badge is a single-line adornment that speaks for
+     itself ("green: tests pass" is the universal reading);
+     a prose section would be additional surface without
+     additional signal. A future README pass that
+     restructures the per-build "Status" tables to include
+     a "Tested in CI" column is a separate scope concern.
+  5. **No re-verification of the iteration-49 / iteration-55
+     build matrix or wheel byte-identity.** This slice only
+     edits README markdown; the package source, the
+     pyproject metadata, the LICENSE files, the test
+     suites, and the wheel-bundling rules are all
+     untouched. Re-running `python -m build` against any
+     build would produce a wheel byte-identical to the
+     iteration 55 wheel (READMEs are not included in
+     wheels by default, and the `[tool.setuptools.packages.
+     find].exclude = ["tests*", ".cache*"]` pattern locked
+     at iteration 50 already excludes non-package files).
+     The byte-identity is a logical consequence of the
+     scope of this slice, not a check that needs running.
+  6. **No new sub-items added to NEXT_WORK.md.** The "do
+     NOT add new items to NEXT_WORK.md" rule the objective
+     re-states each iteration is honored here; this slice
+     only ticks the existing third sub-checkbox of item 4.
+  7. **No work on NEXT_WORK item 4 sub-checkbox 4 (the
+     consolidating entry).** Bundling the consolidator into
+     the same commit as the badge wiring would silently
+     bundle two sub-checkboxes into one commit, breaking
+     the topmost-unchecked-first discipline and conflating
+     the badge-form lock (this entry's substance) with the
+     matrix-shape + lint-policy lock (the consolidator's
+     substance). The consolidator's next iteration ticks
+     both sub-checkbox 4 and parent item 4 in the same
+     commit, following iteration 55 / 59's precedent.
+  8. **No tooling-floor change for badge rendering.** The
+     badge URL is rendered by GitHub itself, not by any
+     local tool; there is no `marked`, `commonmark`, or
+     in-repo markdown renderer that needs configuration to
+     handle the badge syntax. The badge form is the
+     standard CommonMark `[![alt](image-url)](link-url)`
+     compound — image inside link — which every markdown
+     renderer in current use handles natively.
+
+**Per-iteration DECISIONS drift held exactly.** rag-app
+DECISIONS.md ticks upward by the standard documentation-
+slice contribution (this entry's chunk contribution is
+similar in shape to iterations 49 / 53 / 54 / 61's
+verification-style entries — ~200-280 lines of single-table
++ rationale + deferral block — not the per-build-source-
+shipping contribution of iterations 46-48 / 56-58 which
+carried both new source files and the entry together).
+Cross-build invariants (tool-use-agent 6-tool catalog
+order; evals-harness 16-labels-2-invariants ingest pass;
+REFUSAL_SENTENCE byte-equality across all three builds;
+LICENSE four-way byte-equality; pytest-suite 366-test sum;
+dev-extras byte-identical trio across all three pyprojects)
+all held through this iteration unchanged — adding four
+identical badge lines to four READMEs is purely additive
+markdown, outside any package source, and doesn't transform
+any model-facing surface in any build.

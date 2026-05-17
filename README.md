@@ -1,5 +1,7 @@
 # ai-pm-role-90days
 
+[![CI](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml/badge.svg)](https://github.com/jubayar-ahad/ai-pm-role-90days/actions/workflows/ci.yml)
+
 An AI Product Manager job-search portfolio, built incrementally to back the
 90-day plan in [OBJECTIVE.md](OBJECTIVE.md). Every artifact in this repo is a
 deliberate, PM-framed deliverable an interviewer can poke at — three working

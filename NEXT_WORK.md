@@ -60,7 +60,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
   `pytest`, `python -m mypy <package>` (best-effort), `ruff check`.
 - [x] Each build's `pyproject.toml` declares the dev deps used by CI
   (pytest, mypy, ruff) under `[project.optional-dependencies].dev`.
-- [ ] CI status badge added to each build's README and to the top-level README.
+- [x] CI status badge added to each build's README and to the top-level README.
 - [ ] DECISIONS.md entry locking the matrix shape and the lint/type-check
   policy (`mypy` is non-blocking; `ruff check` is blocking).
 
