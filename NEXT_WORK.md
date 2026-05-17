@@ -195,7 +195,7 @@ weaknesses in the artifacts themselves.
   rule for the user's answer slots, and the deferral of "behavioral"
   interview prep to a separate (not-this-list) item.
 
-## 8. Hypothetical AI feature PRD — Linear AI weekly retro summarization
+## 8. Hypothetical AI feature PRD — Linear AI weekly retro summarization [x]
 
 A PRD demonstrating PM craft on top of the existing analysis (Cursor
 teardown) and code (three Python builds). The portfolio is currently heavy
@@ -226,7 +226,7 @@ observable Linear behavior claim with an inline footnote or end-list URL.
 - [x] `prds/README.md` — short index file explaining the prds directory's
   purpose, listing this PRD with a one-line product framing, and noting
   the no-fabrication rule binding any future PRDs.
-- [ ] DECISIONS.md entry locking the product+feature pick rationale, the
+- [x] DECISIONS.md entry locking the product+feature pick rationale, the
   PRD section structure as a portfolio convention, the no-fabrication
   rule, and three explicit out-of-scope items (most relevantly: no
   second PRD this run).
