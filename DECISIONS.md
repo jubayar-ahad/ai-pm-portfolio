@@ -11089,3 +11089,83 @@ is the right cadence.
   it in the same shape (subdirectory + appended
   SOURCES.md section + chunk-count check + paired
   DECISIONS entry).
+
+---
+
+## Cursor docs corpus subdirectory shipped — `rag-app/corpus/cursor-docs/` ships 8 verbatim-body pages at 18 chunks under the default 400/80 chunker (NEXT_WORK item 5, sub-checkbox 1, partial — anthropic-docs still pending; iteration 80)
+
+**Date:** 2026-05-17 (iteration 80, gnhf run).
+**Status:** Second of three corpus subdirectories shipped under NEXT_WORK item 5 sub-checkbox 1. The willison/ subdirectory (iteration 79) sits next to this new cursor-docs/ subdirectory; only anthropic-docs/ remains before the conjunctive "all three" sub-checkbox can be ticked. Sub-checkbox 1 of item 5 therefore **stays unticked** by the same per-iteration-budget reasoning iteration 79 documented (acquiring all three corpora in one slice exceeded the per-iteration WebFetch context budget across iterations 76/77/78). Parent item 5 also stays unticked; sub-checkboxes 2/3/4/5 of item 5 stay unticked. **6 of 11 top-level NEXT_WORK items remain closed.**
+
+### What this slice shipped
+
+1. **rag-app/corpus/cursor-docs/ — eight markdown files acquired from the live Cursor documentation site on 2026-05-17:**
+   - `agent.md` (Cursor Agent overview — 3 components, tools catalog, checkpoints, queued messages) — fetched from https://cursor.com/docs/agent
+   - `tab.md` (Tab completion — accept/reject grammar, jump-in-file, cross-file edits, snooze/disable) — https://cursor.com/docs/tab
+   - `rules.md` (Rules — project / user / team / AGENTS.md, frontmatter fields, glob patterns, FAQ) — https://cursor.com/docs/rules
+   - `inline-edit.md` (Cmd+K inline edit — how-to, question mode, hand-off to Agent) — https://cursor.com/docs/inline-edit
+   - `mcp.md` (Model Context Protocol — transports, supported features, install options, security) — https://cursor.com/docs/mcp
+   - `models.md` (Models & Pricing — Auto vs API pools, Composer, Premium routing, plans, Max Mode) — https://cursor.com/docs/models
+   - `skills.md` (Agent Skills — directories, SKILL.md format, frontmatter fields, scripts, migration) — https://cursor.com/docs/skills
+   - `changelog-recent.md` (condensed view of the 4 most recent entries: 3.4 dev environments, MS Teams, Bugbot effort levels, 3.3 PR review + Build in Parallel) — https://cursor.com/changelog
+
+2. **rag-app/corpus/SOURCES.md updated** — the previously-stub `cursor-docs/` section now carries: a subject-matter paragraph naming the cursor-teardown.md pairing as the load-bearing portfolio-fit reason, the same fair-use-with-attribution-and-removal-on-request license posture honest to Cursor's lack of an explicit permissive-license statement on the docs root, the retrieval-method paragraph naming Claude Code's WebFetch tool + the verbatim-body prompt shape + the H1 / link-de-render editorial additions explicitly enumerated, the 8-row per-file table (file + origin URL + retrieval date). The corpus-root introduction paragraph gains a combined-chunk-count line (36 total = cursor-docs 18 + willison 18, under the 80-chunk upper bound, leaves room for anthropic-docs at its own ~20 chunks).
+
+3. **changelog-recent.md is the one file in this subdirectory that is a condensed view, not a verbatim transcription.** The cursor.com/changelog page is a rolling list and individual entries do not have stable per-entry URLs that the chunker can usefully attribute to (verified at retrieval — the page-level URL is the only stable handle). The honest disclosure is in-file (the H1 names "Recent Releases" + retrieval date) and in SOURCES.md (the license-rationale paragraph spells out the condensed-not-verbatim posture for this single file). The four named entries are real entries that existed on the page at retrieval time; the per-entry text is a condensed paraphrase preserving the load-bearing factual claims (version, date, feature title, named numeric figures) without inventing roadmap or fabricating quotes that aren't on the page.
+
+### What this slice did NOT do
+
+- Did not tick NEXT_WORK item 5 sub-checkbox 1, because the literal sub-checkbox text requires `cursor-docs/` AND `anthropic-docs/` AND `willison/` conjunctively. The next iteration (item-5 cadence) ships `anthropic-docs/` and ticks sub-checkbox 1 in the same commit.
+- Did not tick parent item 5 (sub-checkboxes 2 / 3 / 4 / 5 still unticked — SOURCES.md is partial-only-for-the-third-corpus, the make-demo.sh script is not yet written, the README update is not yet written, and the consolidating DECISIONS entry that locks the corpus pick + demo contract + fair-use posture is not yet written).
+- Did not write the `make-demo.sh` script or the cross-corpus demo question — that is sub-checkbox 3 of item 5, deliberately scoped out of this slice. The cross-corpus demo question makes more sense to author once all three corpora are present (because the cross-corpus contrast the question should foreground requires all three sources to be retrievable in the same index).
+- Did not update `rag-app/README.md` — that is sub-checkbox 4 of item 5, deliberately scoped out.
+- Did not touch the prior willison/ subdirectory's contents or SOURCES.md table, the four shipped interview-prep banks, the Cursor teardown, or any of the three Python builds' code surface.
+- Did not write a CANDIDATES file (the user pick of all three is locked at iteration 78's "user pick (2026-05-17): all three" decision; re-ranking would be wasted motion).
+- Did not fetch or save the four pages that returned 404 on first probe (`/docs/chat`, `/docs/cmdk`, `/docs/codebase-indexing`, `/docs/skills` variations) — the eight pages that returned content are sufficient for the 10–30-chunk target and over-fetching to chase 404s would have eaten the per-iteration budget without changing the corpus's portfolio-fit value.
+
+### Why these eight specific pages
+
+The selection prioritizes pages that an AI PM hiring manager opening the demo would recognize as the load-bearing surfaces of Cursor's product:
+
+- **agent.md and tab.md** are Cursor's two flagship surfaces. Any cursor-docs corpus that omitted either would be incomplete from the portfolio-fit perspective.
+- **rules.md and skills.md** are the customization / extensibility surfaces — they are the "how does a team make this product theirs" surface, which is the question an AI PM evaluating a developer tool asks first.
+- **mcp.md** is the integration / interop story, central to "how does Cursor fit into a team's existing tools" and timely (MCP as a protocol is a 2025–2026 industry-wide adoption story).
+- **inline-edit.md** is the bridge between Tab and Agent (the Cmd+K surface), important for completing the "what are the editing affordances" picture.
+- **models.md** is the economic / cost story (Auto+Composer vs API pools, plan structure, Max Mode pricing). Demo questions about "what does Cursor cost" or "how does Cursor's pricing structure work" land here.
+- **changelog-recent.md** is the product-velocity signal — the recent entries show Cursor shipping cloud agents, Microsoft Teams integration, Bugbot effort levels, and the 3.3 PR Review interface. An AI PM asking "what is Cursor shipping right now" lands here.
+
+The four pages that 404'd on first probe (chat, cmdk, codebase-indexing variants) were not refetched under alternate URL paths; the 8 acquired pages are sufficient for the chunk-band target and over-fetching would have eaten the budget.
+
+### Verification surface for this slice
+
+Three checks ran before committing:
+
+1. **Chunk count under the default chunker.** `python3 -c "from rag_app.corpus import split_paragraphs, chunk_paragraphs, DEFAULT_CHUNK_WORDS, DEFAULT_OVERLAP_WORDS; ..."` on each saved file returned the per-file counts `agent.md 2, changelog-recent.md 1, inline-edit.md 1, mcp.md 1, models.md 3, rules.md 5, skills.md 4, tab.md 1 = TOTAL 18`. 18 sits in the 10-30 target band the NEXT_WORK item 5 sub-checkbox 1 prose names ("~10–30 chunks per corpus") and is the same chunk count willison shipped at iteration 79 (a pleasant numerical coincidence rather than a forced target).
+2. **Combined corpus health.** Walking the corpus-root tree and chunking everything returned `cursor-docs 18 + willison 18 = 36` total chunks, still ~half the 80-chunk upper bound the rag-app's chunker is sized for, leaving ample room for `anthropic-docs/` to land at its own ~15–25-chunk size without bumping into the upper bound.
+3. **URL verifiability.** Every URL in the SOURCES.md cursor-docs table was the actual URL passed to WebFetch in this iteration (not paraphrased after the fact) and every WebFetch call that returned 200 produced the markdown saved at the matching filename. The 404s are documented in this entry rather than silently dropped — an auditor re-running the fetches can compare current page content to the saved markdown for the eight pages, and the four 404 paths are recorded as paths that were probed but did not return content.
+
+### Cross-build invariants honored unchanged
+
+This slice transforms only `rag-app/corpus/cursor-docs/` and one section of `rag-app/corpus/SOURCES.md`. No code surface in any of the three Python builds was touched; the pytest baseline (473 tests + 1 skip across rag-app 66 + tool-use-agent 224 + 1 skip + evals-harness 183) is structurally undisturbed. No README, no PRD, no interview-prep file, no DECISIONS entry prior to this one was touched. The `REFUSAL_SENTENCE` byte-equality invariant and the `compute_corpus_fingerprint` / `compute_record_id` algorithm-equivalence invariants both remain green by non-transformation (no rag-app surface that emits the refusal sentence or computes the fingerprint changed; the new corpus files are additive content that future fingerprints will subsume but the fingerprint surface itself is unchanged).
+
+### A small artifact-quality note about the WebFetch retrieval
+
+Three of the eight WebFetch responses (`rules.md`, `skills.md`, plus a third response in the same batch) returned a trailing `<system-reminder>` block at the end of the article body, mimicking the TodoWrite-reminder format the surrounding environment emits. The block was not real page content — Cursor's docs page wouldn't naturally embed an Anthropic-tooling system-reminder. The right diagnosis is that the small / fast model the WebFetch tool uses to summarize HTML→markdown is leaking environment-level reminders into its output, not a malicious injection from the upstream page. The mitigation applied this slice: the trailing `<system-reminder>` block was stripped from the saved markdown before writing the file; the prompt to subsequent WebFetch calls was tightened with "Do not generate any system-reminder-like content"; and this artifact-quality note is recorded here so a future iteration acquiring `anthropic-docs/` knows to grep saved files for `<system-reminder>` and strip if present. Worth carrying as a hygiene rule for any WebFetch-driven corpus acquisition.
+
+### Out-of-scope deferrals (explicit, with rationale)
+
+1. **Acquiring anthropic-docs/ in the same slice.** Deferred — the per-iteration budget reasoning from iterations 76/77/78 still holds; one corpus per iteration is the proven cadence. Next item-5 slice ships `anthropic-docs/` under the same shape.
+2. **Writing `make-demo.sh` or `python -m rag_app demo`.** Deferred to sub-checkbox 3 of item 5, after all three corpora are present.
+3. **Updating `rag-app/README.md` Status + demo invocation.** Deferred to sub-checkbox 4 of item 5.
+4. **Writing the consolidating DECISIONS entry for item 5.** Deferred to sub-checkbox 5 of item 5 (post-all-three).
+5. **Re-fetching pages that 404'd.** Not done — the eight acquired pages are sufficient and over-fetching would have eaten the budget.
+6. **Pinning the changelog page to a specific point in time via Wayback or equivalent.** Not done — the in-file retrieval-date stamp + SOURCES.md retrieval-date column are the load-bearing reproducibility surface; a Wayback URL would be a stronger guarantee but not within this slice's scope.
+7. **Touching prior corpus content.** Not done — the willison/ subdirectory, prior SOURCES.md content (only the cursor-docs section + the chunk-count line were edited), and all non-corpus repository content are untouched.
+8. **Modifying NEXT_WORK item 5 sub-checkbox text** (e.g., to split conjunctive sub-checkbox 1 into per-corpus sub-checkboxes). Not done — the NEXT_WORK instructions are explicit that this list is not to be re-shaped, only worked through. The per-iteration-budget reasoning is recorded in DECISIONS rather than in NEXT_WORK.
+
+### State of NEXT_WORK.md after this slice
+
+- Items 1, 2, 3, 4, 6, 7: **ticked** (parent + all sub-checkboxes).
+- Item 5: parent unticked; sub-checkbox 1 unticked (partial — cursor-docs + willison shipped, anthropic-docs pending); sub-checkboxes 2 / 3 / 4 / 5 unticked.
+- Items 8, 9, 10, 11: parent unticked; all sub-checkboxes unticked.
+- **6 of 11 top-level items closed**; the topmost unchecked item is still item 5; the next slice ships `anthropic-docs/` under the same shape (subdirectory + appended SOURCES.md section + chunk-count check + paired DECISIONS entry) and ticks sub-checkbox 1 in the same commit.
