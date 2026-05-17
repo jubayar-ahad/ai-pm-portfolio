@@ -292,7 +292,7 @@ Constraints:
   viewports, two-column on wide. Light theme; no dark-mode toggle for
   scope. Include a `<!-- USER: rewrite this intro -->` comment around
   the one-sentence intro so the user can find it.
-- [ ] `landing-page/README.md` — one-paragraph deploy instructions
+- [x] `landing-page/README.md` — one-paragraph deploy instructions
   (point GitHub Pages at this directory, or copy index.html to a
   personal site root). Note the no-fabrication rule.
 - [ ] DECISIONS.md entry locking the single-file constraint, the
