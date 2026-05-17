@@ -5999,3 +5999,176 @@ months ago) would be cleaner if rewritten, but bundling a
 narrative-prose refactor into a tests-only slice violates the
 "make the smallest change that solves the problem" rule and
 would silently inflate the diff.
+
+## 2026-05-16 — `evals-harness/tests/` pytest suite, 99% line coverage on `evals_harness` (NEXT_WORK item 3, sub-checkbox 3 of 4)
+
+**The contract.** Ship a self-contained pytest suite under
+`evals-harness/tests/` that exercises every module in the
+`evals_harness` package without network access, without an API
+key, and without depending on either sibling build being
+editable-installed — the harness's own `_repo.ensure_build_imports_on_path`
+adds `rag-app/` and `tool-use-agent/` to `sys.path` at module
+load, so a fresh `pytest` from the `evals-harness/` directory
+resolves `rag_app.verify` and `tool_use_agent.verify` for the
+startup invariants without any pip-install step. Target: ≥80% line
+coverage on the package (NEXT_WORK item 3 floor). Shipped: 183
+tests across 6 modules + conftest + 3 fixture JSONL files, all
+passing in ~0.4s, with 99% line coverage on the 999-statement
+package (5 misses on unreachable edge branches).
+
+**Per-module coverage matrix.** Measured with `coverage.py` 7.10.7
+via `python3 -m coverage run --source=evals_harness -m pytest tests/`:
+
+| module            | stmts | miss | cover | misses |
+|-------------------|-------|------|-------|--------|
+| `__init__.py`     |   0   |  0   | 100%  | n/a (docstring only) |
+| `__main__.py`     |  32   |  1   |  97%  | L149 (`if __name__ == "__main__":` guard) |
+| `_repo.py`        |  16   |  0   | 100%  | none |
+| `ingest.py`       | 101   |  0   | 100%  | none |
+| `invariants.py`   |  59   |  0   | 100%  | none |
+| `report.py`       | 119   |  0   | 100%  | none |
+| `score.py`        | 672   |  4   |  99%  | L324/760/1028/1211 (defensive early-returns + cross-schema filter that ingest validation rules out) |
+| **total**         | **999** | **5** | **99%** | |
+
+This is a noticeably tighter coverage profile than the rag-app
+(94%) and tool-use-agent (94%) suites for the same effort tier
+because (a) `evals_harness` has no SDK to lazy-import-and-stub —
+the harness emits zero LLM calls itself, so every dispatch path
+through the package is reachable from offline tests, and (b) the
+five rubric scorers + the report aggregator all run through
+pure-function helpers (`classify_*`, `_extract_*`, `_summarize_*`,
+`_percentile`, `_cost_stats`) that are trivially exhaustively
+testable with synthetic dicts.
+
+**Five fixture JSONL files anchored under `tests/fixtures/`.**
+`queries_tiny.jsonl` (3 labels: cross-build answer, cross-build
+refuse, tool-use-only tracker-rollup), `traces_rag.jsonl` (2
+records: live-answered + refused-low-score), `traces_tua.jsonl`
+(3 records: live-answered with two tool calls, live-refused via
+`model_refused`, live-answered via `list_pipeline_rows`).
+Per-test synthetic JSONLs are written into `tmp_path` when a
+specific edge case is needed (orphan question for unpaired-trace
+counting, mismatched first-tool for the FIRST_CALL_MISMATCH
+branch, max-steps-exhausted termination for the failures
+section, malformed verification block for the not-grounded
+branch, `final_text==REFUSAL but refusal_reason==null` for the
+ScoreError disagreement path). Five-fixture-files-plus-per-test-
+synthetic-tmp pattern reads cleaner than one mega-fixture-file
+because each fixture's purpose is namable from its filename and
+edge-case synthetics keep their motivating test colocated.
+
+**Anthropic-SDK stub pattern not needed here.** The
+tool-use-agent suite (iteration 57) used `sys.modules['anthropic']
+= types.SimpleNamespace(Anthropic=StubAnthropic)` to exercise the
+agent loop offline because `run_agent` lazy-imports `anthropic`
+inside the function body. The evals-harness has no such
+lazy-import — the harness is stdlib-only by deliberate design
+(iteration 48's empty-`dependencies` packaging lock), so every
+code path in `evals_harness` is exercisable with synthetic dicts
+alone. Worth carrying as a complementary pattern to the
+SDK-stub: when a build is stdlib-only, the SDK-stub pattern is
+unnecessary; when a build lazy-imports a runtime dep, the
+SDK-stub pattern is the canonical key-free offline-test path.
+
+**Cross-build invariants exercised both directions.** Iteration
+57 added a symmetric `REFUSAL_SENTENCE` byte-equality test in
+`tool-use-agent/tests/`; this iteration's `test_invariants.py`
+exercises the harness's side of the same pin by running
+`assert_refusal_sentence_equal()` against the real sibling
+builds plus four failure-injection tests (monkeypatch one side's
+constant to a drifted value; confirm `InvariantError` fires).
+The cross-build pin is now mechanized in three places: rag-app
+suite, tool-use-agent suite, and evals-harness suite — a drift
+in any one build would surface in at least two of the three test
+runs before the eval pipeline could produce a silently-wrong
+report.
+
+**`find_repo_root` testing isolates the failure-mode branch.**
+The harness's `_repo.find_repo_root` walks up looking for
+`OBJECTIVE.md` and raises `RuntimeError` if none is found. The
+happy path is exercised three ways (default `start` arg → real
+repo root; explicit `start` arg with stub OBJECTIVE → fixture
+anchor; deep-nested leaf → walks all the way up). The failure
+path requires a `start` deep enough that the walk-up doesn't
+bubble into the real repo root — `tmp_path/no_anchor_here/`
+under macOS's `/private/tmp/...` satisfies this because `/tmp`
+doesn't have an OBJECTIVE.md ancestor. Worth recognizing as the
+general pattern for testing walk-up-until-anchor helpers: the
+failure-mode test needs a tmp path that's outside the repo
+tree, not just outside the package tree.
+
+**Five out-of-scope items deliberately deferred from this slice.**
+(1) **The consolidating DECISIONS entry for item 3 (sub-checkbox
+4)** — pytest-as-framework lock, no-network-in-tests, fixture
+directory convention, ≥80% coverage floor; lands in its own
+documentation-only slice once all three per-build suites exist,
+matching iteration 50 (item 1) and iteration 55 (item 2) for the
+consolidating-slice cadence. (2) **Adding `coverage` /
+`pytest-cov` to pyproject's dev extras** — properly the
+consolidating slice's work so all three builds gain the
+dependency in lockstep; this slice intentionally used
+`coverage.py` via `python3 -m coverage` (already installed
+locally per iteration 56) without bumping `pyproject.toml`.
+(3) **A pytest config block in `evals-harness/pyproject.toml`** —
+the existing implicit config (rootdir=`evals-harness`, testpaths=
+`tests`) works fine; locking `testpaths = ["tests"]` and a
+coverage floor is the consolidating slice's discipline call.
+(4) **CI wiring (NEXT_WORK item 4)** — item 3 must complete
+before item 4 opens, per the topmost-unchecked-first rule.
+(5) **Reaching the four remaining coverage misses** — L324
+(`if row_total == 0: continue` in `render_refusal_report` —
+fires only when a schema has zero rows for one of (refuse, answer)
+expected outcomes); L760 / L1028 (`acc = "n/a"` for first-call
+and termination when all observed rows are unobservable — fires
+only when every paired row classifies as no_observation, which
+the existing fixtures actively avoid); L1211 (`continue` in
+`score_cost`'s schema-filter — fires only when a third schema
+appears in the envelope, which ingest validation rules out
+upstream). Each is reachable but only via fixture shapes the
+ingest validator already rejects, so adding a defensive test
+for them would either bypass ingest (violating the
+"test-the-real-pipeline" contract) or smuggle an unknown schema
+through a private envelope writer. 99% line coverage with these
+four misses is a strictly stronger signal than 100% via
+test-only schema bypasses.
+
+**Per-iteration DECISIONS drift held exactly.** rag-app
+DECISIONS.md is now ~140 chunks (corpus chunk count rotated
+upward by the standard +4-5 per-iteration drift pattern intact
+since iteration 16). Cross-build invariants (tool-use-agent
+6-tool catalog order; evals-harness 16-labels-2-invariants
+ingest pass; REFUSAL_SENTENCE byte-equality across all three
+builds) held through this iteration unchanged — adding a
+`tests/` subtree to evals-harness is purely additive, outside
+the rag-app corpus files, and doesn't transform any model-facing
+surface in any build.
+
+**Three test-design properties worth carrying forward to the
+consolidating slice.** (a) **Direct dispatch over subprocess** —
+every CLI test builds an `argparse.Namespace` and calls the
+`cmd_*` function under `redirect_stdout`/`redirect_stderr` rather
+than spawning `python -m evals_harness ...`. This is the same
+pattern iterations 56 and 57 adopted and the consolidating
+DECISIONS entry should lock for all three builds: subprocess
+tests are slower, have weaker error-propagation, and coverage.py
+sees nothing through the process boundary. (b) **Self-anchoring
+fixture corpus is not needed for evals-harness** — the rag-app
+and tool-use-agent suites stage `OBJECTIVE.md` stub files under
+`tests/fixtures/tiny_corpus/` and `tests/fixtures/tiny_repo/`
+because their `find_repo_root` helpers anchor data-file
+discovery; evals-harness's `find_repo_root` is only called by
+the invariants module against the real sibling builds, so the
+real repo OBJECTIVE.md is the right anchor and the fixtures
+directory only needs JSONL data files. Worth recognizing as a
+case-by-case judgment call: stage a stub anchor only when the
+module under test reads files relative to it. (c) **Monkeypatch
+the imported module, not the original** — the failure-injection
+tests monkeypatch `tool_use_agent.verify.REFUSAL_SENTENCE` (and
+sibling module attributes), which works because the invariants
+module re-imports those names at call time inside each `assert_*`
+function rather than caching them at module load. If
+`evals_harness.invariants` had cached the constants at import,
+the monkeypatch would silently no-op. Worth carrying as the
+canonical failure-injection pattern for any cross-build
+invariant: monkeypatch the source-of-truth module, and the
+re-importing consumer will see the drift.

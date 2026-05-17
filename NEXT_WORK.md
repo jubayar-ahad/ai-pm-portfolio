@@ -45,7 +45,7 @@ no fixtures requiring an API key. Use the existing dry-run / key-free paths.
   schema validity), each registered tool's pure behavior, the agent loop's
   bounded-step contract (default cap, `--max-steps` override, refusal
   classification across the four buckets), trace record schema.
-- [ ] `evals-harness/tests/`: tests for `ingest` (label + trace schema
+- [x] `evals-harness/tests/`: tests for `ingest` (label + trace schema
   validation, startup invariants), each `score` rubric (refusal, groundedness,
   first-call-tool, termination, cost) with at least one positive + one
   negative fixture per rubric, `report` aggregation against a tiny synthetic
