@@ -195,11 +195,148 @@ weaknesses in the artifacts themselves.
   rule for the user's answer slots, and the deferral of "behavioral"
   interview prep to a separate (not-this-list) item.
 
+## 8. Hypothetical AI feature PRD — Linear AI weekly retro summarization
+
+A PRD demonstrating PM craft on top of the existing analysis (Cursor
+teardown) and code (three Python builds). The portfolio is currently heavy
+on "here's how I'd analyze a product" and light on "here's a product I'd
+ship." A 4–6 page PRD for a plausible AI feature on a recognized product
+fills the gap.
+
+**Selected target (locked 2026-05-17):** **Linear — AI weekly retro
+auto-summarization for engineering teams.** Recognized product, Bucket 2
+fit (established product adding AI features per OBJECTIVE.md), AI surface
+actively expanding so the feature is timely rather than already shipped.
+Engineering managers as primary user; ICs as secondary. Do NOT swap to a
+different product — if a strong argument exists for swapping, write a
+DECISIONS entry flagging it for the user and proceed with Linear anyway.
+
+The PRD must be grounded in publicly observable Linear behavior. **No
+fabricated internal metrics, no invented user quotes, no invented
+roadmap.** Where a number is needed and unknown, state the source the
+user (or interviewer) would consult to fill it in. Source-anchor every
+observable Linear behavior claim with an inline footnote or end-list URL.
+
+- [ ] `prds/linear-ai-retro-summarization.md` — single PRD with the
+  standard sections: problem / users + JTBD / goals / non-goals / proposed
+  experience (with two or three sketches in markdown, not images) /
+  proposed metrics (leading + lagging) / risks + mitigations / open
+  questions / phased rollout plan. Length: 4–6 pages rendered. Cite the
+  observable Linear behavior the proposal builds on.
+- [ ] `prds/README.md` — short index file explaining the prds directory's
+  purpose, listing this PRD with a one-line product framing, and noting
+  the no-fabrication rule binding any future PRDs.
+- [ ] DECISIONS.md entry locking the product+feature pick rationale, the
+  PRD section structure as a portfolio convention, the no-fabrication
+  rule, and three explicit out-of-scope items (most relevantly: no
+  second PRD this run).
+
+## 9. Behavioral interview Q&A bank
+
+The existing `interview-prep/` has Q&A banks for each portfolio piece,
+but iteration-75 DECISIONS explicitly deferred behavioral / culture-fit /
+case-prompt / negotiation prep. Behavioral questions account for the
+bulk of PM interview time. Behavioral is the most universal of the four
+deferred buckets; the other three remain deferred (out of scope for
+this list).
+
+Same shape as the existing per-artifact Q&A files: 12–15 canonical
+questions, per-question strong-answer rubric, `_<your draft>_` italic
+slot. **Do NOT fabricate the user's stories or experience** — every
+answer slot stays empty for the user to fill.
+
+- [ ] `interview-prep/behavioral.md` — 12–15 questions covering the
+  canonical PM behavioral surface: tell-me-about-a-time prompts (a hard
+  decision, a conflict, a failure, a successful launch, an ambiguous
+  situation), why-leaving / why-this-role / why-AI-PM, biggest
+  strength / biggest weakness, manager-style fit, a question about
+  influencing without authority, a question about cross-functional
+  conflict, a question about saying no to a stakeholder, a question
+  about learning from a wrong call. Each with a strong-answer rubric
+  (STAR or PARLA structure named, what a good answer covers) and an
+  empty user-draft slot.
+- [ ] Update `interview-prep/README.md` to include the behavioral bank
+  in the index and the prep order. Note explicitly that culture-fit,
+  case-prompt, and negotiation prep remain deferred (out of scope) so a
+  reader knows the gap is intentional.
+- [ ] DECISIONS.md entry locking the question selection rationale, the
+  rubric naming choice (STAR / PARLA / etc), the per-question
+  source-anchoring rule (no fabricated stories), and that the three
+  remaining deferred buckets stay deferred for this list.
+
+## 10. Personal landing page — single deployable HTML file
+
+There is currently no "front door" for someone Googling the user's name
+or clicking a link from a LinkedIn DM. The repo READMEs serve readers
+who already clicked into GitHub, but a single-file HTML landing page is
+the standard portfolio surface and can be hosted free on GitHub Pages.
+
+Constraints:
+
+1. **One file.** `landing-page/index.html` only — no build tooling, no
+   Node, no frameworks, no external image hosts. Inline CSS. The page
+   must open in a browser without any setup.
+2. **Mobile-responsive** via plain CSS, no JS framework.
+3. **No fabricated content.** Use the user's actual name (pull from
+   `git config user.name`) and link to actual artifacts in this repo.
+   Do NOT invent testimonials, comp expectations, or credentials.
+4. Links: the Cursor teardown, each of the three Python builds (via
+   their README), the linear-ai PRD (once item 8 ships), the resume
+   scaffold (note it's a scaffold), the interview-prep index. Plus a
+   one-sentence intro framing the user as transitioning to AI PM. The
+   intro must be flagged as user-editable with an HTML comment, so the
+   user knows where to make it their own.
+
+- [ ] `landing-page/index.html` — single self-contained file meeting
+  the constraints above. Mobile-responsive single column on narrow
+  viewports, two-column on wide. Light theme; no dark-mode toggle for
+  scope. Include a `<!-- USER: rewrite this intro -->` comment around
+  the one-sentence intro so the user can find it.
+- [ ] `landing-page/README.md` — one-paragraph deploy instructions
+  (point GitHub Pages at this directory, or copy index.html to a
+  personal site root). Note the no-fabrication rule.
+- [ ] DECISIONS.md entry locking the single-file constraint, the
+  no-build-tooling posture, the no-fabrication rule, and the editable
+  comment convention.
+
+## 11. Cost / token instrumentation across the three Python builds
+
+Real production AI systems track per-request cost. The three builds
+currently track nothing. Adding lightweight instrumentation demonstrates
+economic thinking — an AI PM concern most candidates skip. Each build
+emits a one-line cost summary on completion (or in `--json` output as a
+structured field).
+
+Scope constraint: **no external pricing API calls, no live token-count
+calls.** Use locally pinned pricing constants (a single `pricing.py`-style
+module per build) updated by hand from a documented source. Token counts
+come from either the model response (when live) or a stdlib-only
+approximation (4-chars ≈ 1-token heuristic, documented as approximate)
+for dry-run paths.
+
+- [ ] `rag-app`: add per-`ask` token-and-cost summary, both human-line
+  and structured `--json` field. Document pricing-constants update
+  policy in `rag-app/PRICING.md`. Extend `rag-app/tests/` with at least
+  one positive + one negative case for the cost calc.
+- [ ] `tool-use-agent`: add per-`ask` summary covering all steps,
+  human-line + structured. Same `PRICING.md` sibling. Extend
+  `tool-use-agent/tests/` with the same coverage shape.
+- [ ] `evals-harness`: cost rubric already exists; extend the `report`
+  subcommand to surface per-record total cost in the aggregated
+  markdown report. Document pricing constants in
+  `evals-harness/PRICING.md`. Extend `evals-harness/tests/` accordingly.
+- [ ] DECISIONS.md entry locking: the per-build `PRICING.md` convention,
+  the 4-chars-per-token heuristic for dry-run paths (explicitly named
+  as approximate), the pricing constants update policy (manual, dated,
+  sourced), and six explicit out-of-scope items (most relevantly: no
+  live token-count API calls, no external pricing fetch, no
+  cost-budget enforcement, no retroactive cost re-pricing).
+
 ---
 
 ## Done criteria for the whole list
 
-- All seven top-level checkboxes ticked.
+- All eleven top-level checkboxes ticked.
 - DECISIONS.md has one entry per top-level item plus a final entry marking
   the list complete and pointing to potential future work (which is the
   user's call, not the agent's).
