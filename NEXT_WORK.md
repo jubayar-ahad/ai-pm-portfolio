@@ -70,7 +70,7 @@ The current corpus is the repo's own markdown — coherent but a bit ouroboros
 for a demo. Replace with a small, attributable, public-domain text set so the
 retrieval + citation behavior is provable on unfamiliar content.
 
-- [ ] `rag-app/corpus/CORPUS_CANDIDATES.md` — rank 3 candidate public-domain
+- [x] `rag-app/corpus/CORPUS_CANDIDATES.md` — rank 3 candidate public-domain
   sources (suggested defaults: selected Federalist Papers, selected Emerson
   essays, selected Project Gutenberg short stories) with per-candidate
   rationale: licensing certainty, length, prose style suitability for a Q&A

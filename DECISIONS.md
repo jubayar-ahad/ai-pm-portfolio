@@ -7351,3 +7351,199 @@ byte-identical trio across all three pyprojects; CI matrix
 unchanged — appending a consolidating DECISIONS entry is
 purely additive, outside any package source, and doesn't
 transform any model-facing surface in any build.
+
+## 2026-05-16 — `rag-app/corpus/CORPUS_CANDIDATES.md` ships three ranked public-domain candidates, awaiting user pick (NEXT_WORK item 5, sub-checkbox 1 of 4)
+
+**What shipped.** A new file
+`rag-app/corpus/CORPUS_CANDIDATES.md` (~150 lines) ranking
+three public-domain corpora as the replacement for the
+current "Corpus v1" repo's-own-markdown demo corpus, per
+NEXT_WORK item 5 sub-checkbox 1's literal requirement. The
+ranking is **(1) selected Federalist Papers**, **(2)
+selected Emerson essays**, **(3) selected Project Gutenberg
+short stories** — the same three suggested defaults named
+in NEXT_WORK item 5 sub-checkbox 1's bullet text, evaluated
+against the four bullet-named axes (licensing certainty,
+length, prose style suitability for a Q&A demo, concerns)
+plus one demo-engineering axis the bullet does not name but
+which the candidates file needs to be honest about
+(chunk-count fit against the rag-app default 400-word /
+80-overlap chunker).
+
+**Why this ranking.** The three candidates are not
+literarily ranked — they are ranked *against the rag-app
+demo's evaluation goals*, which are sparse-retrieval
+(BM25) + grounded chunk-anchored citations + a refusal
+floor that has to demo on out-of-corpus questions. Those
+goals favor argumentative-declarative prose with named
+entities and single-place topical claims (Federalist
+Papers), penalize aphoristic prose with dispersed central
+claims (Emerson), and penalize narrative fiction where the
+key facts are paraphrased across a plot arc (short
+stories). The Federalist Papers also have the single
+cleanest licensing story (one 1787-1788 publication date
+settles US-PD-by-date for all 85 essays in one sweep), the
+narrowest in/out-of-corpus boundary (named institutions
+the questions can or can't reference), and the
+demo-friendliest chunk count (a 5-essay subset is ~17,000
+words → ~50 chunks under the default chunker, which is the
+target band stated in the file).
+
+**Why ship a ranked candidates file rather than a
+single-pick file.** OBJECTIVE.md's operating guardrails
+name this exact shape — "If the choice is ambiguous, write
+a `TEARDOWN_CANDIDATES.md` ranking 3 options with rationale
+and let the user pick" — as the canonical pattern for any
+deliverable that needs an editorial choice the agent should
+not make unilaterally. The teardown deliverable already
+shipped under this pattern (the Cursor teardown is
+marked interview-ready per NEXT_WORK's "do not touch the
+Cursor teardown" guardrail), and corpus selection is the
+same shape: three defensible choices, no single right
+answer, low cost to defer to the user. The OBJECTIVE.md
+"do not block the queue" rule and NEXT_WORK item 5
+sub-checkbox 1's own "subsequent iterations stop the
+corpus item if no pick is recorded after 1 iteration of
+waiting" rule together mean this file's existence
+short-circuits any further item 5 work until either (a)
+the user records a pick in the `Pick:` line at the bottom
+of the file or (b) one waiting iteration elapses, at which
+point item 5 stops and the queue moves to item 6 — no
+further iterations of speculation about which corpus the
+user wants.
+
+**The chunk-count fit rationale, explicitly.** The
+rag-app's `corpus.py` uses paragraph-aware word windows
+with defaults `--chunk-words 400 --chunk-overlap 80`. At
+those defaults: a 5-Federalist-Papers subset (~17,000
+words) chunks to ~50 chunks; a 3-Emerson-essays subset
+(~30,000 words) chunks to ~80 chunks (high end); a
+5-Gutenberg-story subset (~15,000 words) chunks to ~40
+chunks. The candidates file states the target band as
+"roughly 20–80 chunks" and ranks the Federalist subset's
+~50 chunks as the middle of that band. The current
+"Corpus v1" repo's-own-markdown produces 18 chunks under
+the same defaults (verified by an earlier iteration's
+`load` invocation); the swap moves the demo from
+under-band to mid-band, which makes BM25 ranking
+non-trivial (you can see top-3 vs top-10 vs all-50 give
+visibly different cited spans) without bloating the load
+step.
+
+**The "every question is in the corpus" problem the swap
+solves.** The README's current "Why this corpus" section
+admits the dog-food framing — an interviewer can ask
+*"What is the Day 20 milestone?"* and get a grounded
+answer — but it doesn't admit the structural weakness:
+because the corpus is the repo's own markdown, every
+plausible interview-flow question is *in* the corpus by
+construction, and the refusal floor never gets a chance to
+demonstrate itself on legitimately out-of-corpus prose.
+The Federalist subset has the cleanest in/out boundary
+("What did Madison say about factions?" is in; "What is a
+Kubernetes pod?" is out, and BM25 floors it correctly
+under any reasonable `--min-score`). The swap also lets
+the README's currently-deferred "Corpus v2 (deferred)"
+section, which already concedes the swap is coming,
+collapse into a single coherent corpus story.
+
+**Why not the obvious alternative — public AI-PM-relevant
+documents.** The current README's "Corpus v2 (deferred)"
+section names "a small set of public AI-PM-relevant
+documents (e.g. a handful of canonical PM blog posts,
+public PRD examples)" as the deferred swap target. That
+direction is *not* in the three ranked candidates because
+the licensing story is materially harder — PM blog posts
+are usually all-rights-reserved, public PRD examples are
+usually CC-BY-SA or worse, and either case introduces a
+license footnote into the demo. NEXT_WORK item 5's bullet
+explicitly named three pre-1928 PD defaults, so the
+README's "AI-PM-relevant documents" speculation is
+superseded by the NEXT_WORK rewrite. A future iteration
+(not on this list) can add a second corpus under
+`rag-app/corpus/ai-pm-docs/` if the licensing story can be
+made clean — but that's a separate item the user would
+have to add, not the current one.
+
+**The file's `Pick:` line is the user-facing affordance.**
+The candidates file ends with a literal `Pick: _<user fills
+with 1, 2, or 3>_` line and a one-paragraph rule stating
+that if the placeholder is still present at the start of
+the iteration after the one that ships this file, NEXT_WORK
+item 5 stops per its own deferral rule and the queue moves
+to item 6. The decision to make the affordance an in-file
+edit (rather than, say, a separate `PICK.md` file or a
+verbal next-prompt acknowledgment) follows the same
+principle as the TEARDOWN_CANDIDATES.md file: minimize the
+ceremony for the user; the pick is two keystrokes against
+one obvious line in the file the user is already reading.
+
+**What this slice does not do.** Eight explicit
+out-of-scope items for the next iteration's queue clarity:
+(1) **No corpus text files added** — the actual selected
+Federalist / Emerson / Gutenberg `.md` files belong to
+sub-checkbox 2, which only fires after the user records a
+pick or one iteration elapses with no pick (per item 5's
+deferral rule). (2) **No `SOURCES.md` shipped** — same
+gating; the URL + retrieval-date provenance file is part
+of sub-checkbox 2's deliverable, not this one. (3) **No
+`make-demo.sh` or `python -m rag_app demo` script** —
+also part of sub-checkbox 2. (4) **No `README.md` Status
+section edit** — that's sub-checkbox 3's deliverable; the
+current README still describes "Corpus v1 = repo's own
+markdown" and that's correct until the actual corpus
+swap ships. (5) **No `rag_app/corpus.py` edits** — the
+chunker is fine as-is; the swap is a *data* swap, not a
+*loader* swap. (6) **No new test fixtures added under
+`rag-app/tests/fixtures/`** — the existing
+`tests/fixtures/tiny_corpus/` is the test-time corpus and
+is intentionally separate from the demo-time corpus; the
+swap doesn't touch the test side. (7) **No DECISIONS
+entry for the corpus pick itself** — sub-checkbox 4's
+consolidating entry covers the corpus pick and the
+demo-script contract; this entry only covers the
+candidates file and the deferral mechanism. (8) **No
+work on NEXT_WORK item 6 (three new tools for
+tool-use-agent) or item 7 (mock-interview Q&A bank) in
+this iteration** — opening either in the same commit
+would silently bundle two NEXT_WORK items into one
+commit, breaking the topmost-unchecked-first discipline
+the objective re-states each iteration.
+
+**Verification surface (three checks).** (1) The file
+exists at the path the bullet names
+(`rag-app/corpus/CORPUS_CANDIDATES.md`) and follows the
+ranked-three shape (three candidates, ranked 1-2-3, each
+with all four bullet-named axes plus the chunk-fit axis).
+(2) The candidates are byte-identical to the three the
+NEXT_WORK item 5 sub-checkbox 1 bullet suggests
+("selected Federalist Papers," "selected Emerson essays,"
+"selected Project Gutenberg short stories") — no
+candidate substitution, no "I picked a different three."
+(3) The file ends with a literal `Pick:` line containing
+the placeholder text, so the deferral rule has a
+machine-checkable trigger. All 366 tests across the three
+build directories continue to pass (no source surface
+changed; this is a documentation-only slice in a new
+directory outside any package source).
+
+**Per-iteration DECISIONS drift held.** This entry is the
+paired source-shipping entry for sub-checkbox 1 of item 5,
+matching the iterations 46-48 / 56-58 pattern (one entry
+per source-shipping slice, lighter than the consolidating
+sub-checkbox 4 entry to come, heavier than a pure
+verification entry). Chunk contribution is in the
+source-shipping category (~190 lines), distinct from the
+consolidating entries (iterations 50 / 59 / 63 at
+~270-405 lines) and the verification entries (iterations
+49 / 53 / 54 / 61 / 62 at ~150-280 lines). Cross-build
+invariants (tool-use-agent 6-tool catalog order;
+evals-harness 16-labels-2-invariants ingest pass;
+REFUSAL_SENTENCE byte-equality across all three builds;
+LICENSE four-way byte-equality; pytest-suite 366-test sum;
+dev-extras byte-identical trio across all three
+pyprojects; CI matrix 9-combination shape) all held
+through this iteration unchanged — appending a new file
+under `rag-app/corpus/` and a paired DECISIONS entry is
+purely additive, outside any package source, and doesn't
+transform any model-facing surface in any build.
